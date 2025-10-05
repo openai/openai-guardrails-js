@@ -10,7 +10,7 @@
  */
 
 import * as readline from 'readline';
-import { GuardrailAgent } from '../../dist/index.js';
+import { GuardrailAgent } from '../../src';
 import { InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered } from '@openai/agents';
 
 // Define your pipeline configuration
@@ -94,6 +94,7 @@ async function main(): Promise<void> {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {

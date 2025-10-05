@@ -8,7 +8,7 @@
  */
 
 import * as readline from 'readline';
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
 
 // Pipeline configuration with preflight PII masking and input guardrails
 const PIPELINE_CONFIG = {
@@ -64,25 +64,21 @@ async function processInput(
   userInput: string,
   responseId?: string
 ): Promise<string> {
-  try {
-    // Use the new GuardrailsOpenAI - it handles all guardrail validation automatically
-    const response = await guardrailsClient.responses.create({
-      input: userInput,
-      model: 'gpt-4.1-nano',
-      previous_response_id: responseId,
-    });
+  // Use the new GuardrailsOpenAI - it handles all guardrail validation automatically
+  const response = await guardrailsClient.guardrails.responses.create({
+    input: userInput,
+    model: 'gpt-4.1-nano',
+    previous_response_id: responseId,
+  });
 
-    console.log(`\nAssistant output: ${response.llm_response.output_text}`);
+  console.log(`\nAssistant output: ${response.output_text}`);
 
-    // Show guardrail results if any were run
-    if (response.guardrail_results.allResults.length > 0) {
-      console.log(`[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`);
-    }
-
-    return response.llm_response.id;
-  } catch (exc) {
-    throw exc;
+  // Show guardrail results if any were run
+  if (response.guardrail_results.allResults.length > 0) {
+    console.log(`[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`);
   }
+
+  return response.id;
 }
 
 /**
@@ -124,6 +120,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const userInput = await new Promise<string>((resolve) => {
         rl.question('Enter a message: ', resolve);

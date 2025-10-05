@@ -30,6 +30,9 @@ export interface GuardrailResults {
   preflight: GuardrailResult[];
   input: GuardrailResult[];
   output: GuardrailResult[];
+  readonly allResults: GuardrailResult[];
+  readonly tripwiresTriggered: boolean;
+  readonly triggeredResults: GuardrailResult[];
 }
 
 /**
@@ -40,7 +43,7 @@ export class GuardrailResultsImpl implements GuardrailResults {
     public preflight: GuardrailResult[],
     public input: GuardrailResult[],
     public output: GuardrailResult[]
-  ) {}
+  ) { }
 
   /**
    * Get all guardrail results combined.
@@ -71,12 +74,11 @@ export class GuardrailResultsImpl implements GuardrailResults {
  * guardrail results accessible via the guardrail_results attribute.
  *
  * Users should access content the same way as with OpenAI responses:
- * - For chat completions: response.llm_response.choices[0].message.content
- * - For responses: response.llm_response.output_text
- * - For streaming: response.llm_response.choices[0].delta.content
+ * - For chat completions: response.choices[0].message.content
+ * - For responses: response.output_text
+ * - For streaming: response.choices[0].delta.content
  */
-export interface GuardrailsResponse<T extends OpenAIResponseType = OpenAIResponseType> {
-  llm_response: T;
+export type GuardrailsResponse<T extends OpenAIResponseType = OpenAIResponseType> = T & {
   guardrail_results: GuardrailResults;
 }
 
@@ -180,7 +182,7 @@ export abstract class GuardrailsBaseClient {
       outputResults
     );
     return {
-      llm_response: llmResponse,
+      ...llmResponse,
       guardrail_results: guardrailResults,
     };
   }

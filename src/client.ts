@@ -16,6 +16,8 @@ import {
   StageGuardrails,
 } from './base-client';
 import { loadPipelineBundles, instantiateGuardrails } from './runtime';
+import type { Responses as GuardrailsResponses } from './resources/responses';
+import type { Chat as GuardrailsChat } from './resources/chat';
 
 // Re-export for backward compatibility
 export { GuardrailsResponse, GuardrailResults } from './base-client';
@@ -39,6 +41,16 @@ const OUTPUT_STAGE = 'output';
  */
 export class GuardrailsOpenAI extends OpenAI {
   private guardrailsClient: GuardrailsBaseClientImpl;
+
+  // Retain OpenAI's original types for drop-in compatibility
+  public override chat!: InstanceType<typeof OpenAI>['chat'];
+
+  // Strongly-typed namespace for guardrail-aware resources
+  public readonly guardrails!: {
+    responses: GuardrailsResponses;
+    chat: GuardrailsChat;
+  };
+  public override responses!: InstanceType<typeof OpenAI>['responses'];
 
   private constructor(
     guardrailsClient: GuardrailsBaseClientImpl,
@@ -100,6 +112,15 @@ export class GuardrailsOpenAI extends OpenAI {
       writable: false,
       configurable: false,
     });
+
+    Object.defineProperty(this, 'guardrails', {
+      value: {
+        responses: new Responses(this.guardrailsClient),
+        chat: new Chat(this.guardrailsClient),
+      },
+      writable: false,
+      configurable: false,
+    });
   }
 }
 
@@ -110,6 +131,16 @@ export class GuardrailsOpenAI extends OpenAI {
  */
 export class GuardrailsAzureOpenAI extends AzureOpenAI {
   private guardrailsClient: GuardrailsBaseClientImplAzure;
+
+  // Retain Azure OpenAI's original types for drop-in compatibility
+  public override chat!: InstanceType<typeof AzureOpenAI>['chat'];
+  public override responses!: InstanceType<typeof AzureOpenAI>['responses'];
+
+  // Strongly-typed namespace for guardrail-aware resources
+  public readonly guardrails!: {
+    responses: GuardrailsResponses;
+    chat: GuardrailsChat;
+  };
 
   private constructor(
     guardrailsClient: GuardrailsBaseClientImplAzure,
@@ -168,6 +199,15 @@ export class GuardrailsAzureOpenAI extends AzureOpenAI {
 
     Object.defineProperty(this, 'responses', {
       value: new Responses(this.guardrailsClient),
+      writable: false,
+      configurable: false,
+    });
+
+    Object.defineProperty(this, 'guardrails', {
+      value: {
+        responses: new Responses(this.guardrailsClient),
+        chat: new Chat(this.guardrailsClient),
+      },
       writable: false,
       configurable: false,
     });

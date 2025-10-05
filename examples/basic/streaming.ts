@@ -3,8 +3,7 @@
  * Streams output using console logging.
  */
 
-import { clear } from 'console';
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
 import * as readline from 'readline';
 
 // Define your pipeline configuration
@@ -67,7 +66,7 @@ async function processInput(
   try {
     // Use the new GuardrailsClient - it handles all guardrail validation automatically
     // including pre-flight, input, and output stages, plus the LLM call
-    const stream = await guardrailsClient.responses.create({
+    const stream = await guardrailsClient.guardrails.responses.create({
       input: userInput,
       model: 'gpt-4.1-nano',
       previous_response_id: responseId,
@@ -81,20 +80,21 @@ async function processInput(
     let responseIdToReturn: string | null = null;
 
     for await (const chunk of stream) {
-      // Access streaming response exactly like native OpenAI API through .llm_response
-      if (chunk.llm_response && 'delta' in chunk.llm_response && chunk.llm_response.delta) {
-        outputText += chunk.llm_response.delta;
-        process.stdout.write(chunk.llm_response.delta);
+      // Access streaming response exactly like native OpenAI API
+      if ('delta' in chunk && chunk.delta && typeof chunk.delta === 'string') {
+        outputText += chunk.delta;
+        process.stdout.write(chunk.delta);
       }
 
       // Get the response ID from the final chunk
       if (
-        chunk.llm_response &&
-        'response' in chunk.llm_response &&
-        chunk.llm_response.response &&
-        'id' in chunk.llm_response.response
+        typeof chunk === 'object' &&
+        'response' in chunk &&
+        chunk.response &&
+        typeof chunk.response === 'object' &&
+        'id' in chunk.response
       ) {
-        responseIdToReturn = chunk.llm_response.response.id as string;
+        responseIdToReturn = (chunk.response).id as string;
       }
     }
 
@@ -119,6 +119,7 @@ async function main(): Promise<void> {
   let responseId: string | null = null;
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const prompt = await new Promise<string>((resolve) => {
@@ -132,7 +133,7 @@ async function main(): Promise<void> {
           });
         });
 
-        responseId = await processInput(guardrailsClient, prompt, responseId);
+        responseId = await processInput(guardrailsClient, prompt, responseId || undefined);
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const stageName = error.guardrailResult.info?.stage_name || 'unknown';

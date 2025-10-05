@@ -1,8 +1,15 @@
-# Guardrails TypeScript
+# OpenAI Guardrails: TypeScript (Preview)
 
-A TypeScript framework for building safe and reliable AI systems with OpenAI Guardrails. This package provides enhanced type safety and Node.js integration for AI safety and reliability.
+This is the TypeScript version of OpenAI Guardrails, a package for adding configurable safety and compliance guardrails to LLM applications. It provides a drop-in wrapper for OpenAI's TypeScript / JavaScript client, enabling automatic input/output validation and moderation using a wide range of guardrails.
+
+Most users can simply follow the guided configuration and installation instructions at [guardrails.openai.com](https://guardrails.openai.com/).
 
 ## Installation
+
+### Usage
+
+Follow the configuration and installation instructions at [guardrails.openai.com](https://guardrails.openai.com/).
+
 
 ### Local Development
 
@@ -20,7 +27,7 @@ npm install
 npm run build
 ```
 
-## Quick Start
+## Integration Details
 
 ### Drop-in OpenAI Replacement
 
@@ -45,8 +52,8 @@ async function main() {
       input: 'Hello world',
     });
 
-    // Access OpenAI response via .llm_response
-    console.log(response.llm_response.output_text);
+    // Access OpenAI response directly
+    console.log(response.output_text);
   } catch (error) {
     if (error.constructor.name === 'GuardrailTripwireTriggered') {
       console.log(`Guardrail triggered: ${error.guardrailResult.info}`);
@@ -186,4 +193,4 @@ MIT License - see LICENSE file for details.
 
 Please note that Guardrails may use Third-Party Services such as the [Presidio open-source framework](https://github.com/microsoft/presidio), which are subject to their own terms and conditions and are not developed or verified by OpenAI.  For more information on configuring guardrails, please visit: [guardrails.openai.com](https://guardrails.openai.com/)
 
-Developers are responsible for implementing appropriate safeguards to prevent storage or misuse of sensitive or prohibited content (including but not limited to personal data, child sexual abuse material, or other illegal content). OpenAI disclaims liability for any logging or retention of such content by developers. Developers must ensure their systems comply with all applicable data protection and content safety laws, and should avoid persisting any blocked content generated or intercepted by Guardrails.
+Developers are responsible for implementing appropriate safeguards to prevent storage or misuse of sensitive or prohibited content (including but not limited to personal data, child sexual abuse material, or other illegal content). OpenAI disclaims liability for any logging or retention of such content by developers. Developers must ensure their systems comply with all applicable data protection and content safety laws, and should avoid persisting any blocked content generated or intercepted by Guardrails. Guardrails calls paid OpenAI APIs, and developers are responsible for associated charges.

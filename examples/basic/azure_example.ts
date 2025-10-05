@@ -7,12 +7,9 @@
  * Run with: npx tsx azure_example.ts
  */
 
-import { config } from 'dotenv';
 import * as readline from 'readline';
-import { GuardrailsAzureOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsAzureOpenAI, GuardrailTripwireTriggered } from '../../src';
 
-// Load environment variables from .env file
-config();
 
 // Pipeline configuration with preflight PII masking and input guardrails
 const PIPELINE_CONFIG = {
@@ -65,29 +62,24 @@ const PIPELINE_CONFIG = {
  */
 async function processInput(
   guardrailsClient: GuardrailsAzureOpenAI,
-  userInput: string,
-  responseId?: string
+  userInput: string
 ): Promise<string> {
-  try {
-    // Use the new GuardrailsAzureOpenAI - it handles all guardrail validation automatically
-    const response = await guardrailsClient.chat.completions.create({
-      model: process.env.AZURE_DEPLOYMENT!,
-      messages: [{ role: 'user', content: userInput }],
-    });
+  // Use the new GuardrailsAzureOpenAI - it handles all guardrail validation automatically
+  const response = await guardrailsClient.guardrails.chat.completions.create({
+    model: process.env.AZURE_DEPLOYMENT!,
+    messages: [{ role: 'user', content: userInput }],
+  });
 
-    console.log(`\nAssistant output: ${(response as any).llm_response.choices[0].message.content}`);
+  console.log(`\nAssistant output: ${response.choices[0].message.content}`);
 
-    // Show guardrail results if any were run
-    if ((response as any).guardrail_results.allResults.length > 0) {
-      console.log(
-        `[dim]Guardrails checked: ${(response as any).guardrail_results.allResults.length}[/dim]`
-      );
-    }
-
-    return (response as any).llm_response.id;
-  } catch (exc) {
-    throw exc;
+  // Show guardrail results if any were run
+  if (response.guardrail_results.allResults.length > 0) {
+    console.log(
+      `[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`
+    );
   }
+
+  return response.id;
 }
 
 /**
@@ -134,7 +126,7 @@ async function main(): Promise<void> {
   });
 
   const rl = createReadlineInterface();
-  let responseId: string | undefined;
+  // let responseId: string | undefined;
 
   // Handle graceful shutdown
   const shutdown = () => {
@@ -147,6 +139,7 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const userInput = await new Promise<string>((resolve) => {
         rl.question('Enter a message: ', resolve);
@@ -157,7 +150,7 @@ async function main(): Promise<void> {
       }
 
       try {
-        responseId = await processInput(guardrailsClient, userInput, responseId);
+        await processInput(guardrailsClient, userInput);
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const stageName = error.guardrailResult.info?.stage_name || 'unknown';

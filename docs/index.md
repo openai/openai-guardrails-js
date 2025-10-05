@@ -45,7 +45,7 @@ async function main() {
     input: 'Hello'
   });
 
-  console.log(response.llm_response.output_text);
+  console.log(response.output_text);
 }
 
 main();

@@ -2,7 +2,7 @@
  * Example: Guardrail bundle with suppressed tripwire exception using GuardrailsClient.
  */
 
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsOpenAI } from '../../src';
 import * as readline from 'readline';
 
 // Define your pipeline configuration
@@ -34,7 +34,7 @@ async function processInput(
 ): Promise<string> {
   try {
     // Use GuardrailsClient with suppressTripwire=true
-    const response = await guardrailsClient.responses.create({
+    const response = await guardrailsClient.guardrails.responses.create({
       input: userInput,
       model: 'gpt-4.1-nano-2025-04-14',
       previous_response_id: responseId,
@@ -56,8 +56,8 @@ async function processInput(
       console.log('🟢 No guardrails triggered.');
     }
 
-    console.log(`\n🔵 Assistant output: ${response.llm_response.output_text}\n`);
-    return response.llm_response.id;
+    console.log(`\n🔵 Assistant output: ${response.output_text}\n`);
+    return response.id;
   } catch (error) {
     console.log(`🔴 Error: ${error}`);
     return responseId || '';
@@ -77,6 +77,7 @@ async function main(): Promise<void> {
   let responseId: string | null = null;
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {
@@ -91,7 +92,7 @@ async function main(): Promise<void> {
           });
         });
 
-        responseId = await processInput(guardrailsClient, userInput, responseId);
+        responseId = await processInput(guardrailsClient, userInput, responseId || undefined);
       } catch (error) {
         if (error instanceof Error && error.message.includes('SIGINT')) {
           break;

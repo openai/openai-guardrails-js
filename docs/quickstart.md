@@ -68,8 +68,8 @@ async function main() {
             input: "Hello world"
         });
         
-        // Access OpenAI response via .llm_response
-        console.log(response.llm_response.output_text);
+        // Access OpenAI response directly
+        console.log(response.output_text);
         
     } catch (error) {
         if (error.constructor.name === 'GuardrailTripwireTriggered') {
@@ -81,7 +81,7 @@ async function main() {
 main();
 ```
 
-**That's it!** Your existing OpenAI code now includes automatic guardrail validation based on your pipeline configuration. Just use `response.llm_response` instead of `response`.
+**That's it!** Your existing OpenAI code now includes automatic guardrail validation based on your pipeline configuration. The response object works exactly like the original OpenAI response with additional `guardrail_results` property.
 
 ## Guardrail Execution Error Handling
 

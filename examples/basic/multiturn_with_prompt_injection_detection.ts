@@ -26,7 +26,7 @@
  */
 
 import * as readline from 'readline';
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered, GuardrailsResponse } from '../../src';
 
 // Tool implementations (mocked)
 function get_horoscope(sign: string): { horoscope: string } {
@@ -155,7 +155,7 @@ function createReadlineInterface(): readline.Interface {
 /**
  * Print guardrail results in a formatted way.
  */
-function printGuardrailResults(label: string, response: any): void {
+function printGuardrailResults(label: string, response: GuardrailsResponse): void {
   const gr = response.guardrail_results;
   if (!gr) {
     return;
@@ -263,6 +263,7 @@ async function main(malicious: boolean = false): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const userInput = await new Promise<string>((resolve) => {
@@ -286,11 +287,11 @@ async function main(malicious: boolean = false): Promise<void> {
       // First call: ask the model (may request function_call)
       console.log(`🔄 Making initial API call...`);
 
-      let response: any;
+      let response: GuardrailsResponse;
       let functionCalls: any[] = [];
 
       try {
-        response = await client.responses.create({
+        response = await client.guardrails.responses.create({
           model: 'gpt-4.1-nano',
           tools: tools,
           input: messages,
@@ -299,16 +300,16 @@ async function main(malicious: boolean = false): Promise<void> {
         printGuardrailResults('initial', response);
 
         // Add the assistant response to conversation history
-        messages.push(...response.llm_response.output);
+        messages.push(...response.output);
 
         // Grab any function calls from the response
-        functionCalls = response.llm_response.output.filter(
+        functionCalls = response.output.filter(
           (item: any) => item.type === 'function_call'
         );
 
         // Handle the case where there are no function calls
         if (functionCalls.length === 0) {
-          console.log(`\n🤖 Assistant: ${response.llm_response.output_text}`);
+          console.log(`\n🤖 Assistant: ${response.output_text}`);
           continue;
         }
       } catch (error: any) {
@@ -382,17 +383,17 @@ async function main(malicious: boolean = false): Promise<void> {
         // Final call to let the model respond with the tool results
         console.log(`🔄 Making final API call...`);
         try {
-          const response = await client.responses.create({
+          const response = await client.guardrails.responses.create({
             model: 'gpt-4.1-nano',
             tools: tools,
             input: messages,
           });
 
           printGuardrailResults('final', response);
-          console.log(`\n🤖 Assistant: ${response.llm_response.output_text}`);
+          console.log(`\n🤖 Assistant: ${response.output_text}`);
 
           // Add the final assistant response to conversation history
-          messages.push(...response.llm_response.output);
+          messages.push(...response.output);
         } catch (error: any) {
           if (error instanceof GuardrailTripwireTriggered) {
             const info = error.guardrailResult?.info || {};

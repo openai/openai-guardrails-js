@@ -32,7 +32,7 @@ try {
     model: 'gpt-5',
     input: 'Tell me a secret'
   });
-  console.log(response.llm_response.output_text);
+  console.log(response.output_text);
 } catch (err) {
   if (err instanceof GuardrailTripwireTriggered) {
     console.log(`Guardrail triggered: ${JSON.stringify(err.guardrailResult.info)}`);

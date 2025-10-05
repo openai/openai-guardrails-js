@@ -2,9 +2,9 @@
  * Example: Guardrail bundle using Ollama's Gemma3 model with GuardrailsClient.
  */
 
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../dist/index.js';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
 import * as readline from 'readline';
-import { ChatCompletionMessageParam } from 'openai';
+import { OpenAI } from 'openai';
 
 // Define your pipeline configuration for Gemma3
 const GEMMA3_PIPELINE_CONFIG = {
@@ -34,22 +34,22 @@ const GEMMA3_PIPELINE_CONFIG = {
 async function processInput(
   guardrailsClient: GuardrailsOpenAI,
   userInput: string,
-  inputData: ChatCompletionMessageParam[]
+  inputData: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 ): Promise<void> {
   try {
     // Use GuardrailsClient for chat completions with guardrails
-    const response = await guardrailsClient.chat.completions.create({
+    const response = await guardrailsClient.guardrails.chat.completions.create({
       messages: [...inputData, { role: 'user', content: userInput }],
       model: 'gemma3',
     });
 
     // Access response content using standard OpenAI API
-    const responseContent = response.llm_response.choices[0].message.content;
+    const responseContent = response.choices[0].message.content;
     console.log(`\nAssistant output: ${responseContent}\n`);
 
     // Add to conversation history
     inputData.push({ role: 'user', content: userInput });
-    inputData.push({ role: 'assistant', content: responseContent });
+    inputData.push({ role: 'assistant', content: responseContent || '' });
   } catch (error) {
     if (error instanceof GuardrailTripwireTriggered) {
       // Handle guardrail violations
@@ -69,9 +69,10 @@ async function main(): Promise<void> {
     apiKey: 'ollama',
   });
 
-  const inputData: ChatCompletionMessageParam[] = [];
+  const inputData: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
   try {
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {
