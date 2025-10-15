@@ -94,6 +94,7 @@ describe('Chat resource', () => {
       messages,
       model: 'gpt-4',
       stream: false,
+      safety_identifier: 'oai-guardrails-ts',
     });
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'chat-response' },
@@ -153,6 +154,7 @@ describe('Responses resource', () => {
       model: 'gpt-4o',
       stream: false,
       tools: undefined,
+      safety_identifier: 'oai-guardrails-ts',
     });
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'responses-api' },
