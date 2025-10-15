@@ -89,6 +89,8 @@ export class ChatCompletions {
         model,
         stream,
         ...kwargs,
+        // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+        safety_identifier: 'oai-guardrails-ts',
       }),
     ]);
 
