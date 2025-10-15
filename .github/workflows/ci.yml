@@ -30,6 +30,5 @@ jobs:
       - name: Run tests
         run: npm run test -- --run
 
-      # TODO: enable this once all checks are set
-      # - name: Lint
-      #   run: npm run lint
+      - name: Lint
+        run: npm run lint
