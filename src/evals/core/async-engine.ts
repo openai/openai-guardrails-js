@@ -6,7 +6,8 @@
  */
 
 import { Context, RunEngine, Sample, SampleResult } from './types';
-import { ConfiguredGuardrail, runGuardrails } from '../../runtime';
+import { ConfiguredGuardrail } from '../../runtime';
+import { GuardrailLLMContextWithHistory, GuardrailResult } from '../../types';
 
 /**
  * Runs guardrail evaluations asynchronously.
@@ -67,55 +68,198 @@ export class AsyncRunEngine implements RunEngine {
    * @returns Evaluation result for the sample
    */
   private async evaluateSample(context: Context, sample: Sample): Promise<SampleResult> {
+    const triggered: Record<string, boolean> = {};
+    const details: Record<string, any> = {};
+
+    for (const name of this.guardrailNames) {
+      triggered[name] = false;
+    }
+
     try {
-      // Use the actual guardrail configurations that were loaded
-      const bundle = {
-        guardrails: this.guardrails.map((g) => ({
-          name: g.definition.name,
-          config: g.config,
-        })),
-      };
+      for (let i = 0; i < this.guardrails.length; i += 1) {
+        const guardrail = this.guardrails[i];
+        const name = this.guardrailNames[i] || guardrail.definition.name || 'unknown';
 
-      const results = await runGuardrails(sample.data, bundle, context);
+        try {
+          const result = await this.runGuardrailWithIncrementalSupport(
+            context,
+            guardrail,
+            sample.data
+          );
 
-      const triggered: Record<string, boolean> = {};
-      const details: Record<string, any> = {};
-
-      // Initialize all guardrails as not triggered
-      for (const name of this.guardrailNames) {
-        triggered[name] = false;
-      }
-
-      // Process results
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i];
-        const name = this.guardrailNames[i] || 'unknown';
-        triggered[name] = result.tripwireTriggered;
-        if (result.info) {
-          details[name] = result.info;
+          triggered[name] = result.tripwireTriggered;
+          if (result.info) {
+            details[name] = result.info;
+          }
+        } catch (guardrailError) {
+          console.error(`Error running guardrail ${name} on sample ${sample.id}:`, guardrailError);
+          triggered[name] = false;
+          details[name] = {
+            error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
+          };
         }
       }
-
-      return {
-        id: sample.id,
-        expectedTriggers: sample.expectedTriggers,
-        triggered,
-        details,
-      };
     } catch (error) {
       console.error(`Error evaluating sample ${sample.id}:`, error);
-
-      const triggered: Record<string, boolean> = {};
-      for (const name of this.guardrailNames) {
-        triggered[name] = false;
-      }
-
       return {
         id: sample.id,
         expectedTriggers: sample.expectedTriggers,
         triggered,
-        details: { error: error instanceof Error ? error.message : String(error) },
+        details: {
+          error: error instanceof Error ? error.message : String(error),
+        },
       };
     }
+
+    return {
+      id: sample.id,
+      expectedTriggers: sample.expectedTriggers,
+      triggered,
+      details,
+    };
+  }
+
+  private async runGuardrailWithIncrementalSupport(
+    context: Context,
+    guardrail: ConfiguredGuardrail,
+    sampleData: string
+  ): Promise<GuardrailResult> {
+    if (this.isPromptInjectionGuardrail(guardrail)) {
+      return await this.runPromptInjectionIncremental(context, guardrail, sampleData);
+    }
+
+    return await guardrail.run(context as any, sampleData);
+  }
+
+  private isPromptInjectionGuardrail(guardrail: ConfiguredGuardrail): boolean {
+    return guardrail.definition.name.toLowerCase() === 'prompt injection detection';
+  }
+
+  private async runPromptInjectionIncremental(
+    context: Context,
+    guardrail: ConfiguredGuardrail,
+    sampleData: string
+  ): Promise<GuardrailResult> {
+    const conversation = parseSampleConversation(sampleData);
+
+    if (conversation.length === 0) {
+      const guardrailContext = this.createPromptInjectionContext(context, []);
+      const result = await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
+      result.info = {
+        ...result.info,
+        last_checked_index: 0,
+        checked_turn_index: -1,
+      };
+      return result;
+    }
+
+    let finalResult: GuardrailResult | null = null;
+
+    for (let turnIndex = 0; turnIndex < conversation.length; turnIndex += 1) {
+      const historySlice = conversation.slice(0, turnIndex + 1);
+      const guardrailContext = this.createPromptInjectionContext(
+        context,
+        historySlice
+      );
+      const serializedHistory = safeStringify(historySlice, sampleData);
+
+      const result = await guardrail.run(
+        guardrailContext as GuardrailLLMContextWithHistory,
+        serializedHistory
+      );
+
+      const metadata = {
+        last_checked_index: historySlice.length,
+        checked_turn_index: turnIndex,
+      };
+
+      result.info = {
+        ...result.info,
+        ...metadata,
+      };
+
+      finalResult = result;
+
+      if (result.tripwireTriggered) {
+        result.info = {
+          ...result.info,
+          triggered_turn_index: turnIndex,
+        };
+        break;
+      }
+    }
+
+    if (!finalResult) {
+      return {
+        tripwireTriggered: false,
+        info: {
+          guardrail_name: guardrail.definition.name,
+          observation: 'No conversation turns evaluated',
+          flagged: false,
+          confidence: 0.0,
+          checked_text: sampleData,
+          last_checked_index: 0,
+          checked_turn_index: -1,
+        },
+      };
+    }
+
+    return finalResult;
+  }
+
+  private createPromptInjectionContext(
+    context: Context,
+    conversationHistory: any[]
+  ): GuardrailLLMContextWithHistory {
+    return {
+      guardrailLlm: context.guardrailLlm,
+      getConversationHistory: () => conversationHistory,
+      getInjectionLastCheckedIndex: () => 0,
+      updateInjectionLastCheckedIndex: () => {},
+    };
+  }
+}
+
+function parseSampleConversation(rawData: string): any[] {
+  if (typeof rawData !== 'string') {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(rawData);
+
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+
+    const possibleKeys = [
+      'messages',
+      'conversation',
+      'conversation_history',
+      'conversationHistory',
+      'recent_messages',
+      'turns',
+    ];
+
+    if (parsed && typeof parsed === 'object') {
+      for (const key of possibleKeys) {
+        const value = (parsed as Record<string, unknown>)[key];
+        if (Array.isArray(value)) {
+          return value;
+        }
+      }
+    }
+  } catch {
+    // Ignore parse errors and fall through to return empty array
+  }
+
+  return [];
+}
+
+function safeStringify(value: unknown, fallback: string): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return fallback;
   }
 }

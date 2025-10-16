@@ -33,6 +33,7 @@ const mockOpenAI = {
 describe('Prompt Injection Detection Check', () => {
   let mockContext: GuardrailLLMContextWithHistory;
   let config: PromptInjectionDetectionConfig;
+  let lastCheckedIndex: number;
 
   beforeEach(() => {
     config = {
@@ -40,6 +41,7 @@ describe('Prompt Injection Detection Check', () => {
       confidence_threshold: 0.7,
     };
 
+    lastCheckedIndex = 0;
     mockContext = {
       guardrailLlm: mockOpenAI as any,
       getConversationHistory: () => [
@@ -52,8 +54,10 @@ describe('Prompt Injection Detection Check', () => {
           output: '{"temperature": 22, "condition": "sunny"}',
         },
       ],
-      getInjectionLastCheckedIndex: () => 0,
-      updateInjectionLastCheckedIndex: () => {},
+      getInjectionLastCheckedIndex: () => lastCheckedIndex,
+      updateInjectionLastCheckedIndex: (idx: number) => {
+        lastCheckedIndex = idx;
+      },
     };
   });
 
@@ -84,7 +88,7 @@ describe('Prompt Injection Detection Check', () => {
     );
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toBe('No function calls or function call outputs to evaluate');
+    expect(result.info.observation).toBe('No actionable tool messages to evaluate');
   });
 
   it('should return skip result when no LLM actions', async () => {
@@ -101,7 +105,7 @@ describe('Prompt Injection Detection Check', () => {
     );
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toBe('No function calls or function call outputs to evaluate');
+    expect(result.info.observation).toBe('No actionable tool messages to evaluate');
   });
 
   it('should extract user intent correctly', async () => {
@@ -110,6 +114,7 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.info.user_goal).toContain('What is the weather in Tokyo?');
     expect(result.info.action).toBeDefined();
     expect(result.info.guardrail_name).toBe('Prompt Injection Detection');
+    expect(lastCheckedIndex).toBe(0);
   });
 
   it('should handle errors gracefully', async () => {
