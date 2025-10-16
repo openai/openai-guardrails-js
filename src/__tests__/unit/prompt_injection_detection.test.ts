@@ -33,7 +33,6 @@ const mockOpenAI = {
 describe('Prompt Injection Detection Check', () => {
   let mockContext: GuardrailLLMContextWithHistory;
   let config: PromptInjectionDetectionConfig;
-  let lastCheckedIndex: number;
 
   beforeEach(() => {
     config = {
@@ -41,7 +40,6 @@ describe('Prompt Injection Detection Check', () => {
       confidence_threshold: 0.7,
     };
 
-    lastCheckedIndex = 0;
     mockContext = {
       guardrailLlm: mockOpenAI as any,
       getConversationHistory: () => [
@@ -54,10 +52,6 @@ describe('Prompt Injection Detection Check', () => {
           output: '{"temperature": 22, "condition": "sunny"}',
         },
       ],
-      getInjectionLastCheckedIndex: () => lastCheckedIndex,
-      updateInjectionLastCheckedIndex: (idx: number) => {
-        lastCheckedIndex = idx;
-      },
     };
   });
 
@@ -78,7 +72,6 @@ describe('Prompt Injection Detection Check', () => {
     const contextWithOnlyUserMessages = {
       ...mockContext,
       getConversationHistory: () => [{ role: 'user', content: 'Hello there!' }],
-      getInjectionLastCheckedIndex: () => 0,
     };
 
     const result = await promptInjectionDetectionCheck(
@@ -95,7 +88,6 @@ describe('Prompt Injection Detection Check', () => {
     const contextWithNoLLMActions = {
       ...mockContext,
       getConversationHistory: () => [{ role: 'user', content: 'Hello there!' }],
-      getInjectionLastCheckedIndex: () => 1, // Already checked all messages
     };
 
     const result = await promptInjectionDetectionCheck(
@@ -114,7 +106,6 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.info.user_goal).toContain('What is the weather in Tokyo?');
     expect(result.info.action).toBeDefined();
     expect(result.info.guardrail_name).toBe('Prompt Injection Detection');
-    expect(lastCheckedIndex).toBe(0);
   });
 
   it('should handle errors gracefully', async () => {

@@ -144,13 +144,7 @@ export class AsyncRunEngine implements RunEngine {
 
     if (conversation.length === 0) {
       const guardrailContext = this.createPromptInjectionContext(context, []);
-      const result = await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
-      result.info = {
-        ...result.info,
-        last_checked_index: 0,
-        checked_turn_index: -1,
-      };
-      return result;
+      return await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
     }
 
     let finalResult: GuardrailResult | null = null;
@@ -168,23 +162,9 @@ export class AsyncRunEngine implements RunEngine {
         serializedHistory
       );
 
-      const metadata = {
-        last_checked_index: historySlice.length,
-        checked_turn_index: turnIndex,
-      };
-
-      result.info = {
-        ...result.info,
-        ...metadata,
-      };
-
       finalResult = result;
 
       if (result.tripwireTriggered) {
-        result.info = {
-          ...result.info,
-          triggered_turn_index: turnIndex,
-        };
         break;
       }
     }
@@ -198,8 +178,6 @@ export class AsyncRunEngine implements RunEngine {
           flagged: false,
           confidence: 0.0,
           checked_text: sampleData,
-          last_checked_index: 0,
-          checked_turn_index: -1,
         },
       };
     }
@@ -214,8 +192,6 @@ export class AsyncRunEngine implements RunEngine {
     return {
       guardrailLlm: context.guardrailLlm,
       getConversationHistory: () => conversationHistory,
-      getInjectionLastCheckedIndex: () => 0,
-      updateInjectionLastCheckedIndex: () => {},
     };
   }
 }
