@@ -106,6 +106,7 @@ export class AsyncRunEngine implements RunEngine {
         expectedTriggers: sample.expectedTriggers,
         triggered,
         details: {
+          ...details,
           error: error instanceof Error ? error.message : String(error),
         },
       };
@@ -132,7 +133,7 @@ export class AsyncRunEngine implements RunEngine {
   }
 
   private isPromptInjectionGuardrail(guardrail: ConfiguredGuardrail): boolean {
-    return guardrail.definition.name.toLowerCase() === 'prompt injection detection';
+    return (guardrail.definition.name ?? '').toLowerCase() === 'prompt injection detection';
   }
 
   private async runPromptInjectionIncremental(
