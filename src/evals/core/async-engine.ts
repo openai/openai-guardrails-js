@@ -8,6 +8,7 @@
 import { Context, RunEngine, Sample, SampleResult } from './types';
 import { ConfiguredGuardrail } from '../../runtime';
 import { GuardrailLLMContextWithHistory, GuardrailResult } from '../../types';
+import { parseConversationInput } from '../../utils/conversation';
 
 /**
  * Runs guardrail evaluations asynchronously.
@@ -133,7 +134,11 @@ export class AsyncRunEngine implements RunEngine {
   }
 
   private isPromptInjectionGuardrail(guardrail: ConfiguredGuardrail): boolean {
-    return (guardrail.definition.name ?? '').toLowerCase() === 'prompt injection detection';
+    const normalized = (guardrail.definition.name ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    return normalized === 'prompt injection detection';
   }
 
   private async runPromptInjectionIncremental(
@@ -141,7 +146,7 @@ export class AsyncRunEngine implements RunEngine {
     guardrail: ConfiguredGuardrail,
     sampleData: string
   ): Promise<GuardrailResult> {
-    const conversation = parseSampleConversation(sampleData);
+    const conversation = parseConversationInput(sampleData);
 
     if (conversation.length === 0) {
       const guardrailContext = this.createPromptInjectionContext(context, []);
@@ -195,42 +200,6 @@ export class AsyncRunEngine implements RunEngine {
       getConversationHistory: () => conversationHistory,
     };
   }
-}
-
-function parseSampleConversation(rawData: string): any[] {
-  if (typeof rawData !== 'string') {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(rawData);
-
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-
-    const possibleKeys = [
-      'messages',
-      'conversation',
-      'conversation_history',
-      'conversationHistory',
-      'recent_messages',
-      'turns',
-    ];
-
-    if (parsed && typeof parsed === 'object') {
-      for (const key of possibleKeys) {
-        const value = (parsed as Record<string, unknown>)[key];
-        if (Array.isArray(value)) {
-          return value;
-        }
-      }
-    }
-  } catch {
-    // Ignore parse errors and fall through to return empty array
-  }
-
-  return [];
 }
 
 function safeStringify(value: unknown, fallback: string): string {

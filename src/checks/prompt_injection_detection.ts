@@ -25,14 +25,10 @@
  */
 
 import { z } from 'zod';
-import {
-  CheckFn,
-  GuardrailResult,
-  GuardrailLLMContext,
-  GuardrailLLMContextWithHistory,
-} from '../types';
+import { CheckFn, GuardrailResult, GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { LLMConfig, LLMOutput, runLLM } from './llm-base';
+import { parseConversationInput, POSSIBLE_CONVERSATION_KEYS } from '../utils/conversation';
 
 /**
  * Configuration schema for the prompt injection detection guardrail.
@@ -121,6 +117,16 @@ Output format (JSON only):
 const STRICT_JSON_INSTRUCTION =
   'Respond with ONLY a single JSON object containing the fields above. Do not add prose, markdown, or explanations outside the JSON. Example: {"observation": "...", "flagged": false, "confidence": 0.0}';
 
+const NESTED_MESSAGE_KEYS = [
+  'message',
+  'messages',
+  'content',
+  ...POSSIBLE_CONVERSATION_KEYS,
+  'items',
+  'parts',
+  'actions',
+] as const;
+
 /**
  * Interface for user intent dictionary.
  */
@@ -151,12 +157,12 @@ export const promptInjectionDetectionCheck: CheckFn<
 > = async (ctx, data, config): Promise<GuardrailResult> => {
   try {
     const conversationHistory = safeGetConversationHistory(ctx);
-    const parsedDataMessages = parseConversationData(data);
+    const parsedDataMessages = parseConversationInput(data);
     if (conversationHistory.length === 0 && parsedDataMessages.length === 0) {
       return createSkipResult(
         'No conversation history available',
         config.confidence_threshold,
-        data
+        JSON.stringify([])
       );
     }
 
@@ -220,9 +226,13 @@ export const promptInjectionDetectionCheck: CheckFn<
 };
 
 function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): any[] {
-  const history = ctx.getConversationHistory();
-  if (Array.isArray(history)) {
-    return history;
+  try {
+    const history = ctx.getConversationHistory();
+    if (Array.isArray(history)) {
+      return history;
+    }
+  } catch {
+    // Fall through to empty array when conversation history is unavailable
   }
   return [];
 }
@@ -249,41 +259,6 @@ function prepareConversationSlice(
   }
 
   return { recentMessages, actionableMessages, userIntent };
-}
-
-function parseConversationData(rawData: string): any[] {
-  if (typeof rawData !== 'string' || rawData.trim().length === 0) {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(rawData);
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-
-    const possibleKeys = [
-      'messages',
-      'conversation',
-      'conversation_history',
-      'conversationHistory',
-      'recent_messages',
-      'turns',
-    ];
-
-    if (parsed && typeof parsed === 'object') {
-      for (const key of possibleKeys) {
-        const value = (parsed as Record<string, unknown>)[key];
-        if (Array.isArray(value)) {
-          return value;
-        }
-      }
-    }
-  } catch {
-    // Ignore JSON parse errors; return empty array as fallback
-  }
-
-  return [];
 }
 
 function sliceMessagesAfterLatestUser(messages: any[]): any[] {
@@ -326,21 +301,7 @@ function isUserMessageEntry(entry: any, seen: Set<any> = new Set()): boolean {
     return true;
   }
 
-  const nestedKeys = [
-    'message',
-    'messages',
-    'content',
-    'conversation',
-    'conversation_history',
-    'conversationHistory',
-    'recent_messages',
-    'output',
-    'outputs',
-    'items',
-    'parts',
-  ];
-
-  for (const key of nestedKeys) {
+  for (const key of NESTED_MESSAGE_KEYS) {
     const value = (entry as Record<string, unknown>)[key];
     if (Array.isArray(value)) {
       for (const item of value) {
@@ -389,21 +350,7 @@ function collectUserMessages(value: any, collected: string[], visited: Set<any>)
     }
   }
 
-  const nestedKeys = [
-    'message',
-    'messages',
-    'content',
-    'conversation',
-    'conversation_history',
-    'conversationHistory',
-    'recent_messages',
-    'output',
-    'outputs',
-    'items',
-    'parts',
-  ];
-
-  for (const key of nestedKeys) {
+  for (const key of NESTED_MESSAGE_KEYS) {
     const nestedValue = (value as Record<string, unknown>)[key];
     if (Array.isArray(nestedValue)) {
       for (const item of nestedValue) {
@@ -534,8 +481,7 @@ function isActionableMessage(message: any, seen: Set<any> = new Set()): boolean 
     }
   }
 
-  const nestedKeys = ['message', 'messages', 'output', 'outputs', 'parts', 'actions'];
-  for (const key of nestedKeys) {
+  for (const key of NESTED_MESSAGE_KEYS) {
     const nested = (message as Record<string, unknown>)[key];
     if (Array.isArray(nested) && nested.some((item) => isActionableMessage(item, seen))) {
       return true;

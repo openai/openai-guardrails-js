@@ -119,6 +119,6 @@ describe('Prompt Injection Detection Check', () => {
     const result = await promptInjectionDetectionCheck(contextWithError, 'test data', config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toContain('Error during prompt injection detection check');
+    expect(result.info.observation).toBe('No conversation history available');
   });
 });

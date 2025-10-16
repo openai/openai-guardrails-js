@@ -71,10 +71,10 @@ Returns a `GuardrailResult` with the following `info` dictionary:
         {
             "type": "function_call",
             "name": "get_weather",
-            "arguments": "{'location': 'Tokyo'}"
+            "arguments": "{\"location\": \"Tokyo\"}"
         }
     ],
-    "checked_text": "[{'role': 'user', 'content': 'What is the weather in Tokyo?'}]"
+    "checked_text": "[{\"role\": \"user\", \"content\": \"What is the weather in Tokyo?\"}]"
 }
 ```
 
