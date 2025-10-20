@@ -6,7 +6,8 @@
  * configuration file.
  */
 
-import { GuardrailLLMContext, GuardrailResult } from './types';
+import { GuardrailLLMContext, GuardrailResult, TextOnlyContent, ContentPart } from './types';
+import { ContentUtils } from './utils/content';
 import { loadPipelineBundles, instantiateGuardrails, PipelineConfig, GuardrailBundle, ConfiguredGuardrail } from './runtime';
 
 // Import Agents SDK types for better type safety
@@ -20,8 +21,8 @@ import type {
 // Type for agent output that might have different structures
 interface AgentOutput {
   response?: string;
-  finalOutput?: string | unknown;
-  [key: string]: unknown;
+  finalOutput?: string | TextOnlyContent;
+  [key: string]: string | TextOnlyContent | undefined;
 }
 
 /**
@@ -154,23 +155,11 @@ async function createInputGuardrailsFromStage(
           if (typeof input === 'string') {
             inputText = input;
           } else if (input && typeof input === 'object' && 'content' in input) {
-            const content = input.content;
-            if (typeof content === 'string') {
-              inputText = content;
-            } else if (Array.isArray(content)) {
-              // Extract text from content array
-              inputText = content
-                .filter((item: unknown) => 
-                  item && typeof item === 'object' && 
-                  'type' in item && 
-                  (item.type === 'input_text' || item.type === 'text')
-                )
-                .map((item: unknown) => 
-                  item && typeof item === 'object' && 'text' in item ? 
-                  (item as { text: string }).text : ''
-                )
-                .join(' ');
-            }
+            // Use ContentUtils to extract text from message content
+            inputText = ContentUtils.extractTextFromMessage({
+              role: 'user',
+              content: input.content as string | ContentPart[]
+            });
           }
 
           // Create a proper context with OpenAI client if needed

@@ -28,7 +28,7 @@ export interface GuardrailLLMContext {
  */
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
   /** Get the full conversation history */
-  getConversationHistory(): unknown[];
+  getConversationHistory(): TextOnlyMessageArray;
   /** Get the index of the last message that was checked for prompt injection detection */
   getInjectionLastCheckedIndex(): number;
   /** Update the index of the last message that was checked for prompt injection detection */

@@ -574,10 +574,13 @@ export abstract class GuardrailsBaseClient {
       // Convert ResponseOutputItem to TextOnlyMessage format
       const convertedOutput = llmResponse.output
         .filter(item => 'role' in item && 'content' in item)
-        .map(item => ({
-          role: (item as { role: string }).role,
-          content: (item as { content: unknown }).content as TextOnlyContent
-        }));
+        .map(item => {
+          const itemWithRole = item as { role: string; content: unknown };
+          return {
+            role: itemWithRole.role,
+            content: itemWithRole.content as TextOnlyContent
+          };
+        });
       updatedHistory.push(...convertedOutput);
     }
     // For chat completions: append the choice message directly (prompt injection detection check will parse)

@@ -32,8 +32,8 @@ import {
   GuardrailLLMContext,
   GuardrailLLMContextWithHistory,
   TextOnlyMessageArray,
-  TextOnlyContent,
 } from '../types';
+import { ContentUtils } from '../utils/content';
 import { defaultSpecRegistry } from '../registry';
 import { LLMOutput, runLLM } from './llm-base';
 
@@ -300,19 +300,6 @@ function isFunctionCallOrOutput(action: Record<string, unknown>): boolean {
   return false; // Skip user messages, assistant text, etc.
 }
 
-/**
- * Extract text content from various message content formats.
- *
- * @param content Message content (string, array, or other)
- * @returns Extracted text string
- */
-function extractContentText(content: TextOnlyContent): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-  // Array content - all parts are TextContentPart (guaranteed by type system)
-  return content.map(part => part.text).join(' ');
-}
 
 /**
  * Extract user intent with full context from a list of messages.
@@ -326,7 +313,7 @@ function extractUserIntentFromMessages(messages: TextOnlyMessageArray): UserInte
   // Extract all user messages in chronological order
   for (const msg of messages) {
     if (msg?.role === 'user') {
-      userMessages.push(extractContentText(msg.content));
+      userMessages.push(ContentUtils.extractTextFromMessage(msg));
     }
   }
 

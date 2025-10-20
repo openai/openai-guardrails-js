@@ -21,7 +21,7 @@ export class StreamingMixin {
     llmStream: AsyncIterable<unknown>,
     preflightResults: GuardrailResult[],
     inputResults: GuardrailResult[],
-    conversationHistory?: unknown[],
+    conversationHistory?: TextOnlyMessageArray,
     checkInterval: number = 100,
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
@@ -114,7 +114,7 @@ export class StreamingMixin {
     llmStream: AsyncIterable<unknown>,
     preflightResults: GuardrailResult[],
     inputResults: GuardrailResult[],
-    conversationHistory?: unknown[],
+    conversationHistory?: TextOnlyMessageArray,
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
     const streamingMixin = new StreamingMixin();
