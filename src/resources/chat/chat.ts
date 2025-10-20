@@ -5,9 +5,10 @@
 /* eslint-disable no-dupe-class-members */
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import { Message } from '../../types';
 
 // Note: We need to filter out non-text content since guardrails only work with text
-// The existing extractLatestUserMessage method expects TextOnlyMessageArray
+// The existing extractLatestUserTextMessage method expects TextOnlyMessageArray
 
 /**
  * Chat completions with guardrails.
@@ -34,7 +35,7 @@ export class ChatCompletions {
   // Overload: streaming
   create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream: true;
       suppressTripwire?: boolean;
@@ -44,7 +45,7 @@ export class ChatCompletions {
   // Overload: non-streaming (default)
   create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream?: false;
       suppressTripwire?: boolean;
@@ -53,7 +54,7 @@ export class ChatCompletions {
 
   async create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream?: boolean;
       suppressTripwire?: boolean;
@@ -61,27 +62,21 @@ export class ChatCompletions {
   ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion> | AsyncIterableIterator<GuardrailsResponse>> {
     const { messages, model, stream = false, suppressTripwire = false, ...kwargs } = params;
 
-    // Filter to text-only messages for guardrails (guardrails only work with text content)
-    const textOnlyMessages = messages
-      .filter((msg): msg is OpenAI.Chat.Completions.ChatCompletionUserMessageParam => 
-        msg.role === 'user' && typeof msg.content === 'string'
-      )
-      .map(msg => ({ role: msg.role, content: msg.content as string }));
-    
-    const [latestMessage] = this.client.extractLatestUserMessage(textOnlyMessages);
+    // Extract latest user message text for guardrails (guardrails only work with text content)
+    const [latestMessage] = this.client.extractLatestUserTextMessage(messages);
 
     // Preflight first
     const preflightResults = await this.client.runStageGuardrails(
       'pre_flight',
       latestMessage,
-      textOnlyMessages,
+      messages,
       suppressTripwire,
       this.client.raiseGuardrailErrors
     );
 
     // Apply pre-flight modifications (PII masking, etc.)
     const modifiedMessages = this.client.applyPreflightModifications(
-      textOnlyMessages,
+      messages,
       preflightResults
     );
 
@@ -90,7 +85,7 @@ export class ChatCompletions {
       this.client.runStageGuardrails(
         'input',
         latestMessage,
-        textOnlyMessages,
+        messages,
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
@@ -112,7 +107,7 @@ export class ChatCompletions {
         llmResponse,
         preflightResults,
         inputResults,
-        textOnlyMessages,
+        messages,
         suppressTripwire
       );
     } else {
@@ -122,7 +117,7 @@ export class ChatCompletions {
         llmResponse,
         preflightResults,
         inputResults,
-        textOnlyMessages,
+        messages,
         suppressTripwire
       );
     }

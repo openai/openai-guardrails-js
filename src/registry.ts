@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { CheckFn } from './types';
+import { CheckFn, TextInput } from './types';
 import { GuardrailSpec, GuardrailSpecMetadata } from './spec';
 
 /**
@@ -66,7 +66,7 @@ export class GuardrailRegistry {
    * @param ctxRequirements Optional Zod schema for context validation.
    * @param metadata Optional structured metadata.
    */
-  register<TContext = Record<string, unknown>, TIn = unknown, TCfg = Record<string, unknown>>(
+  register<TContext = object, TIn = TextInput, TCfg = object>(
     name: string,
     checkFn: CheckFn<TContext, TIn, TCfg>,
     description: string,
@@ -88,7 +88,7 @@ export class GuardrailRegistry {
       metadata
     );
 
-    this.specs.set(name, spec);
+    this.specs.set(name, spec as unknown as GuardrailSpec);
   }
 
   /**

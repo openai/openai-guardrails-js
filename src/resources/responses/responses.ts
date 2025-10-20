@@ -4,7 +4,7 @@
 /* eslint-disable no-dupe-class-members */
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
-import { TextOnlyMessageArray } from '../../types';
+import { Message } from '../../types';
 
 /**
  * Responses API with guardrails.
@@ -20,7 +20,7 @@ export class Responses {
   // Overload: streaming
   create(
     params: {
-      input: string | Array<{ role: string; content: unknown }>;
+      input: string | Message[];
       model: string;
       stream: true;
       tools?: unknown[];
@@ -31,7 +31,7 @@ export class Responses {
   // Overload: non-streaming (default)
   create(
     params: {
-      input: string | Array<{ role: string; content: unknown }>;
+      input: string | Message[];
       model: string;
       stream?: false;
       tools?: unknown[];
@@ -41,7 +41,7 @@ export class Responses {
 
   async create(
     params: {
-      input: string | Array<{ role: string; content: unknown }>;
+      input: string | Message[];
       model: string;
       stream?: boolean;
       tools?: unknown[];
@@ -52,38 +52,27 @@ export class Responses {
 
     // Determine latest user message text when a list of messages is provided
     let latestMessage: string;
-    let textOnlyMessages: TextOnlyMessageArray | undefined;
     if (Array.isArray(input)) {
-      // Filter to text-only messages for guardrails (guardrails only work with text content)
-      textOnlyMessages = input
-        .filter((msg): msg is { role: string; content: string } => 
-          typeof msg === 'object' && 
-          msg !== null && 
-          'role' in msg && 
-          'content' in msg &&
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (msg as any).role === 'user' && 
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          typeof (msg as any).content === 'string'
-        )
-        .map(msg => ({ role: msg.role, content: msg.content }));
-      [latestMessage] = this.client.extractLatestUserMessage(textOnlyMessages);
+      [latestMessage] = this.client.extractLatestUserTextMessage(input);
     } else {
       latestMessage = input;
     }
+
+    // Extract conversation history for guardrail processing
+    const conversationHistory = Array.isArray(input) ? input : undefined;
 
     // Preflight first (run checks on the latest user message text, with full conversation)
     const preflightResults = await this.client.runStageGuardrails(
       'pre_flight',
       latestMessage,
-      textOnlyMessages,
+      conversationHistory,
       suppressTripwire,
       this.client.raiseGuardrailErrors
     );
 
     // Apply pre-flight modifications (PII masking, etc.)
     const modifiedInput = this.client.applyPreflightModifications(
-      Array.isArray(input) ? textOnlyMessages! : input, 
+      input, 
       preflightResults
     );
 
@@ -92,7 +81,7 @@ export class Responses {
       this.client.runStageGuardrails(
         'input',
         latestMessage,
-        textOnlyMessages,
+        conversationHistory,
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
@@ -114,7 +103,7 @@ export class Responses {
         llmResponse,
         preflightResults,
         inputResults,
-        textOnlyMessages || input,
+        input,
         suppressTripwire
       );
     } else {
@@ -123,7 +112,7 @@ export class Responses {
         llmResponse,
         preflightResults,
         inputResults,
-        textOnlyMessages || input,
+        input,
         suppressTripwire
       );
     }

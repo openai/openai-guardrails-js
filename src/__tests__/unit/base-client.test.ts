@@ -75,7 +75,7 @@ describe('GuardrailsBaseClient helpers', () => {
     });
   });
 
-  describe('extractLatestUserMessage', () => {
+  describe('extractLatestUserTextMessage', () => {
     it('returns the latest user message and index for string content', () => {
       const messages = [
         { role: 'system', content: 'hi' },
@@ -84,7 +84,7 @@ describe('GuardrailsBaseClient helpers', () => {
         { role: 'user', content: ' second ' },
       ];
 
-      const [text, index] = client.extractLatestUserMessage(messages);
+      const [text, index] = client.extractLatestUserTextMessage(messages);
 
       expect(text).toBe('second');
       expect(index).toBe(3);
@@ -102,14 +102,14 @@ describe('GuardrailsBaseClient helpers', () => {
         },
       ];
 
-      const [text, index] = client.extractLatestUserMessage(messages);
+      const [text, index] = client.extractLatestUserTextMessage(messages);
 
       expect(text).toBe('part1 part2');
       expect(index).toBe(1);
     });
 
     it('returns empty string when no user messages exist', () => {
-      const [text, index] = client.extractLatestUserMessage([
+      const [text, index] = client.extractLatestUserTextMessage([
         { role: 'assistant', content: 'hi' },
       ]);
       expect(text).toBe('');

@@ -55,6 +55,14 @@ export interface GuardrailResult {
   info: {
     /** The processed/checked text that should be used if modifications were made */
     checked_text: string;
+    /** The media type this guardrail was designed for */
+    media_type?: string;
+    /** The detected content type of the input data */
+    detected_content_type?: string;
+    /** The stage where this guardrail was executed (pre_flight, input, output) */
+    stage_name?: string;
+    /** The name of the guardrail that produced this result */
+    guardrail_name?: string;
     /** Additional guardrail-specific metadata */
     [key: string]: unknown;
   };
@@ -66,7 +74,7 @@ export interface GuardrailResult {
  * A guardrail function accepts a context object, input data, and a configuration object,
  * returning either a `GuardrailResult` or a Promise resolving to `GuardrailResult`.
  */
-export type CheckFn<TContext = object, TIn = unknown, TCfg = object> = (
+export type CheckFn<TContext = object, TIn = TextInput, TCfg = object> = (
   ctx: TContext,
   input: TIn,
   config: TCfg
@@ -82,7 +90,7 @@ export type MaybeAwaitableResult = GuardrailResult | Promise<GuardrailResult>;
  *
  * These provide sensible defaults while allowing for more specific types:
  * - TContext: object (any object, including interfaces)
- * - TIn: unknown (any input type, most flexible)
+ * - TIn: TextInput (string input type for guardrails) // Future: Union type for different input types
  * - TCfg: object (any object, including interfaces and classes)
  */
 export type TContext = object;
@@ -90,8 +98,36 @@ export type TIn = TextInput;
 export type TCfg = object;
 
 /**
+ * Core message structure - clear and extensible.
+ */
+export type Message = {
+  role: string;
+  content: string | ContentPart[];
+};
+
+/**
+ * Content part structure - clear and extensible.
+ */
+export type ContentPart = {
+  type: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Text content part for structured content (Responses API).
+ */
+export type TextContentPart = ContentPart & {
+  type: 'input_text' | 'text' | 'output_text' | 'summary_text';
+  text: string;
+};
+
+
+/**
  * Type alias for text-only input to guardrails.
- * Currently constrains guardrails to process only text content.
+ *
+ * Currently represents string input for text-based guardrails. In the future,
+ * this may be extended to support multi-modal content types (images, audio, video)
+ * through a union type or more sophisticated content representation.
  */
 export type TextInput = string;
 
@@ -102,12 +138,6 @@ export type TextInput = string;
 
 /** Plain text content */
 export type TextContent = string;
-
-/** Text content part for structured content (Responses API) */
-export type TextContentPart = {
-  type: 'input_text' | 'text' | 'output_text' | 'summary_text';
-  text: string;
-};
 
 /** Union type for all text-only content */
 export type TextOnlyContent = TextContent | TextContentPart[];
@@ -120,12 +150,3 @@ export type TextOnlyMessage = {
 
 /** Array of text-only messages */
 export type TextOnlyMessageArray = TextOnlyMessage[];
-
-/** Non-text content part (for future expansion) */
-export type NonTextContentPart = {
-  type: 'image' | 'video' | 'audio' | string;
-  [key: string]: unknown;
-};
-
-/** Union of all content parts */
-export type ContentPart = TextContentPart | NonTextContentPart;

@@ -23,8 +23,8 @@ import { GuardrailAgent } from '@openai/guardrails';
 import { Runner } from '@openai/agents';
 
 // Create agent with guardrails automatically configured
-const agent = new GuardrailAgent({
-  config: {
+const agent = await GuardrailAgent.create(
+  {
     version: 1,
     input: {
       version: 1,
@@ -39,9 +39,9 @@ const agent = new GuardrailAgent({
       ]
     }
   },
-  name: "Customer support agent",
-  instructions: "You are a customer support agent. You help customers with their questions."
-});
+  "Customer support agent",
+  "You are a customer support agent. You help customers with their questions."
+);
 
 async function main() {
   while (true) {
@@ -79,22 +79,30 @@ GuardrailAgent supports the same configuration formats as our other clients:
 
 ```typescript
 // Object configuration (recommended)
-const agent = new GuardrailAgent({
-  config: {
+const agent = await GuardrailAgent.create(
+  {
     version: 1,
     input: { version: 1, guardrails: [...] },
     output: { version: 1, guardrails: [...] }
   },
-  // ... other agent options
-});
+  "Agent name",
+  "Agent instructions"
+);
 
-// Dynamic configuration
-const configDict = {
-  version: 1,
-  input: { version: 1, guardrails: [...] },
-  output: { version: 1, guardrails: [...] }
-};
-const agent = new GuardrailAgent({ config: configDict, ... });
+// File path configuration
+const agent = await GuardrailAgent.create(
+  './guardrails_config.json',
+  "Agent name", 
+  "Agent instructions"
+);
+
+// With additional agent options
+const agent = await GuardrailAgent.create(
+  configDict,
+  "Agent name",
+  "Agent instructions",
+  { /* additional agent options */ }
+);
 ```
 
 ## Next Steps

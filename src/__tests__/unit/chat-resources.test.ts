@@ -31,7 +31,7 @@ vi.mock(
 
 const baseClientMock = () => {
   return {
-    extractLatestUserMessage: vi.fn().mockReturnValue(['latest user', 1]),
+    extractLatestUserTextMessage: vi.fn().mockReturnValue(['latest user', 1]),
     runStageGuardrails: vi.fn(),
     applyPreflightModifications: vi.fn((payload) => payload),
     handleLlmResponse: vi.fn().mockResolvedValue({ result: 'handled' }),
@@ -73,7 +73,7 @@ describe('Chat resource', () => {
       model: 'gpt-4',
     });
 
-    expect(client.extractLatestUserMessage).toHaveBeenCalledWith(messages);
+    expect(client.extractLatestUserTextMessage).toHaveBeenCalledWith(messages);
     expect(client.runStageGuardrails).toHaveBeenNthCalledWith(
       1,
       'pre_flight',
@@ -131,7 +131,7 @@ describe('Responses resource', () => {
       model: 'gpt-4o',
     });
 
-    expect(client.extractLatestUserMessage).not.toHaveBeenCalled(); // string input path
+    expect(client.extractLatestUserTextMessage).not.toHaveBeenCalled(); // string input path
     expect(client.runStageGuardrails).toHaveBeenNthCalledWith(
       1,
       'pre_flight',

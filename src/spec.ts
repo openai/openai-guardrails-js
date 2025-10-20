@@ -20,6 +20,8 @@ import { ConfiguredGuardrail } from './runtime';
 export interface GuardrailSpecMetadata {
   /** How the guardrail is implemented (regex/LLM/etc.) */
   engine?: string;
+  /** Whether this guardrail requires conversation history to function properly */
+  requiresConversationHistory?: boolean;
   /** Additional metadata fields */
   [key: string]: unknown;
 }
@@ -34,6 +36,9 @@ export interface GuardrailSpecMetadata {
  * GuardrailSpec instances are registered for cataloguing and introspection,
  * but should be instantiated with user configuration to create a runnable guardrail
  * for actual use.
+ *
+ * @warning The mediaType field determines which content types this guardrail can process.
+ * Only guardrails with compatible media types will be executed. Use 'text/plain' for text content.
  */
 export class GuardrailSpec<TContext = object, TIn = TextInput, TCfg = object> {
   constructor(

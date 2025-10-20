@@ -433,5 +433,5 @@ defaultSpecRegistry.register(
   'text/plain',
   PromptInjectionDetectionConfigRequired,
   undefined, // Context schema will be validated at runtime
-  { engine: 'LLM' }
+  { engine: 'LLM', requiresConversationHistory: true }
 );

@@ -14,7 +14,7 @@
 ## How It Works
 
 1. **Configure**: Use the Wizard or define pipeline configurations
-2. **Replace**: Use `GuardrailsAsyncOpenAI` instead of `AsyncOpenAI`
+2. **Replace**: Use `GuardrailsOpenAI` instead of `OpenAI`
 3. **Validate**: Guardrails run automatically on every API call
 4. **Handle**: Access results via `response.guardrail_results`
 

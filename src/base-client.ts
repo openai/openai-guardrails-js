@@ -6,7 +6,8 @@
  */
 
 import { OpenAI, AzureOpenAI } from 'openai';
-import { GuardrailResult, GuardrailLLMContext, TextOnlyMessageArray, TextOnlyContent, TextOnlyMessage } from './types';
+import { GuardrailResult, GuardrailLLMContext, TextOnlyMessageArray, TextOnlyContent, Message, ContentPart, TextContentPart } from './types';
+import { ContentUtils } from './utils/content';
 import {
   GuardrailBundle,
   ConfiguredGuardrail,
@@ -110,43 +111,27 @@ export abstract class GuardrailsBaseClient {
   public raiseGuardrailErrors: boolean = false;
 
   /**
-   * Extract the latest user message text and its index from a list of message-like items.
+   * Extract the latest user text message from a conversation for text guardrails.
    *
-   * Supports both dict-based messages (OpenAI) and object models with
-   * role/content attributes. Handles Responses API content-part format.
+   * This method specifically extracts text content from messages. For other content types,
+   * create parallel methods like extractLatestUserImage() or extractLatestUserVideo().
    *
-   * @param messages List of messages
+   * @param messages List of messages (can include non-text content)
    * @returns Tuple of [message_text, message_index]. Index is -1 if no user message found.
    */
-  public extractLatestUserMessage(messages: TextOnlyMessageArray): [string, number] {
-    const getAttr = (obj: TextOnlyMessage, key: string): string | undefined => {
-      if (typeof obj === 'object' && obj !== null) {
-        return obj[key as keyof TextOnlyMessage] as string | undefined;
-      }
-      return undefined;
-    };
-
-    const contentToText = (content: TextOnlyContent): string => {
-      // String content - already text, just trim
-      if (typeof content === 'string') {
-        return content.trim();
-      }
-      // Array content - all parts are TextContentPart (guaranteed by type system)
-      return content.map(part => part.text).join(' ').trim();
-    };
-
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const message = messages[i];
-      const role = getAttr(message, 'role');
-      if (role === 'user') {
-        const content = getAttr(message, 'content');
-        if (content) {
-          const messageText = contentToText(content);
-          return [messageText, i];
+  public extractLatestUserTextMessage(messages: Message[]): [string, number] {
+    const textOnlyMessages = ContentUtils.filterToTextOnly(messages);
+    
+    for (let i = textOnlyMessages.length - 1; i >= 0; i--) {
+      const message = textOnlyMessages[i];
+      if (message.role === 'user') {
+        const text = ContentUtils.extractTextFromMessage(message);
+        if (text) {
+          return [text, i];
         }
       }
     }
-
+    
     return ['', -1];
   }
 
@@ -191,9 +176,9 @@ export abstract class GuardrailsBaseClient {
    * @returns Modified data with pre-flight changes applied
    */
   public applyPreflightModifications(
-    data: TextOnlyMessageArray | string,
+    data: Message[] | string,
     preflightResults: GuardrailResult[]
-  ): TextOnlyMessageArray | string {
+  ): Message[] | string {
     if (preflightResults.length === 0) {
       return data;
     }
@@ -243,45 +228,29 @@ export abstract class GuardrailsBaseClient {
       return maskText(data);
     } else {
       // Handle message list input (primarily for chat API and structured Responses API)
-      const [, latestUserIdx] = this.extractLatestUserMessage(data);
+      const [, latestUserIdx] = this.extractLatestUserTextMessage(data);
       if (latestUserIdx === -1) {
         return data;
       }
 
       // Use shallow copy for efficiency - we only modify the content field of one message
       const modifiedMessages = [...data];
-
-      // Extract current content safely
-      const currentContent = data[latestUserIdx]?.content;
+      const currentContent = data[latestUserIdx].content;
 
       // Apply modifications based on content type
-      let modifiedContent: TextOnlyContent;
+      let modifiedContent: string | ContentPart[];
       if (typeof currentContent === 'string') {
         // Plain string content - mask individually
         modifiedContent = maskText(currentContent);
       } else if (Array.isArray(currentContent)) {
         // Structured content - mask each text part individually
-        modifiedContent = [];
-        for (const part of currentContent) {
-          if (typeof part === 'object' && part !== null) {
-            const partType = part.type;
-            if (
-              ['input_text', 'text', 'output_text', 'summary_text'].includes(partType) &&
-              'text' in part
-            ) {
-              // Mask this specific text part individually
-              const originalText = part.text;
-              const maskedText = maskText(originalText);
-              modifiedContent.push({ ...part, text: maskedText });
-            } else {
-              // Keep non-text parts unchanged
-              modifiedContent.push(part);
-            }
-          } else {
-            // Keep unknown parts unchanged
-            modifiedContent.push(part);
+        modifiedContent = currentContent.map(part => {
+          if (ContentUtils.isText(part)) {
+            const textPart = part as TextContentPart;
+            return { ...textPart, text: maskText(textPart.text) };
           }
-        }
+          return part; // Keep non-text parts unchanged
+        });
       } else {
         // Unknown content type - skip modifications
         return data;
@@ -409,13 +378,29 @@ export abstract class GuardrailsBaseClient {
    */
   protected abstract overrideResources(): void;
 
+
+  /**
+   * Determine if a guardrail should run based on content type compatibility.
+   * 
+   * Currently only supports text/plain content type matching.
+   * 
+   * @future To extend for multi-modal support:
+   * - Add image/*, audio/*, video/* pattern matching
+   * - Implement content type hierarchy (image/* matches image/jpeg, etc.)
+   * - Add wildcard support for broader compatibility
+   */
+  private shouldRunGuardrail(guardrail: ConfiguredGuardrail, detectedContentType: string): boolean {
+    return guardrail.definition.mediaType === detectedContentType;
+  }
+
+
   /**
    * Run guardrails for a specific pipeline stage.
    */
   public async runStageGuardrails(
     stageName: 'pre_flight' | 'input' | 'output',
     text: string,
-    conversationHistory?: TextOnlyMessageArray,
+    conversationHistory?: Message[],
     suppressTripwire: boolean = false,
     raiseGuardrailErrors: boolean = false
   ): Promise<GuardrailResult[]> {
@@ -424,20 +409,48 @@ export abstract class GuardrailsBaseClient {
     }
 
     try {
-      // Check if prompt injection detection guardrail is present and we have conversation history
-      const hasInjectionDetection = this.guardrails[stageName].some(
-        (guardrail) => guardrail.definition.name.toLowerCase() === 'prompt injection detection'
+      // Content type detection - currently text-only
+      // @future: Add content analysis for multi-modal support (images, audio, video)
+      const detectedContentType = 'text/plain';
+      
+      // Filter guardrails based on content type compatibility
+      const compatibleGuardrails = this.guardrails[stageName].filter(guardrail => 
+        this.shouldRunGuardrail(guardrail, detectedContentType)
+      );
+
+      const skippedGuardrails = this.guardrails[stageName].filter(guardrail => 
+        !this.shouldRunGuardrail(guardrail, detectedContentType)
+      );
+
+      // Log warnings for skipped guardrails
+      if (skippedGuardrails.length > 0) {
+        console.warn(
+          `⚠️  Guardrails Warning: ${skippedGuardrails.length} guardrails skipped due to content type mismatch ` +
+          `(detected: ${detectedContentType}). Skipped: ${skippedGuardrails.map(g => g.definition.name).join(', ')}`
+        );
+      }
+
+      if (compatibleGuardrails.length === 0) {
+        console.warn(`No guardrails compatible with content type '${detectedContentType}' for stage '${stageName}'`);
+        return [];
+      }
+
+      // Check if any guardrail requires conversation history and we have it available
+      const needsConversationHistory = compatibleGuardrails.some(
+        (guardrail) => guardrail.definition.metadata?.requiresConversationHistory
       );
 
       let ctx = this.context;
-      if (hasInjectionDetection && conversationHistory) {
-        ctx = this.createContextWithConversation(conversationHistory);
+      if (needsConversationHistory && conversationHistory) {
+        // Filter to text-only for conversation history processing
+        const textOnlyHistory = ContentUtils.filterToTextOnly(conversationHistory);
+        ctx = this.createContextWithConversation(textOnlyHistory);
       }
 
       const results: GuardrailResult[] = [];
 
-      // Run guardrails in parallel using Promise.allSettled to capture all results
-      const guardrailPromises = this.guardrails[stageName].map(async (guardrail) => {
+      // Run compatible guardrails in parallel using Promise.allSettled to capture all results
+      const guardrailPromises = compatibleGuardrails.map(async (guardrail) => {
         try {
           const result = await guardrail.run(ctx, text);
           // Add stage and guardrail metadata
@@ -445,6 +458,8 @@ export abstract class GuardrailsBaseClient {
             ...result.info,
             stage_name: stageName,
             guardrail_name: guardrail.definition.name,
+            media_type: guardrail.definition.mediaType,
+            detected_content_type: detectedContentType,
           };
           return result;
         } catch (error) {
@@ -458,6 +473,8 @@ export abstract class GuardrailsBaseClient {
               checked_text: text, // Return original text on error
               stage_name: stageName,
               guardrail_name: guardrail.definition.name,
+              media_type: guardrail.definition.mediaType,
+              detected_content_type: detectedContentType,
               error: error instanceof Error ? error.message : String(error),
             },
           };
@@ -509,10 +526,15 @@ export abstract class GuardrailsBaseClient {
   }
 
   /**
-   * Create a context with conversation history for prompt injection detection guardrail.
+   * Create a context with conversation history for guardrails that require it.
+   * 
+   * @future To extend for multi-modal support:
+   * - Add support for image/audio content in conversation history
+   * - Implement content type filtering based on guardrail requirements
+   * - Add metadata about content types in the context
    */
   protected createContextWithConversation(conversationHistory: TextOnlyMessageArray): GuardrailLLMContext {
-    // Create a new context that includes conversation history and prompt injection detection tracking
+    // Create a new context that includes conversation history and tracking metadata
     return {
       guardrailLlm: this.context.guardrailLlm,
       // Add conversation history methods
@@ -554,7 +576,7 @@ export abstract class GuardrailsBaseClient {
         .filter(item => 'role' in item && 'content' in item)
         .map(item => ({
           role: (item as { role: string }).role,
-          content: (item as { content: TextOnlyContent }).content
+          content: (item as { content: unknown }).content as TextOnlyContent
         }));
       updatedHistory.push(...convertedOutput);
     }
