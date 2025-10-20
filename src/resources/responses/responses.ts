@@ -4,6 +4,7 @@
 
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import { mergeConversationWithItems } from '../../utils/conversation';
 
 /**
  * Responses API with guardrails.
@@ -50,19 +51,22 @@ export class Responses {
   ): Promise<GuardrailsResponse<OpenAI.Responses.Response> | AsyncIterableIterator<GuardrailsResponse>> {
     const { input, model, stream = false, tools, suppressTripwire = false, ...kwargs } = params;
 
+    const previousResponseId = (kwargs as any).previous_response_id ?? (kwargs as any).previousResponseId;
+    const priorHistory = await this.client.loadConversationHistoryFromPreviousResponse(previousResponseId);
+    const currentTurn = this.client.normalizeConversationHistory(input);
+    const normalizedConversation =
+      priorHistory.length > 0 ? mergeConversationWithItems(priorHistory, currentTurn) : currentTurn;
+
     // Determine latest user message text when a list of messages is provided
-    let latestMessage: string;
-    if (Array.isArray(input)) {
-      [latestMessage] = (this.client).extractLatestUserMessage(input);
-    } else {
-      latestMessage = input;
-    }
+    const latestMessage = Array.isArray(input)
+      ? (this.client).extractLatestUserMessage(input)[0]
+      : (input as string);
 
     // Preflight first (run checks on the latest user message text, with full conversation)
     const preflightResults = await this.client.runStageGuardrails(
       'pre_flight',
       latestMessage,
-      Array.isArray(input) ? input : undefined,
+      normalizedConversation,
       suppressTripwire,
       this.client.raiseGuardrailErrors
     );
@@ -75,7 +79,7 @@ export class Responses {
       this.client.runStageGuardrails(
         'input',
         latestMessage,
-        Array.isArray(input) ? input : undefined,
+        normalizedConversation,
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
@@ -106,7 +110,7 @@ export class Responses {
         llmResponse,
         preflightResults,
         inputResults,
-        input,
+        normalizedConversation,
         suppressTripwire
       );
     }

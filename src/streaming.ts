@@ -8,6 +8,7 @@
 import { GuardrailResult } from './types';
 import { GuardrailsResponse, GuardrailsBaseClient } from './base-client';
 import { GuardrailTripwireTriggered } from './exceptions';
+import { mergeConversationWithItems, normalizeConversation } from './utils/conversation';
 
 /**
  * Mixin providing streaming functionality for guardrails clients.
@@ -27,6 +28,9 @@ export class StreamingMixin {
   ): AsyncIterableIterator<GuardrailsResponse> {
     let accumulatedText = '';
     let chunkCount = 0;
+    const baseHistory = conversationHistory
+      ? normalizeConversation(conversationHistory)
+      : [];
 
     for await (const chunk of llmStream) {
       // Extract text from chunk
@@ -38,10 +42,13 @@ export class StreamingMixin {
         // Run output guardrails periodically
         if (chunkCount % checkInterval === 0) {
           try {
+            const history = mergeConversationWithItems(baseHistory, [
+              { role: 'assistant', content: accumulatedText },
+            ]);
             await (this as any).runStageGuardrails(
               'output',
               accumulatedText,
-              conversationHistory,
+              history,
               suppressTripwire
             );
           } catch (error) {
@@ -74,10 +81,13 @@ export class StreamingMixin {
     // Final guardrail check on complete text
     if (!suppressTripwire && accumulatedText) {
       try {
+        const history = mergeConversationWithItems(baseHistory, [
+          { role: 'assistant', content: accumulatedText },
+        ]);
         const finalOutputResults = await (this as any).runStageGuardrails(
           'output',
           accumulatedText,
-          conversationHistory,
+          history,
           suppressTripwire
         );
 
@@ -123,7 +133,7 @@ export class StreamingMixin {
       llmStream,
       preflightResults,
       inputResults,
-      conversationHistory,
+      conversationHistory ? normalizeConversation(conversationHistory) : undefined,
       100,
       suppressTripwire
     );

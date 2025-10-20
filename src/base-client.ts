@@ -7,6 +7,7 @@
 
 import { OpenAI } from 'openai';
 import { GuardrailResult, GuardrailLLMContext } from './types';
+import { appendAssistantResponse, normalizeConversation, NormalizedConversationEntry } from './utils/conversation';
 import {
   loadConfigBundle,
   runGuardrails,
@@ -424,24 +425,23 @@ export abstract class GuardrailsBaseClient {
   public async runStageGuardrails(
     stageName: 'pre_flight' | 'input' | 'output',
     text: string,
-    conversationHistory?: any[],
+    conversationHistory?: unknown,
     suppressTripwire: boolean = false,
     raiseGuardrailErrors: boolean = false
   ): Promise<GuardrailResult[]> {
-    if (this.guardrails[stageName].length === 0) {
+    if (!this.guardrails?.[stageName] || this.guardrails[stageName].length === 0) {
       return [];
     }
 
     try {
-      // Check if prompt injection detection guardrail is present and we have conversation history
-      const hasInjectionDetection = this.guardrails[stageName].some(
-        (guardrail) => guardrail.definition.name.toLowerCase() === 'prompt injection detection'
-      );
+      const normalizedHistory = conversationHistory != null && conversationHistory !== undefined
+        ? this.normalizeConversationHistory(conversationHistory)
+        : [];
 
-      let ctx = this.context;
-      if (hasInjectionDetection && conversationHistory) {
-        ctx = this.createContextWithConversation(conversationHistory);
-      }
+      const ctx =
+        normalizedHistory?.length > 0
+          ? this.createContextWithConversation(normalizedHistory)
+          : this.context;
 
       const results: GuardrailResult[] = [];
 
@@ -520,14 +520,16 @@ export abstract class GuardrailsBaseClient {
   /**
    * Create a context with conversation history for prompt injection detection guardrail.
    */
-  protected createContextWithConversation(conversationHistory: any[]): GuardrailLLMContext {
+  protected createContextWithConversation(
+    conversationHistory: NormalizedConversationEntry[]
+  ): GuardrailLLMContext {
     // Create a new context that includes conversation history and prompt injection detection tracking
     return {
       guardrailLlm: this.context.guardrailLlm,
       // Add conversation history methods
       getConversationHistory: () => conversationHistory,
     } as GuardrailLLMContext & {
-      getConversationHistory(): any[];
+      getConversationHistory(): NormalizedConversationEntry[];
     };
   }
 
@@ -535,35 +537,106 @@ export abstract class GuardrailsBaseClient {
    * Append LLM response to conversation history.
    */
   protected appendLlmResponseToConversation(
-    conversationHistory: any[] | string | null,
+    conversationHistory: NormalizedConversationEntry[] | string | null | undefined,
     llmResponse: any
-  ): any[] {
-    if (!conversationHistory) {
-      conversationHistory = [];
+  ): NormalizedConversationEntry[] {
+    const normalized = conversationHistory != null && conversationHistory !== undefined
+      ? this.normalizeConversationHistory(conversationHistory)
+      : [];
+    return appendAssistantResponse(normalized, llmResponse);
+  }
+
+  /**
+   * Normalize arbitrary conversation payloads into guardrail-friendly entries.
+   */
+  public normalizeConversationHistory(payload: unknown): NormalizedConversationEntry[] {
+    return normalizeConversation(payload);
+  }
+
+  /**
+   * Load conversation history associated with a previous Responses API response.
+   */
+  public async loadConversationHistoryFromPreviousResponse(
+    previousResponseId?: string | null
+  ): Promise<NormalizedConversationEntry[]> {
+    if (!previousResponseId || typeof previousResponseId !== 'string' || previousResponseId.trim() === '') {
+      return [];
     }
 
-    // Handle case where conversation_history is a string (from single input)
-    if (typeof conversationHistory === 'string') {
-      conversationHistory = [{ role: 'user', content: conversationHistory }];
+    const items = await this.collectConversationItems(previousResponseId);
+    if (!items || items.length === 0) {
+      return [];
     }
 
-    // Make a copy to avoid modifying the original
-    const updatedHistory = [...conversationHistory];
+    return this.normalizeConversationHistory(items);
+  }
 
-    // For responses API: append the output directly
-    if (llmResponse.output && Array.isArray(llmResponse.output)) {
-      updatedHistory.push(...llmResponse.output);
-    }
-    // For chat completions: append the choice message directly (prompt injection detection check will parse)
-    else if (
-      llmResponse.choices &&
-      Array.isArray(llmResponse.choices) &&
-      llmResponse.choices.length > 0
-    ) {
-      updatedHistory.push(llmResponse.choices[0].message);
+  private async collectConversationItems(previousResponseId: string): Promise<any[]> {
+    const items: any[] = [];
+
+    let response: any;
+    try {
+      response = await (this._resourceClient as any)?.responses?.retrieve?.(previousResponseId);
+    } catch {
+      return items;
     }
 
-    return updatedHistory;
+    if (!response) {
+      return items;
+    }
+
+    const conversationId = response?.conversation?.id;
+    const conversationItemsApi = (this._resourceClient as any)?.conversations?.items;
+
+    if (conversationId && typeof conversationId === 'string' && conversationItemsApi?.list) {
+      try {
+        const page = await conversationItemsApi.list(conversationId, {
+          order: 'asc',
+          limit: 100,
+        });
+
+        if (page && typeof (page as any)[Symbol.asyncIterator] === 'function') {
+          for await (const entry of page as any) {
+            items.push(entry);
+          }
+        } else if (page?.data && Array.isArray(page.data)) {
+          items.push(...page.data);
+        }
+      } catch {
+        // Fall through to input item collection
+      }
+    }
+
+    if (items.length === 0) {
+      try {
+        const inputItemsApi = (this._resourceClient as any)?.responses?.inputItems;
+        if (inputItemsApi?.list) {
+          const page = await inputItemsApi.list(previousResponseId, {
+            order: 'asc',
+            limit: 100,
+          });
+
+          if (page && typeof (page as any)[Symbol.asyncIterator] === 'function') {
+            for await (const entry of page as any) {
+              if (entry) {
+                items.push(entry);
+              }
+            }
+          } else if (page?.data && Array.isArray(page.data)) {
+            items.push(...page.data.filter((item: any) => item != null));
+          }
+        }
+      } catch {
+        // Ignore failures; items will remain empty
+      }
+
+      const outputItems = Array.isArray(response?.output) ? response.output : [];
+      if (outputItems.length > 0) {
+        items.push(...outputItems.filter((item: any) => item != null));
+      }
+    }
+
+    return items;
   }
 
   /**
@@ -573,14 +646,14 @@ export abstract class GuardrailsBaseClient {
     llmResponse: T,
     preflightResults: GuardrailResult[],
     inputResults: GuardrailResult[],
-    conversationHistory?: any[],
+    conversationHistory?: unknown,
     suppressTripwire: boolean = false
   ): Promise<GuardrailsResponse<T>> {
     // Create complete conversation history including the LLM response
-    const completeConversation = this.appendLlmResponseToConversation(
-      conversationHistory || null,
-      llmResponse
-    );
+    const normalizedHistory = conversationHistory != null && conversationHistory !== undefined
+      ? this.normalizeConversationHistory(conversationHistory)
+      : [];
+    const completeConversation = this.appendLlmResponseToConversation(normalizedHistory, llmResponse);
 
     const responseText = this.extractResponseText(llmResponse);
     const outputResults = await this.runStageGuardrails(

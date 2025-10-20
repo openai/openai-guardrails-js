@@ -28,7 +28,7 @@ import { z } from 'zod';
 import { CheckFn, GuardrailResult, GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { LLMConfig, LLMOutput, runLLM } from './llm-base';
-import { parseConversationInput, POSSIBLE_CONVERSATION_KEYS } from '../utils/conversation';
+import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../utils/conversation';
 
 /**
  * Configuration schema for the prompt injection detection guardrail.
@@ -117,16 +117,6 @@ Output format (JSON only):
 const STRICT_JSON_INSTRUCTION =
   'Respond with ONLY a single JSON object containing the fields above. Do not add prose, markdown, or explanations outside the JSON. Example: {"observation": "...", "flagged": false, "confidence": 0.0}';
 
-const NESTED_MESSAGE_KEYS = [
-  'message',
-  'messages',
-  'content',
-  ...POSSIBLE_CONVERSATION_KEYS,
-  'items',
-  'parts',
-  'actions',
-] as const;
-
 /**
  * Interface for user intent dictionary.
  */
@@ -157,7 +147,7 @@ export const promptInjectionDetectionCheck: CheckFn<
 > = async (ctx, data, config): Promise<GuardrailResult> => {
   try {
     const conversationHistory = safeGetConversationHistory(ctx);
-    const parsedDataMessages = parseConversationInput(data);
+    const parsedDataMessages = normalizeConversation(parseConversationInput(data));
     if (conversationHistory.length === 0 && parsedDataMessages.length === 0) {
       return createSkipResult(
         'No conversation history available',
@@ -225,12 +215,10 @@ export const promptInjectionDetectionCheck: CheckFn<
   }
 };
 
-function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): any[] {
+function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): NormalizedConversationEntry[] {
   try {
-    const history = ctx.getConversationHistory();
-    if (Array.isArray(history)) {
-      return history;
-    }
+    const history = ctx.getConversationHistory?.();
+    return normalizeConversation(history ?? []);
   } catch {
     // Fall through to empty array when conversation history is unavailable
   }
@@ -238,9 +226,13 @@ function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): any[]
 }
 
 function prepareConversationSlice(
-  conversationHistory: any[],
-  parsedDataMessages: any[]
-): { recentMessages: any[]; actionableMessages: any[]; userIntent: UserIntentDict } {
+  conversationHistory: NormalizedConversationEntry[],
+  parsedDataMessages: NormalizedConversationEntry[]
+): {
+  recentMessages: NormalizedConversationEntry[];
+  actionableMessages: NormalizedConversationEntry[];
+  userIntent: UserIntentDict;
+} {
   const historyMessages = Array.isArray(conversationHistory) ? conversationHistory : [];
   const datasetMessages = Array.isArray(parsedDataMessages) ? parsedDataMessages : [];
 
@@ -261,7 +253,9 @@ function prepareConversationSlice(
   return { recentMessages, actionableMessages, userIntent };
 }
 
-function sliceMessagesAfterLatestUser(messages: any[]): any[] {
+function sliceMessagesAfterLatestUser(
+  messages: NormalizedConversationEntry[]
+): NormalizedConversationEntry[] {
   if (!Array.isArray(messages) || messages.length === 0) {
     return [];
   }
@@ -274,7 +268,7 @@ function sliceMessagesAfterLatestUser(messages: any[]): any[] {
   return messages.slice();
 }
 
-function findLastUserIndex(messages: any[]): number {
+function findLastUserIndex(messages: NormalizedConversationEntry[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     if (isUserMessageEntry(messages[i])) {
       return i;
@@ -283,45 +277,15 @@ function findLastUserIndex(messages: any[]): number {
   return -1;
 }
 
-function isUserMessageEntry(entry: any, seen: Set<any> = new Set()): boolean {
-  if (!entry || typeof entry !== 'object') {
-    return false;
-  }
-
-  if (seen.has(entry)) {
-    return false;
-  }
-  seen.add(entry);
-
-  if (entry.role === 'user') {
-    return true;
-  }
-
-  if (entry.type === 'message' && entry.role === 'user') {
-    return true;
-  }
-
-  for (const key of NESTED_MESSAGE_KEYS) {
-    const value = (entry as Record<string, unknown>)[key];
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        if (isUserMessageEntry(item, seen)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
+function isUserMessageEntry(entry: NormalizedConversationEntry): boolean {
+  return Boolean(entry && entry.role === 'user');
 }
 
-function extractUserIntentFromMessages(messages: any[]): UserIntentDict {
-  const userMessages: string[] = [];
-  const visited = new Set<any>();
-
-  for (const message of messages) {
-    collectUserMessages(message, userMessages, visited);
-  }
+function extractUserIntentFromMessages(messages: NormalizedConversationEntry[]): UserIntentDict {
+  const userMessages = messages
+    .filter((message) => message.role === 'user' && typeof message.content === 'string')
+    .map((message) => (message.content as string).trim())
+    .filter((text) => text.length > 0);
 
   if (userMessages.length === 0) {
     return { most_recent_message: '', previous_context: [] };
@@ -333,121 +297,19 @@ function extractUserIntentFromMessages(messages: any[]): UserIntentDict {
   };
 }
 
-function collectUserMessages(value: any, collected: string[], visited: Set<any>): void {
-  if (!value || typeof value !== 'object') {
-    return;
-  }
-
-  if (visited.has(value)) {
-    return;
-  }
-  visited.add(value);
-
-  if (value.role === 'user') {
-    const text = extractUserMessageText(value);
-    if (text) {
-      collected.push(text);
-    }
-  }
-
-  for (const key of NESTED_MESSAGE_KEYS) {
-    const nestedValue = (value as Record<string, unknown>)[key];
-    if (Array.isArray(nestedValue)) {
-      for (const item of nestedValue) {
-        collectUserMessages(item, collected, visited);
-      }
-    }
-  }
-}
-
-function extractUserMessageText(message: any): string {
-  if (typeof message === 'string') {
-    return message;
-  }
-
-  if (!message || typeof message !== 'object') {
-    return '';
-  }
-
-  if (typeof message.content === 'string') {
-    return message.content;
-  }
-
-  if (Array.isArray(message.content)) {
-    const contentText = collectTextFromContent(message.content);
-    if (contentText) {
-      return contentText;
-    }
-  }
-
-  if (typeof message.text === 'string') {
-    return message.text;
-  }
-
-  if (typeof message.value === 'string') {
-    return message.value;
-  }
-
-  return '';
-}
-
-function collectTextFromContent(content: any[]): string {
-  const parts: string[] = [];
-
-  for (const item of content) {
-    if (item == null) {
-      continue;
-    }
-
-    if (typeof item === 'string') {
-      if (item.trim().length > 0) {
-        parts.push(item.trim());
-      }
-      continue;
-    }
-
-    if (typeof item !== 'object') {
-      continue;
-    }
-
-    if (typeof (item as { text?: string }).text === 'string') {
-      parts.push((item as { text: string }).text);
-      continue;
-    }
-
-    if (typeof (item as { content?: string }).content === 'string') {
-      parts.push((item as { content: string }).content);
-      continue;
-    }
-
-    if (Array.isArray((item as { content?: any[] }).content)) {
-      const nested = collectTextFromContent((item as { content: any[] }).content);
-      if (nested) {
-        parts.push(nested);
-      }
-      continue;
-    }
-  }
-
-  return parts.join(' ').trim();
-}
-
-function extractActionableMessages(messages: any[]): any[] {
+function extractActionableMessages(
+  messages: NormalizedConversationEntry[]
+): NormalizedConversationEntry[] {
   if (!Array.isArray(messages)) {
     return [];
   }
   return messages.filter((message) => isActionableMessage(message));
 }
 
-function isActionableMessage(message: any, seen: Set<any> = new Set()): boolean {
+function isActionableMessage(message: NormalizedConversationEntry): boolean {
   if (!message || typeof message !== 'object') {
     return false;
   }
-
-  if (seen.has(message)) {
-    return false;
-  }
-  seen.add(message);
 
   if (
     message.type === 'function_call' ||
@@ -458,34 +320,8 @@ function isActionableMessage(message: any, seen: Set<any> = new Set()): boolean 
     return true;
   }
 
-  if (message.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
-    return true;
-  }
-
   if (message.role === 'tool') {
     return true;
-  }
-
-  const content = (message as Record<string, unknown>).content;
-  if (Array.isArray(content)) {
-    for (const part of content) {
-      if (
-        part &&
-        typeof part === 'object' &&
-        ['tool_use', 'function_call', 'tool_result', 'tool_call', 'function_call_output'].includes(
-          (part as { type?: string }).type ?? ''
-        )
-      ) {
-        return true;
-      }
-    }
-  }
-
-  for (const key of NESTED_MESSAGE_KEYS) {
-    const nested = (message as Record<string, unknown>)[key];
-    if (Array.isArray(nested) && nested.some((item) => isActionableMessage(item, seen))) {
-      return true;
-    }
   }
 
   return false;

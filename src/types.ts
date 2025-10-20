@@ -7,6 +7,7 @@
  */
 
 import { OpenAI } from 'openai';
+import { NormalizedConversationEntry } from './utils/conversation';
 
 /**
  * Interface for context types providing an OpenAI client.
@@ -28,7 +29,7 @@ export interface GuardrailLLMContext {
  */
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
   /** Get the full conversation history */
-  getConversationHistory(): any[];
+  getConversationHistory(): NormalizedConversationEntry[];
 }
 
 /**

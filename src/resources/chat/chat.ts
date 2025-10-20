@@ -59,12 +59,13 @@ export class ChatCompletions {
     const { messages, model, stream = false, suppressTripwire = false, ...kwargs } = params;
 
     const [latestMessage] = this.client.extractLatestUserMessage(messages);
+    const normalizedConversation = this.client.normalizeConversationHistory(messages);
 
     // Preflight first
     const preflightResults = await this.client.runStageGuardrails(
       'pre_flight',
       latestMessage,
-      messages,
+      normalizedConversation,
       suppressTripwire,
       this.client.raiseGuardrailErrors
     );
@@ -80,7 +81,7 @@ export class ChatCompletions {
       this.client.runStageGuardrails(
         'input',
         latestMessage,
-        messages,
+        normalizedConversation,
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
@@ -110,7 +111,7 @@ export class ChatCompletions {
         llmResponse,
         preflightResults,
         inputResults,
-        messages,
+        normalizedConversation,
         suppressTripwire
       );
     }

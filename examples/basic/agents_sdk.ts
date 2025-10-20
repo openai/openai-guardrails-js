@@ -12,6 +12,7 @@
 import * as readline from 'readline';
 import { GuardrailAgent } from '../../src';
 import { InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered } from '@openai/agents';
+import type { AgentInputItem } from '@openai/agents';
 
 // Define your pipeline configuration
 const PIPELINE_CONFIG = {
@@ -82,6 +83,9 @@ async function main(): Promise<void> {
     // Dynamic import to avoid bundling issues
     const { run } = await import('@openai/agents');
 
+    // Maintain conversation history locally (TypeScript Agents SDK doesn't support Sessions yet)
+    let thread: AgentInputItem[] = [];
+
     const rl = createReadlineInterface();
 
     // Handle graceful shutdown
@@ -108,14 +112,21 @@ async function main(): Promise<void> {
 
         console.log('🤔 Processing...\n');
 
-        const result = await run(agent, userInput);
+        // Pass conversation history with the new user message
+        const result = await run(agent, thread.concat({ role: 'user', content: userInput }));
+        
+        // Update thread with the complete history including newly generated items
+        thread = result.history;
+        
         console.log(`Assistant: ${result.finalOutput}\n`);
       } catch (error: any) {
         // Handle guardrail tripwire exceptions
-        if (error instanceof InputGuardrailTripwireTriggered) {
+        const errorType = error?.constructor?.name;
+        
+        if (errorType === 'InputGuardrailTripwireTriggered' || error instanceof InputGuardrailTripwireTriggered) {
           console.log('🛑 Input guardrail triggered! Please try a different message.\n');
           continue;
-        } else if (error instanceof OutputGuardrailTripwireTriggered) {
+        } else if (errorType === 'OutputGuardrailTripwireTriggered' || error instanceof OutputGuardrailTripwireTriggered) {
           console.log('🛑 Output guardrail triggered! The response was blocked.\n');
           continue;
         } else {
