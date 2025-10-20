@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { GuardrailResult, GuardrailLLMContext } from '../../types';
+import { OpenAI } from 'openai';
 
 describe('Types Module', () => {
   describe('GuardrailResult', () => {
@@ -80,7 +81,7 @@ describe('Types Module', () => {
   describe('GuardrailLLMContext', () => {
     it('should require guardrailLlm property', () => {
       const context: GuardrailLLMContext = {
-        guardrailLlm: {} as any,
+        guardrailLlm: {} as unknown as OpenAI,
       };
 
       expect(context.guardrailLlm).toBeDefined();
@@ -91,11 +92,11 @@ describe('Types Module', () => {
       const mockLLM = { someMethod: () => 'test' };
 
       const context: GuardrailLLMContext = {
-        guardrailLlm: mockLLM as any,
+        guardrailLlm: mockLLM as unknown as OpenAI,
       };
 
       expect(context.guardrailLlm).toBeDefined();
-      expect((context.guardrailLlm as any).someMethod()).toBe('test');
+      expect((context.guardrailLlm as unknown as { someMethod: () => string }).someMethod()).toBe('test');
     });
   });
 

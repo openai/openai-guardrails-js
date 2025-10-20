@@ -12,7 +12,7 @@ class GuardrailTest {
 
   constructor(
     public name: string,
-    public config: Record<string, any>,
+    public config: Record<string, unknown>,
     public passing_cases: string[],
     public failing_cases: string[]
   ) {}
@@ -315,15 +315,15 @@ interface TestResult {
     case: string;
     status: 'PASS' | 'FAIL' | 'ERROR';
     expected: 'pass';
-    details: any;
+    details: unknown;
   }>;
   failing_cases: Array<{
     case: string;
     status: 'PASS' | 'FAIL' | 'ERROR';
     expected: 'fail';
-    details: any;
+    details: unknown;
   }>;
-  errors: any[];
+  errors: unknown[];
 }
 
 interface TestSuiteResults {
@@ -361,7 +361,7 @@ async function runTest(
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      } as any) as GuardrailsResponse;
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -391,14 +391,14 @@ async function runTest(
           console.log(`  Info: ${JSON.stringify(info)}`);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       results.passing_cases.push({
         case: case_,
         status: 'ERROR',
         expected: 'pass',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Passing case ${idx + 1} error: ${e}`);
+      console.log(`⚠️ ${test.name} - Passing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -411,7 +411,7 @@ async function runTest(
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      } as any) as GuardrailsResponse;
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -441,14 +441,14 @@ async function runTest(
         });
         console.log(`❌ ${test.name} - Failing case ${idx + 1} not triggered`);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       results.failing_cases.push({
         case: case_,
         status: 'ERROR',
         expected: 'fail',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Failing case ${idx + 1} error: ${e}`);
+      console.log(`⚠️ ${test.name} - Failing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

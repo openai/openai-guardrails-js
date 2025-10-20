@@ -19,12 +19,4 @@ module.exports = {
     'no-redeclare': 'off',
     '@typescript-eslint/no-redeclare': 'off',
   },
-  overrides: [
-    {
-      files: ['**/__tests__/**/*.ts', '**/__tests__/**/*.js'],
-      rules: {
-        '@typescript-eslint/no-explicit-any': 'off',
-      },
-    },
-  ],
 };

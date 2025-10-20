@@ -16,8 +16,8 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info?.detected_entities?.EMAIL_ADDRESS).toEqual(['john@example.com']);
-    expect(result.info?.detected_entities?.US_SSN).toEqual(['111-22-3333']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual(['john@example.com']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.US_SSN).toEqual(['111-22-3333']);
     expect(result.info?.checked_text).toBe('Contact <EMAIL_ADDRESS> SSN: <US_SSN>');
   });
 
@@ -30,7 +30,7 @@ describe('pii guardrail', () => {
     const result = await pii({}, 'Call me at (415) 123-4567', config);
 
     expect(result.tripwireTriggered).toBe(true);
-    expect(result.info?.detected_entities?.PHONE_NUMBER?.[0]).toContain('415');
+    expect((result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER?.[0]).toContain('415');
     expect(result.info?.checked_text).toContain('<PHONE_NUMBER>');
   });
 

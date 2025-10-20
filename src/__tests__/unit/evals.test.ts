@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GuardrailMetricsCalculator, validateDataset, JsonResultsReporter } from '../../evals';
 import { SampleResult, GuardrailMetrics } from '../../evals/core/types';
+import { Stats } from 'fs';
 
 // Using type assertion for fs.Stats mock due to complex union type requirements
 
@@ -107,7 +108,7 @@ describe('Evaluation Framework', () => {
         isFile: () => true,
         isDirectory: () => false,
         size: 1024
-      } as any);
+      } as unknown as Stats);
       vi.mocked(mockFs.readFile).mockResolvedValue(
         '{"id":"1","data":"Sample 1","expectedTriggers":{"test":true}}\n{"id":"2","data":"Sample 2","expectedTriggers":{"test":false}}'
       );
@@ -124,7 +125,7 @@ describe('Evaluation Framework', () => {
         isFile: () => true,
         isDirectory: () => false,
         size: 1024
-      } as any);
+      } as unknown as Stats);
       vi.mocked(mockFs.readFile).mockResolvedValue(
         '{"id":"1","data":"Sample 1","expected_triggers":{"test":true}}\n{"id":"2","data":"Sample 2","expected_triggers":{"test":false}}'
       );
@@ -141,7 +142,7 @@ describe('Evaluation Framework', () => {
         isFile: () => true,
         isDirectory: () => false,
         size: 1024
-      } as any);
+      } as unknown as Stats);
       vi.mocked(mockFs.readFile).mockResolvedValue(
         '{"id":"1","data":"Sample 1","expectedTriggers":{"test":true}}\n{"id":"2","data":"Sample 2","expected_triggers":{"test":false}}'
       );
@@ -158,7 +159,7 @@ describe('Evaluation Framework', () => {
         isFile: () => true,
         isDirectory: () => false,
         size: 1024
-      } as any);
+      } as unknown as Stats);
       vi.mocked(mockFs.readFile).mockResolvedValue(
         '{"id":"1","data":"Sample 1"}\n{"id":"2","expectedTriggers":{"test":false}}'
       );
@@ -174,7 +175,7 @@ describe('Evaluation Framework', () => {
         isFile: () => true,
         isDirectory: () => false,
         size: 1024
-      } as any);
+      } as unknown as Stats);
       vi.mocked(mockFs.readFile).mockResolvedValue(
         'invalid json\n{"id":"1","data":"Sample 1","expectedTriggers":{"test":true}}'
       );

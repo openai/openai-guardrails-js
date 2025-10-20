@@ -9,25 +9,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const streamSyncMock = vi.fn();
 
-vi.mock(
-  '../../streaming',
-  () => ({
-    StreamingMixin: {
-      streamWithGuardrailsSync: streamSyncMock,
-    },
-  }),
-  { virtual: true }
-);
+vi.mock('../../streaming', () => ({
+  StreamingMixin: {
+    streamWithGuardrailsSync: streamSyncMock,
+  },
+}));
 
-vi.mock(
-  '../../streaming.js',
-  () => ({
-    StreamingMixin: {
-      streamWithGuardrailsSync: streamSyncMock,
-    },
-  }),
-  { virtual: true }
-);
+vi.mock('../../streaming.js', () => ({
+  StreamingMixin: {
+    streamWithGuardrailsSync: streamSyncMock,
+  },
+}));
 
 const baseClientMock = () => {
   return {
@@ -65,7 +57,7 @@ describe('Chat resource', () => {
 
   it('runs guardrail stages and delegates non-streaming responses to handler', async () => {
     const { Chat } = await import('../../resources/chat/chat');
-    const chat = new Chat(client as any);
+    const chat = new Chat(client as unknown as ConstructorParameters<typeof Chat>[0]);
     const messages = [{ role: 'user', content: 'hello' }];
 
     const result = await chat.completions.create({
@@ -124,7 +116,7 @@ describe('Responses resource', () => {
       .mockResolvedValueOnce([{ stage: 'preflight' }])
       .mockResolvedValueOnce([{ stage: 'input' }]);
 
-    const responses = new Responses(client as any);
+    const responses = new Responses(client as unknown as ConstructorParameters<typeof Responses>[0]);
 
     const payload = await responses.create({
       input: 'Tell me something',

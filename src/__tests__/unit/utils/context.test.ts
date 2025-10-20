@@ -32,7 +32,7 @@ describe('validateGuardrailContext', () => {
   });
 
   it('throws informative error when context is not introspectable', () => {
-    expect(() => validateGuardrailContext(guardrail, null as unknown as any)).toThrow(
+    expect(() => validateGuardrailContext(guardrail, null as unknown as object)).toThrow(
       /Context must support property access/
     );
   });
