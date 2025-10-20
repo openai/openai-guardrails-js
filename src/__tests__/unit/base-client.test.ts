@@ -56,9 +56,14 @@ class TestGuardrailsClient extends GuardrailsBaseClient {
 
 const createGuardrail = (
   name: string,
-  implementation: (ctx: any, text: string) => GuardrailResult | Promise<GuardrailResult>
+  implementation: (ctx: any, text: string) => GuardrailResult | Promise<GuardrailResult>,
+  metadata?: any
 ): any => ({
-  definition: { name },
+  definition: { 
+    name,
+    mediaType: 'text/plain', // Ensure test guardrails have proper media type
+    metadata: metadata || {}
+  },
   run: vi.fn(implementation),
 });
 
@@ -268,7 +273,7 @@ describe('GuardrailsBaseClient helpers', () => {
       const guardrail = createGuardrail('Prompt Injection Detection', async () => ({
         tripwireTriggered: false,
         info: { checked_text: 'payload' },
-      }));
+      }), { requiresConversationHistory: true });
       client.setGuardrails({
         pre_flight: [guardrail],
         input: [],
