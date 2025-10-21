@@ -149,18 +149,19 @@ async function createInputGuardrailsFromStage(
       name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
       execute: async (args: InputGuardrailFunctionArgs) => {
         const { input, context: agentContext } = args;
+        // Extract text from input - handle both string and message object formats
+        let inputText = '';
+        if (typeof input === 'string') {
+          inputText = input;
+        } else if (input && typeof input === 'object' && 'content' in input) {
+          // Use ContentUtils to extract text from message content
+          inputText = ContentUtils.extractTextFromMessage({
+            role: 'user',
+            content: input.content as string | ContentPart[]
+          });
+        }
+        
         try {
-          // Extract text from input - handle both string and message object formats
-          let inputText = '';
-          if (typeof input === 'string') {
-            inputText = input;
-          } else if (input && typeof input === 'object' && 'content' in input) {
-            // Use ContentUtils to extract text from message content
-            inputText = ContentUtils.extractTextFromMessage({
-              role: 'user',
-              content: input.content as string | ContentPart[]
-            });
-          }
 
           // Create a proper context with OpenAI client if needed
           let guardContext: GuardrailLLMContext = (context as unknown as GuardrailLLMContext) || (agentContext as unknown as GuardrailLLMContext) || {} as GuardrailLLMContext;
@@ -180,7 +181,10 @@ async function createInputGuardrailsFromStage(
           }
 
           return {
-            outputInfo: result.info || null,
+            outputInfo: {
+              ...(result.info || {}),
+              input: inputText,
+            },
             tripwireTriggered: result.tripwireTriggered || false,
           };
         } catch (error) {
@@ -194,6 +198,7 @@ async function createInputGuardrailsFromStage(
               outputInfo: {
                 error: error instanceof Error ? error.message : String(error),
                 guardrail_name: guardrail.definition.name || 'unknown',
+                input: inputText,
               },
               tripwireTriggered: false,
             };
@@ -218,23 +223,24 @@ async function createOutputGuardrailsFromStage(
       name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
       execute: async (args: OutputGuardrailFunctionArgs) => {
         const { agentOutput, context: agentContext } = args;
+        // Extract the output text - could be in different formats
+        let outputText = '';
+        if (typeof agentOutput === 'string') {
+          outputText = agentOutput;
+        } else if (agentOutput && typeof agentOutput === 'object' && 'response' in agentOutput) {
+          outputText = (agentOutput as AgentOutput).response || '';
+        } else if (agentOutput && typeof agentOutput === 'object' && 'finalOutput' in agentOutput) {
+          const finalOutput = (agentOutput as AgentOutput).finalOutput;
+          outputText =
+            typeof finalOutput === 'string'
+              ? finalOutput
+              : JSON.stringify(finalOutput);
+        } else {
+          // Try to extract any string content
+          outputText = JSON.stringify(agentOutput);
+        }
+        
         try {
-          // Extract the output text - could be in different formats
-          let outputText = '';
-          if (typeof agentOutput === 'string') {
-            outputText = agentOutput;
-          } else if (agentOutput && typeof agentOutput === 'object' && 'response' in agentOutput) {
-            outputText = (agentOutput as AgentOutput).response || '';
-          } else if (agentOutput && typeof agentOutput === 'object' && 'finalOutput' in agentOutput) {
-            const finalOutput = (agentOutput as AgentOutput).finalOutput;
-            outputText =
-              typeof finalOutput === 'string'
-                ? finalOutput
-                : JSON.stringify(finalOutput);
-          } else {
-            // Try to extract any string content
-            outputText = JSON.stringify(agentOutput);
-          }
 
           // Create a proper context with OpenAI client if needed
           let guardContext: GuardrailLLMContext = (context as unknown as GuardrailLLMContext) || (agentContext as unknown as GuardrailLLMContext) || {} as GuardrailLLMContext;
@@ -254,7 +260,10 @@ async function createOutputGuardrailsFromStage(
           }
 
           return {
-            outputInfo: result.info || null,
+            outputInfo: {
+              ...(result.info || {}),
+              input: outputText,
+            },
             tripwireTriggered: result.tripwireTriggered || false,
           };
         } catch (error) {
@@ -268,6 +277,7 @@ async function createOutputGuardrailsFromStage(
               outputInfo: {
                 error: error instanceof Error ? error.message : String(error),
                 guardrail_name: guardrail.definition.name || 'unknown',
+                input: outputText,
               },
               tripwireTriggered: false,
             };

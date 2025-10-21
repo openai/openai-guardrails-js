@@ -4,15 +4,15 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GuardrailAgent } from '../../agents';
-import { TextInput, GuardrailResult } from '../../types';
+import { TextInput } from '../../types';
 import { z } from 'zod';
 
 // Define the expected agent interface for testing
 interface MockAgent {
   name: string;
   instructions: string;
-  inputGuardrails: Array<{ execute: (input: TextInput) => Promise<GuardrailResult> }>;
-  outputGuardrails: Array<{ execute: (input: TextInput) => Promise<GuardrailResult> }>;
+  inputGuardrails: Array<{ execute: (input: TextInput) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }> }>;
+  outputGuardrails: Array<{ execute: (input: TextInput) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }> }>;
   model?: string;
   temperature?: number;
   max_tokens?: number;
@@ -234,7 +234,7 @@ describe('GuardrailAgent', () => {
       const guardrailFunction = agent.inputGuardrails[0];
       const result = await guardrailFunction.execute('test input');
 
-      expect(result).toHaveProperty('info');
+      expect(result).toHaveProperty('outputInfo');
       expect(result).toHaveProperty('tripwireTriggered');
       expect(typeof result.tripwireTriggered).toBe('boolean');
     });
@@ -286,8 +286,8 @@ describe('GuardrailAgent', () => {
       // When raiseGuardrailErrors=false, execution errors should NOT trigger tripwires
       // This allows execution to continue in fail-safe mode
       expect(resultDefault.tripwireTriggered).toBe(false);
-      expect(resultDefault.info).toBeDefined();
-      expect(resultDefault.info.error).toBe('Guardrail execution failed');
+      expect(resultDefault.outputInfo).toBeDefined();
+      expect(resultDefault.outputInfo.error).toBe('Guardrail execution failed');
 
       // Reset the mock for the second test
       vi.mocked(instantiateGuardrails).mockImplementationOnce(() =>
