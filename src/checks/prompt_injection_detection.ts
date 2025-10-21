@@ -25,9 +25,9 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../types';
+import { CheckFn, GuardrailResult, GuardrailLLMContext, GuardrailLLMContextWithHistory, ContentPart, ConversationMessage } from '../types';
 import { defaultSpecRegistry } from '../registry';
-import { LLMConfig, LLMOutput, runLLM } from './llm-base';
+import { LLMOutput, runLLM } from './llm-base';
 import { parseConversationInput, POSSIBLE_CONVERSATION_KEYS } from '../utils/conversation';
 
 /**
@@ -43,6 +43,15 @@ export const PromptInjectionDetectionConfig = z.object({
 });
 
 export type PromptInjectionDetectionConfig = z.infer<typeof PromptInjectionDetectionConfig>;
+
+/**
+ * Extended content part for conversation handling.
+ */
+export interface ConversationContentPart extends ContentPart {
+  text?: string;
+  content?: string | ConversationContentPart[];
+  [key: string]: unknown;
+}
 
 // Schema for registry registration (ensures all fields are provided)
 export const PromptInjectionDetectionConfigRequired = z.object({
@@ -157,7 +166,7 @@ export const promptInjectionDetectionCheck: CheckFn<
 > = async (ctx, data, config): Promise<GuardrailResult> => {
   try {
     const conversationHistory = safeGetConversationHistory(ctx);
-    const parsedDataMessages = parseConversationInput(data);
+    const parsedDataMessages = parseConversationInput(data) as ConversationMessage[];
     if (conversationHistory.length === 0 && parsedDataMessages.length === 0) {
       return createSkipResult(
         'No conversation history available',
@@ -225,7 +234,7 @@ export const promptInjectionDetectionCheck: CheckFn<
   }
 };
 
-function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): any[] {
+function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): ConversationMessage[] {
   try {
     const history = ctx.getConversationHistory();
     if (Array.isArray(history)) {
@@ -238,9 +247,9 @@ function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): any[]
 }
 
 function prepareConversationSlice(
-  conversationHistory: any[],
-  parsedDataMessages: any[]
-): { recentMessages: any[]; actionableMessages: any[]; userIntent: UserIntentDict } {
+  conversationHistory: ConversationMessage[],
+  parsedDataMessages: ConversationMessage[]
+): { recentMessages: ConversationMessage[]; actionableMessages: ConversationMessage[]; userIntent: UserIntentDict } {
   const historyMessages = Array.isArray(conversationHistory) ? conversationHistory : [];
   const datasetMessages = Array.isArray(parsedDataMessages) ? parsedDataMessages : [];
 
@@ -261,7 +270,7 @@ function prepareConversationSlice(
   return { recentMessages, actionableMessages, userIntent };
 }
 
-function sliceMessagesAfterLatestUser(messages: any[]): any[] {
+function sliceMessagesAfterLatestUser(messages: ConversationMessage[]): ConversationMessage[] {
   if (!Array.isArray(messages) || messages.length === 0) {
     return [];
   }
@@ -274,7 +283,7 @@ function sliceMessagesAfterLatestUser(messages: any[]): any[] {
   return messages.slice();
 }
 
-function findLastUserIndex(messages: any[]): number {
+function findLastUserIndex(messages: ConversationMessage[]): number {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     if (isUserMessageEntry(messages[i])) {
       return i;
@@ -283,7 +292,7 @@ function findLastUserIndex(messages: any[]): number {
   return -1;
 }
 
-function isUserMessageEntry(entry: any, seen: Set<any> = new Set()): boolean {
+function isUserMessageEntry(entry: ConversationMessage, seen: Set<ConversationMessage> = new Set()): boolean {
   if (!entry || typeof entry !== 'object') {
     return false;
   }
@@ -315,9 +324,9 @@ function isUserMessageEntry(entry: any, seen: Set<any> = new Set()): boolean {
   return false;
 }
 
-function extractUserIntentFromMessages(messages: any[]): UserIntentDict {
+function extractUserIntentFromMessages(messages: ConversationMessage[]): UserIntentDict {
   const userMessages: string[] = [];
-  const visited = new Set<any>();
+  const visited = new Set<ConversationMessage>();
 
   for (const message of messages) {
     collectUserMessages(message, userMessages, visited);
@@ -333,7 +342,7 @@ function extractUserIntentFromMessages(messages: any[]): UserIntentDict {
   };
 }
 
-function collectUserMessages(value: any, collected: string[], visited: Set<any>): void {
+function collectUserMessages(value: ConversationMessage, collected: string[], visited: Set<ConversationMessage>): void {
   if (!value || typeof value !== 'object') {
     return;
   }
@@ -360,7 +369,7 @@ function collectUserMessages(value: any, collected: string[], visited: Set<any>)
   }
 }
 
-function extractUserMessageText(message: any): string {
+function extractUserMessageText(message: ConversationMessage): string {
   if (typeof message === 'string') {
     return message;
   }
@@ -391,7 +400,7 @@ function extractUserMessageText(message: any): string {
   return '';
 }
 
-function collectTextFromContent(content: any[]): string {
+function collectTextFromContent(content: ConversationContentPart[]): string {
   const parts: string[] = [];
 
   for (const item of content) {
@@ -400,8 +409,9 @@ function collectTextFromContent(content: any[]): string {
     }
 
     if (typeof item === 'string') {
-      if (item.trim().length > 0) {
-        parts.push(item.trim());
+      const trimmed = (item as string).trim();
+      if (trimmed.length > 0) {
+        parts.push(trimmed);
       }
       continue;
     }
@@ -410,20 +420,29 @@ function collectTextFromContent(content: any[]): string {
       continue;
     }
 
-    if (typeof (item as { text?: string }).text === 'string') {
-      parts.push((item as { text: string }).text);
+    if (typeof (item as ConversationContentPart).text === 'string') {
+      const text = (item as ConversationContentPart).text;
+      if (text) {
+        parts.push(text);
+      }
       continue;
     }
 
-    if (typeof (item as { content?: string }).content === 'string') {
-      parts.push((item as { content: string }).content);
+    if (typeof (item as ConversationContentPart).content === 'string') {
+      const content = (item as ConversationContentPart).content as string;
+      if (content) {
+        parts.push(content);
+      }
       continue;
     }
 
-    if (Array.isArray((item as { content?: any[] }).content)) {
-      const nested = collectTextFromContent((item as { content: any[] }).content);
-      if (nested) {
-        parts.push(nested);
+    if (Array.isArray((item as ConversationContentPart).content)) {
+      const contentArray = (item as ConversationContentPart).content as ConversationContentPart[];
+      if (contentArray) {
+        const nested = collectTextFromContent(contentArray);
+        if (nested) {
+          parts.push(nested);
+        }
       }
       continue;
     }
@@ -432,14 +451,14 @@ function collectTextFromContent(content: any[]): string {
   return parts.join(' ').trim();
 }
 
-function extractActionableMessages(messages: any[]): any[] {
+function extractActionableMessages(messages: ConversationMessage[]): ConversationMessage[] {
   if (!Array.isArray(messages)) {
     return [];
   }
   return messages.filter((message) => isActionableMessage(message));
 }
 
-function isActionableMessage(message: any, seen: Set<any> = new Set()): boolean {
+function isActionableMessage(message: ConversationMessage, seen: Set<ConversationMessage> = new Set()): boolean {
   if (!message || typeof message !== 'object') {
     return false;
   }
@@ -496,8 +515,8 @@ function createSkipResult(
   threshold: number,
   checkedText: string,
   userGoal: string = 'N/A',
-  action: any[] = [],
-  recentMessages: any[] = []
+  action: ConversationMessage[] = [],
+  recentMessages: ConversationMessage[] = []
 ): GuardrailResult {
   return {
     tripwireTriggered: false,
@@ -533,8 +552,8 @@ ${contextText}`;
 
 function buildAnalysisPrompt(
   userGoalText: string,
-  recentMessages: any[],
-  actionableMessages: any[]
+  recentMessages: ConversationMessage[],
+  actionableMessages: ConversationMessage[]
 ): string {
   const recentMessagesText =
     recentMessages.length > 0 ? JSON.stringify(recentMessages, null, 2) : '[]';
@@ -572,7 +591,7 @@ async function callPromptInjectionDetectionLLM(
     const result = await runLLM(
       prompt,
       '', // No additional system prompt needed, prompt contains everything
-      ctx.guardrailLlm as OpenAI, // Type assertion to handle OpenAI client compatibility
+      ctx.guardrailLlm,
       config.model,
       PromptInjectionDetectionOutput
     );

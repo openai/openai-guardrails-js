@@ -539,7 +539,7 @@ export abstract class GuardrailsBaseClient {
       // Add conversation history methods
       getConversationHistory: () => conversationHistory,
     } as GuardrailLLMContext & {
-      getConversationHistory(): any[];
+      getConversationHistory(): TextOnlyMessageArray;
     };
   }
 

@@ -7,7 +7,7 @@
 
 import { Context, RunEngine, Sample, SampleResult } from './types';
 import { ConfiguredGuardrail } from '../../runtime';
-import { GuardrailLLMContextWithHistory, GuardrailResult } from '../../types';
+import { GuardrailLLMContextWithHistory, GuardrailResult, GuardrailLLMContext, ConversationMessage } from '../../types';
 import { parseConversationInput } from '../../utils/conversation';
 
 /**
@@ -70,7 +70,7 @@ export class AsyncRunEngine implements RunEngine {
    */
   private async evaluateSample(context: Context, sample: Sample): Promise<SampleResult> {
     const triggered: Record<string, boolean> = {};
-    const details: Record<string, any> = {};
+    const details: Record<string, GuardrailResult['info']> = {};
 
     for (const name of this.guardrailNames) {
       triggered[name] = false;
@@ -96,6 +96,7 @@ export class AsyncRunEngine implements RunEngine {
           console.error(`Error running guardrail ${name} on sample ${sample.id}:`, guardrailError);
           triggered[name] = false;
           details[name] = {
+            checked_text: sample.data,
             error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
           };
         }
@@ -130,7 +131,7 @@ export class AsyncRunEngine implements RunEngine {
       return await this.runPromptInjectionIncremental(context, guardrail, sampleData);
     }
 
-    return await guardrail.run(context as any, sampleData);
+    return await guardrail.run(context as GuardrailLLMContext, sampleData);
   }
 
   private isPromptInjectionGuardrail(guardrail: ConfiguredGuardrail): boolean {
@@ -146,7 +147,7 @@ export class AsyncRunEngine implements RunEngine {
     guardrail: ConfiguredGuardrail,
     sampleData: string
   ): Promise<GuardrailResult> {
-    const conversation = parseConversationInput(sampleData);
+    const conversation = parseConversationInput(sampleData) as ConversationMessage[];
 
     if (conversation.length === 0) {
       const guardrailContext = this.createPromptInjectionContext(context, []);
@@ -193,7 +194,7 @@ export class AsyncRunEngine implements RunEngine {
 
   private createPromptInjectionContext(
     context: Context,
-    conversationHistory: any[]
+    conversationHistory: ConversationMessage[]
   ): GuardrailLLMContextWithHistory {
     return {
       guardrailLlm: context.guardrailLlm,

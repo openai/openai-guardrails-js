@@ -20,6 +20,18 @@ export interface GuardrailLLMContext {
 }
 
 /**
+ * Extended message type for conversation handling that includes additional properties
+ * not present in the base Message type.
+ */
+export interface ConversationMessage extends Message {
+  type?: string;
+  tool_calls?: unknown[];
+  text?: string;
+  value?: string;
+  [key: string]: unknown;
+}
+
+/**
  * Extended context interface for guardrails that need conversation history.
  *
  * This interface extends the base GuardrailLLMContext with methods for
@@ -28,7 +40,7 @@ export interface GuardrailLLMContext {
  */
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
   /** Get the full conversation history */
-  getConversationHistory(): any[];
+  getConversationHistory(): ConversationMessage[];
 }
 
 /**
