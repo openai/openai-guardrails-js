@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
+import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
 
 /**
@@ -100,9 +100,10 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
         temperature: 0.0,
         response_format: { type: 'json_object' },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If JSON response format is not supported, try without it
-      if (error?.error?.param === 'response_format') {
+      if (error && typeof error === 'object' && 'error' in error && 
+          (error as { error?: { param?: string } }).error?.param === 'response_format') {
         response = await ctx.guardrailLlm.chat.completions.create({
           messages: [
             { role: 'system', content: renderedSystemPrompt },

@@ -5,18 +5,14 @@
  * guardrail configurations using the new GuardrailsClient design.
  */
 
-import { GuardrailsOpenAI } from '../../index.js';
-
-interface Context {
-  guardrail_llm: any; // OpenAI client
-}
+import { GuardrailsOpenAI, GuardrailsResponse } from '../../index.js';
 
 class GuardrailTest {
   /** Represents a complete test case for a guardrail. */
 
   constructor(
     public name: string,
-    public config: Record<string, any>,
+    public config: Record<string, unknown>,
     public passing_cases: string[],
     public failing_cases: string[]
   ) {}
@@ -319,15 +315,15 @@ interface TestResult {
     case: string;
     status: 'PASS' | 'FAIL' | 'ERROR';
     expected: 'pass';
-    details: any;
+    details: unknown;
   }>;
   failing_cases: Array<{
     case: string;
     status: 'PASS' | 'FAIL' | 'ERROR';
     expected: 'fail';
-    details: any;
+    details: unknown;
   }>;
-  errors: any[];
+  errors: unknown[];
 }
 
 interface TestSuiteResults {
@@ -346,8 +342,7 @@ interface TestSuiteResults {
 
 async function runTest(
   test: GuardrailTest,
-  guardrailsClient: GuardrailsOpenAI,
-  mediaType: string = 'text/plain'
+  guardrailsClient: GuardrailsOpenAI
 ): Promise<TestResult> {
   /** Run a single guardrail test and collect its results. */
   const results: TestResult = {
@@ -366,7 +361,7 @@ async function runTest(
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      });
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -396,14 +391,14 @@ async function runTest(
           console.log(`  Info: ${JSON.stringify(info)}`);
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       results.passing_cases.push({
         case: case_,
         status: 'ERROR',
         expected: 'pass',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Passing case ${idx + 1} error: ${e}`);
+      console.log(`⚠️ ${test.name} - Passing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -416,7 +411,7 @@ async function runTest(
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      });
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -446,14 +441,14 @@ async function runTest(
         });
         console.log(`❌ ${test.name} - Failing case ${idx + 1} not triggered`);
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       results.failing_cases.push({
         case: case_,
         status: 'ERROR',
         expected: 'fail',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Failing case ${idx + 1} error: ${e}`);
+      console.log(`⚠️ ${test.name} - Failing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -461,8 +456,7 @@ async function runTest(
 }
 
 async function runTestSuite(
-  testFilter?: string,
-  mediaType: string = 'text/plain'
+  testFilter?: string
 ): Promise<TestSuiteResults> {
   /** Run all or a subset of guardrail tests and summarize results. */
   const results: TestSuiteResults = {
@@ -504,7 +498,7 @@ async function runTestSuite(
     // Initialize GuardrailsOpenAI for this test
     const guardrailsClient = await GuardrailsOpenAI.create(pipelineConfig);
 
-    const outcome = await runTest(test, guardrailsClient, mediaType);
+    const outcome = await runTest(test, guardrailsClient);
     results.tests.push(outcome);
 
     // Calculate test status
@@ -592,7 +586,7 @@ async function main(): Promise<void> {
   console.log(`Test filter: ${args.test || 'all'}`);
   console.log(`Media type: ${args.mediaType}`);
 
-  const results = await runTestSuite(args.test, args.mediaType);
+  const results = await runTestSuite(args.test);
 
   printSummary(results);
 

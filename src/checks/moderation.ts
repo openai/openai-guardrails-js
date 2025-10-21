@@ -73,7 +73,7 @@ export const ModerationConfigRequired = z
  */
 export const ModerationContext = z.object({
   /** Optional OpenAI client to reuse instead of creating a new one */
-  guardrailLlm: z.any().optional(),
+  guardrailLlm: z.unknown().optional(),
 });
 
 export type ModerationContext = z.infer<typeof ModerationContext>;
@@ -96,22 +96,25 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
   config
 ): Promise<GuardrailResult> => {
   // Handle the case where config might be wrapped in another object
-  const actualConfig = (config as any).config || config;
+  const actualConfig = (config as Record<string, unknown>).config || config;
 
   // Ensure categories is an array
-  const categories = actualConfig.categories || Object.values(Category);
+  const configObj = actualConfig as Record<string, unknown>;
+  const categories = (configObj.categories as string[]) || Object.values(Category);
 
   // Reuse provided client only if it targets the official OpenAI API.
-  const reuseClientIfOpenAI = (context: any): OpenAI | null => {
+  const reuseClientIfOpenAI = (context: unknown): OpenAI | null => {
     try {
-      const candidate = context?.guardrailLlm;
+      const contextObj = context as Record<string, unknown>;
+      const candidate = contextObj?.guardrailLlm;
       if (!candidate || typeof candidate !== 'object') return null;
-      if (!(candidate instanceof (OpenAI as any))) return null;
+      if (!(candidate instanceof OpenAI)) return null;
 
+      const candidateObj = candidate as unknown as Record<string, unknown>;
       const baseURL: string | undefined =
-        (candidate as any).baseURL ??
-        (candidate as any)._client?.baseURL ??
-        (candidate as any)._baseURL;
+        (candidateObj.baseURL as string) ??
+        ((candidateObj._client as Record<string, unknown>)?.baseURL as string) ??
+        (candidateObj._baseURL as string);
 
       if (
         baseURL === undefined ||
@@ -153,7 +156,7 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
 
     for (const cat of categories) {
       const catValue = cat;
-      const isFlagged = (moderationCategories as any)[catValue] || false;
+      const isFlagged = (moderationCategories as unknown as Record<string, boolean>)[catValue] || false;
       if (isFlagged) {
         flaggedCategories.push(catValue);
       }

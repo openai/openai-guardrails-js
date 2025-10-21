@@ -6,7 +6,7 @@ Flags mentions of competitors from a configurable list. Scans text for mentions 
 
 ```json
 {
-    "name": "Competitor Detection",
+    "name": "Competitors",
     "config": {
         "competitors": ["competitor1", "rival-company.com", "alternative-provider"]
     }

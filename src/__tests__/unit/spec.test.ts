@@ -8,13 +8,13 @@
  * - Validation
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { GuardrailSpec, GuardrailSpecMetadata } from '../../spec';
-import { CheckFn } from '../../types';
+import { CheckFn, TextInput } from '../../types';
 import { z } from 'zod';
 
 // Mock check function for testing
-const mockCheck: CheckFn<any, any, any> = (ctx, data, config) => ({
+const mockCheck: CheckFn<object, TextInput, object> = (ctx, data) => ({
   tripwireTriggered: false,
   info: {
     checked_text: data,
@@ -166,8 +166,8 @@ describe('Spec Module', () => {
       };
 
       expect(metadata.engine).toBe('regex');
-      expect((metadata as any).custom).toBe(123);
-      expect((metadata as any).version).toBe('1.0.0');
+      expect((metadata as Record<string, unknown>).custom).toBe(123);
+      expect((metadata as Record<string, unknown>).version).toBe('1.0.0');
     });
 
     it('should handle empty metadata', () => {
@@ -216,7 +216,7 @@ describe('Spec Module', () => {
       const complexContext = z.object({
         user: z.string(),
         permissions: z.array(z.string()),
-        settings: z.record(z.any()),
+        settings: z.record(z.unknown()),
       });
 
       const spec = new GuardrailSpec(
@@ -291,7 +291,7 @@ describe('Spec Module', () => {
             'Test description',
             'text/plain',
             z.object({}),
-            undefined as any,
+            undefined as unknown as CheckFn<object, TextInput, object>,
             z.object({})
           )
       ).not.toThrow();

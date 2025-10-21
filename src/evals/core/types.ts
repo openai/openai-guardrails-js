@@ -45,7 +45,7 @@ export interface SampleResult {
   /** Mapping of guardrail names to actual trigger status. */
   triggered: Record<string, boolean>;
   /** Additional details for each guardrail (e.g., info, errors). */
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 /**

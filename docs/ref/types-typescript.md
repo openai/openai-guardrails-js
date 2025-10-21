@@ -31,7 +31,11 @@ export interface GuardrailResult {
   originalException?: Error;
   info: {
     checked_text: string;
-    [key: string]: any;
+    media_type?: string;
+    detected_content_type?: string;
+    stage_name?: string;
+    guardrail_name?: string;
+    [key: string]: unknown;
   };
 }
 ```
@@ -41,7 +45,7 @@ Standard result returned by every guardrail check. The `executionFailed` field i
 ## CheckFn
 
 ```typescript
-export type CheckFn<TContext = object, TIn = unknown, TCfg = object> =
+export type CheckFn<TContext = object, TIn = TextInput, TCfg = object> =
   (ctx: TContext, input: TIn, config: TCfg) => GuardrailResult | Promise<GuardrailResult>;
 ```
 
@@ -52,7 +56,7 @@ Callable signature implemented by all guardrails. May be sync or async.
 ```typescript
 export type MaybeAwaitableResult = GuardrailResult | Promise<GuardrailResult>;
 export type TContext = object;
-export type TIn = unknown;
+export type TIn = TextInput;
 export type TCfg = object;
 ```
 

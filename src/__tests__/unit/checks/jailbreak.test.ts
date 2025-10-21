@@ -2,7 +2,7 @@
  * Ensures jailbreak guardrail delegates to createLLMCheckFn with correct metadata.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const createLLMCheckFnMock = vi.fn(() => 'mocked-guardrail');
 const registerMock = vi.fn();

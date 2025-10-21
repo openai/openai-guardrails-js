@@ -1,9 +1,10 @@
 /**
  * Responses API with guardrails.
  */
-
+/* eslint-disable no-dupe-class-members */
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import { Message } from '../../types';
 import { mergeConversationWithItems } from '../../utils/conversation';
 
 /**
@@ -20,7 +21,7 @@ export class Responses {
   // Overload: streaming
   create(
     params: {
-      input: string | unknown[];
+      input: string | Message[];
       model: string;
       stream: true;
       tools?: unknown[];
@@ -29,10 +30,9 @@ export class Responses {
   ): Promise<AsyncIterableIterator<GuardrailsResponse>>;
 
   // Overload: non-streaming (default)
-  /* eslint-disable no-dupe-class-members */
   create(
     params: {
-      input: string | unknown[];
+      input: string | Message[];
       model: string;
       stream?: false;
       tools?: unknown[];
@@ -42,7 +42,7 @@ export class Responses {
 
   async create(
     params: {
-      input: string | unknown[];
+      input: string | Message[];
       model: string;
       stream?: boolean;
       tools?: unknown[];
@@ -58,9 +58,12 @@ export class Responses {
       priorHistory.length > 0 ? mergeConversationWithItems(priorHistory, currentTurn) : currentTurn;
 
     // Determine latest user message text when a list of messages is provided
-    const latestMessage = Array.isArray(input)
-      ? (this.client).extractLatestUserMessage(input)[0]
-      : (input as string);
+    let latestMessage: string;
+    if (Array.isArray(input)) {
+      [latestMessage] = this.client.extractLatestUserTextMessage(input);
+    } else {
+      latestMessage = input;
+    }
 
     // Preflight first (run checks on the latest user message text, with full conversation)
     const preflightResults = await this.client.runStageGuardrails(
@@ -72,7 +75,10 @@ export class Responses {
     );
 
     // Apply pre-flight modifications (PII masking, etc.)
-    const modifiedInput = this.client.applyPreflightModifications(input, preflightResults);
+    const modifiedInput = this.client.applyPreflightModifications(
+      input, 
+      preflightResults
+    );
 
     // Input guardrails and LLM call concurrently
     const [inputResults, llmResponse] = await Promise.all([
@@ -83,6 +89,7 @@ export class Responses {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.client as any)._resourceClient.responses.create({
         input: modifiedInput,
         model,
@@ -102,10 +109,11 @@ export class Responses {
         llmResponse,
         preflightResults,
         inputResults,
-        input,
+        normalizedConversation,
         suppressTripwire
       );
     } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (this.client as any).handleLlmResponse(
         llmResponse,
         preflightResults,

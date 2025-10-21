@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import { OpenAI } from 'openai';
 import {
   promptInjectionDetectionCheck,
   PromptInjectionDetectionConfig,
@@ -41,7 +42,7 @@ describe('Prompt Injection Detection Check', () => {
     };
 
     mockContext = {
-      guardrailLlm: mockOpenAI as any,
+      guardrailLlm: mockOpenAI as unknown as OpenAI,
       getConversationHistory: () => [
         { role: 'user', content: 'What is the weather in Tokyo?' },
         { role: 'assistant', content: 'I will check the weather for you.' },

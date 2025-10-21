@@ -44,12 +44,12 @@ describe('CLI main', () => {
     runEvaluationCLI.mockReset();
 
     exitCalls = [];
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
-      exitCalls.push(code ?? 0);
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
+      exitCalls.push(typeof code === 'number' ? code : 0);
       return undefined as never;
-    }) as any);
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    }) as unknown as ReturnType<typeof vi.spyOn>;
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.spyOn>;
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.spyOn>;
 
     await importMain();
   });

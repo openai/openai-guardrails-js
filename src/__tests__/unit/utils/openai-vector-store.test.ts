@@ -47,7 +47,7 @@ vi.mock('openai', () => ({
 }));
 
 describe('createOpenAIVectorStoreFromPath', () => {
-  let createOpenAIVectorStoreFromPath: any;
+  let createOpenAIVectorStoreFromPath: (path: string, config: { apiKey: string }) => Promise<string>;
 
   beforeEach(async () => {
     openAiState.failUploads = false;
@@ -59,8 +59,8 @@ describe('createOpenAIVectorStoreFromPath', () => {
     global.File =
       global.File ||
       (class PolyfillFile {
-        constructor(public blobs: any[], public name: string, public options: any) {}
-      } as any);
+        constructor(public blobs: unknown[], public name: string, public options: Record<string, unknown>) {}
+      } as unknown as typeof File);
 
     vi.resetModules();
     ({ createOpenAIVectorStoreFromPath } = await import('../../../utils/openai-vector-store'));

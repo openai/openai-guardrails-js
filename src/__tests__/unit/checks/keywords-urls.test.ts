@@ -6,6 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { keywordsCheck, KeywordsConfig } from '../../../checks/keywords';
 import { urls } from '../../../checks/urls';
 import { competitorsCheck } from '../../../checks/competitors';
+import { GuardrailResult } from '../../../types';
 
 describe('keywords guardrail', () => {
   it('detects keywords with trailing punctuation removed', () => {
@@ -13,7 +14,7 @@ describe('keywords guardrail', () => {
       {},
       'Please keep this secret!',
       KeywordsConfig.parse({ keywords: ['secret!!!'] })
-    );
+    ) as GuardrailResult;
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.matchedKeywords).toEqual(['secret']);
@@ -26,7 +27,7 @@ describe('keywords guardrail', () => {
       {},
       'All clear content',
       KeywordsConfig.parse({ keywords: ['secret'] })
-    );
+    ) as GuardrailResult;
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.matchedKeywords).toEqual([]);
@@ -71,8 +72,8 @@ describe('urls guardrail', () => {
       'https://user:pass@secure.example.com',
       'javascript:alert(1)',
     ]);
-    expect(result.info?.blocked_reasons?.some((reason: string) => reason.includes('Blocked scheme: http'))).toBe(true);
-    expect(result.info?.blocked_reasons?.some((reason: string) => reason.includes('Contains userinfo'))).toBe(true);
+    expect((result.info?.blocked_reasons as string[])?.some((reason: string) => reason.includes('Blocked scheme: http'))).toBe(true);
+    expect((result.info?.blocked_reasons as string[])?.some((reason: string) => reason.includes('Contains userinfo'))).toBe(true);
   });
 
   it('honours subdomain allowance settings', async () => {
@@ -94,12 +95,12 @@ describe('urls guardrail', () => {
 });
 
 describe('competitors guardrail', () => {
-  it('reuses keywords check and annotates guardrail name', async () => {
-    const result = await competitorsCheck(
+  it('reuses keywords check and annotates guardrail name', () => {
+    const result = competitorsCheck(
       {},
       'We prefer Acme Corp over others.',
       { keywords: ['acme corp'] }
-    );
+    ) as GuardrailResult;
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.guardrail_name).toBe('Competitors');

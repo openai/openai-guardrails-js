@@ -8,8 +8,9 @@
  * - Type compatibility
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { GuardrailResult, CheckFn, GuardrailLLMContext } from '../../types';
+import { describe, it, expect } from 'vitest';
+import { GuardrailResult, GuardrailLLMContext } from '../../types';
+import { OpenAI } from 'openai';
 
 describe('Types Module', () => {
   describe('GuardrailResult', () => {
@@ -53,26 +54,26 @@ describe('Types Module', () => {
 
   describe('CheckFn', () => {
     it('should work with sync function', () => {
-      const syncCheck = (ctx: any, data: any, config: any): GuardrailResult => ({
+      const syncCheck = (ctx: Record<string, unknown>, data: string): GuardrailResult => ({
         tripwireTriggered: data === 'trigger',
         info: {
           checked_text: data,
         },
       });
 
-      const result = syncCheck({}, 'trigger', {});
+      const result = syncCheck({}, 'trigger');
       expect(result.tripwireTriggered).toBe(true);
     });
 
     it('should work with async function', async () => {
-      const asyncCheck = async (ctx: any, data: any, config: any): Promise<GuardrailResult> => ({
+      const asyncCheck = async (ctx: Record<string, unknown>, data: string): Promise<GuardrailResult> => ({
         tripwireTriggered: data === 'trigger',
         info: {
           checked_text: data,
         },
       });
 
-      const result = await asyncCheck({}, 'trigger', {});
+      const result = await asyncCheck({}, 'trigger');
       expect(result.tripwireTriggered).toBe(true);
     });
   });
@@ -80,7 +81,7 @@ describe('Types Module', () => {
   describe('GuardrailLLMContext', () => {
     it('should require guardrailLlm property', () => {
       const context: GuardrailLLMContext = {
-        guardrailLlm: {} as any,
+        guardrailLlm: {} as unknown as OpenAI,
       };
 
       expect(context.guardrailLlm).toBeDefined();
@@ -91,11 +92,11 @@ describe('Types Module', () => {
       const mockLLM = { someMethod: () => 'test' };
 
       const context: GuardrailLLMContext = {
-        guardrailLlm: mockLLM as any,
+        guardrailLlm: mockLLM as unknown as OpenAI,
       };
 
       expect(context.guardrailLlm).toBeDefined();
-      expect((context.guardrailLlm as any).someMethod()).toBe('test');
+      expect((context.guardrailLlm as unknown as { someMethod: () => string }).someMethod()).toBe('test');
     });
   });
 
@@ -117,10 +118,10 @@ describe('Types Module', () => {
     });
 
     it('should allow flexible input types', () => {
-      const check = (ctx: any, data: any, config: any): GuardrailResult => ({
+      const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
-          checked_text: data,
+          checked_text: String(data),
         },
       });
 
@@ -129,10 +130,10 @@ describe('Types Module', () => {
     });
 
     it('should allow flexible config types', () => {
-      const check = (ctx: any, data: any, config: any): GuardrailResult => ({
+      const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
-          checked_text: data,
+          checked_text: String(data),
         },
       });
 

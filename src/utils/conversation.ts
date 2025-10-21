@@ -26,7 +26,7 @@ export interface NormalizedConversationEntry {
  * Accepts raw JSON strings, arrays, or objects that embed conversation arrays under
  * several common keys. Returns an empty array when no conversation data is found.
  */
-export function parseConversationInput(rawInput: unknown): any[] {
+export function parseConversationInput(rawInput: unknown): unknown[] {
   if (Array.isArray(rawInput)) {
     return rawInput;
   }

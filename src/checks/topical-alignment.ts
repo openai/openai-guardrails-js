@@ -7,7 +7,7 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
+import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { buildFullPrompt } from './llm-base';
 

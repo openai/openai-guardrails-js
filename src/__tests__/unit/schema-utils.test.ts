@@ -67,10 +67,10 @@ describe('schema utilities', () => {
       const result = ensureStrictJsonSchema(schema);
 
       expect(result.additionalProperties).toBe(false);
-      const profile = (result.properties as any).profile;
+      const profile = (result.properties as Record<string, unknown>).profile as Record<string, unknown>;
       expect(profile.additionalProperties).toBe(false);
-      const tagItems = (result.properties as any).tags.items;
-      expect(tagItems.additionalProperties).toBe(false);
+      const tagItems = (result.properties as Record<string, unknown>).tags as Record<string, unknown>;
+      expect((tagItems as Record<string, unknown>).items as Record<string, unknown>).toHaveProperty('additionalProperties', false);
     });
 
   });
@@ -94,7 +94,7 @@ describe('schema utilities', () => {
     };
 
     it('resolves local $ref pointers', () => {
-      const resolved = resolveRef(rootSchema.properties.address as any, rootSchema);
+      const resolved = resolveRef(rootSchema.properties.address as Record<string, unknown>, rootSchema);
       expect(resolved).toMatchObject({
         type: 'object',
         properties: {
@@ -123,13 +123,13 @@ describe('schema utilities', () => {
         ...schema,
       });
 
-      const homeSchema = (resolved.properties as any).addresses.items.properties.home;
-      expect(homeSchema.properties.street.type).toBe('string');
+      const homeSchema = ((resolved.properties as Record<string, unknown>).addresses as Record<string, unknown>).items as Record<string, unknown>;
+      expect(((homeSchema.properties as Record<string, unknown>).home as Record<string, unknown>).properties as Record<string, unknown>).toHaveProperty('street', { type: 'string' });
     });
 
     it('throws when resolving an invalid ref path', () => {
       expect(() =>
-        resolveRef({ $ref: '#/definitions/Missing' } as any, rootSchema)
+        resolveRef({ $ref: '#/definitions/Missing' } as Record<string, unknown>, rootSchema)
       ).toThrow('Invalid $ref path');
     });
   });

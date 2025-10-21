@@ -61,7 +61,15 @@ describe('userDefinedLLMCheck', () => {
 
   it('falls back to text parsing when response_format is unsupported', async () => {
     const { ctx, create } = makeCtx();
-    const errorObj = new Error('format not supported') as any;
+    interface OpenAIError extends Error {
+      error: {
+        param: string;
+        code?: string;
+        message?: string;
+      };
+    }
+    
+    const errorObj = new Error('format not supported') as OpenAIError;
     errorObj.error = { param: 'response_format' };
     create.mockRejectedValueOnce(errorObj);
     create.mockResolvedValueOnce({

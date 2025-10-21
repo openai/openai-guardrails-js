@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StreamingMixin } from '../../streaming';
 import { GuardrailTripwireTriggered } from '../../exceptions';
-import { GuardrailsBaseClient, GuardrailResultsImpl } from '../../base-client';
+import { GuardrailsBaseClient, GuardrailResultsImpl, GuardrailsResponse } from '../../base-client';
 import { GuardrailResult } from '../../types';
 
 type MockClient = GuardrailsBaseClient & {
@@ -21,8 +21,6 @@ const makeChunk = (text: string) => ({
   choices: [{ delta: { content: text } }],
 });
 
-const guardrailResults = (output: GuardrailResult[] = []) =>
-  new GuardrailResultsImpl([], [], output);
 
 async function collectAsyncIterator<T>(iterator: AsyncIterableIterator<T>): Promise<T[]> {
   const results: T[] = [];
@@ -77,7 +75,7 @@ describe('StreamingMixin', () => {
     expect(periodicCall[0]).toBe('output');
     expect(periodicCall[1]).toBe('hi there');
 
-    const finalResponse = responses[responses.length - 1];
+    const finalResponse = responses[responses.length - 1] as GuardrailsResponse;
     expect(finalResponse.guardrail_results.output).toHaveLength(0);
   });
 
@@ -101,14 +99,14 @@ describe('StreamingMixin', () => {
 
     const responses = await collectAsyncIterator(iterator);
     expect(responses).toHaveLength(2);
-    const finalResponse = responses[1];
+    const finalResponse = responses[1] as GuardrailsResponse;
     expect(finalResponse.guardrail_results.output).toHaveLength(1);
   });
 
   it('propagates tripwire errors during periodic checks but yields final response', async () => {
     const tripwire = new GuardrailTripwireTriggered({
       tripwireTriggered: true,
-      info: { guardrail_name: 'Test' },
+      info: { guardrail_name: 'Test', checked_text: 'test input' },
     });
 
     client.runStageGuardrails.mockImplementationOnce(async () => {
@@ -129,7 +127,7 @@ describe('StreamingMixin', () => {
       false
     );
 
-    const results: any[] = [];
+    const results: GuardrailsResponse[] = [];
     await expect(async () => {
       for await (const value of iterator) {
         results.push(value);

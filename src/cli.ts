@@ -21,7 +21,7 @@ import './checks';
 
 import { runEvaluationCLI } from './evals/guardrail-evals';
 import { validateDatasetCLI } from './evals/core/validate-dataset';
-import { loadConfigBundleFromFile, instantiateGuardrails } from './runtime';
+import { loadConfigBundleFromFile } from './runtime';
 
 /**
  * Command line arguments interface.

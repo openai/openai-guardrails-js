@@ -9,32 +9,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const streamSyncMock = vi.fn();
 
-vi.mock(
-  '../../streaming',
-  () => ({
-    StreamingMixin: {
-      streamWithGuardrailsSync: streamSyncMock,
-    },
-  }),
-  { virtual: true }
-);
+vi.mock('../../streaming', () => ({
+  StreamingMixin: {
+    streamWithGuardrailsSync: streamSyncMock,
+  },
+}));
 
-vi.mock(
-  '../../streaming.js',
-  () => ({
-    StreamingMixin: {
-      streamWithGuardrailsSync: streamSyncMock,
-    },
-  }),
-  { virtual: true }
-);
+vi.mock('../../streaming.js', () => ({
+  StreamingMixin: {
+    streamWithGuardrailsSync: streamSyncMock,
+  },
+}));
 
 const baseClientMock = () => {
   const normalizedMessages = [{ role: 'user', content: 'normalized' }];
   const normalizedString = [{ role: 'user', content: 'Tell me something' }];
 
   return {
-    extractLatestUserMessage: vi.fn().mockReturnValue(['latest user', 1]),
+    extractLatestUserTextMessage: vi.fn().mockReturnValue(['latest user', 1]),
     runStageGuardrails: vi.fn(),
     applyPreflightModifications: vi.fn((payload) => payload),
     handleLlmResponse: vi.fn().mockResolvedValue({ result: 'handled' }),
@@ -74,7 +66,7 @@ describe('Chat resource', () => {
 
   it('runs guardrail stages and delegates non-streaming responses to handler', async () => {
     const { Chat } = await import('../../resources/chat/chat');
-    const chat = new Chat(client as any);
+    const chat = new Chat(client as unknown as ConstructorParameters<typeof Chat>[0]);
     const messages = [{ role: 'user', content: 'hello' }];
 
     const result = await chat.completions.create({
@@ -82,7 +74,7 @@ describe('Chat resource', () => {
       model: 'gpt-4',
     });
 
-    expect(client.extractLatestUserMessage).toHaveBeenCalledWith(messages);
+    expect(client.extractLatestUserTextMessage).toHaveBeenCalledWith(messages);
     expect(client.runStageGuardrails).toHaveBeenNthCalledWith(
       1,
       'pre_flight',
@@ -134,17 +126,15 @@ describe('Responses resource', () => {
       .mockResolvedValueOnce([{ stage: 'preflight' }])
       .mockResolvedValueOnce([{ stage: 'input' }]);
 
-    const responses = new Responses(client as any);
+    const responses = new Responses(client as unknown as ConstructorParameters<typeof Responses>[0]);
 
     const payload = await responses.create({
       input: 'Tell me something',
       model: 'gpt-4o',
     });
 
-    expect(client.loadConversationHistoryFromPreviousResponse).toHaveBeenCalledWith(
-      undefined
-    );
-    expect(client.extractLatestUserMessage).not.toHaveBeenCalled(); // string input path
+    expect(client.loadConversationHistoryFromPreviousResponse).toHaveBeenCalledWith(undefined);
+    expect(client.extractLatestUserTextMessage).not.toHaveBeenCalled(); // string input path
     expect(client.runStageGuardrails).toHaveBeenNthCalledWith(
       1,
       'pre_flight',

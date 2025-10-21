@@ -7,6 +7,9 @@
  *   - formatEntries: render entries as JSON or plain text.
  */
 
+import { OpenAI } from 'openai';
+import { TextOnlyMessage } from '../types';
+
 /**
  * Parsed text entry with role metadata.
  */
@@ -18,27 +21,23 @@ export interface Entry {
 }
 
 /**
- * Type alias for OpenAI response types.
+ * Type aliases for OpenAI response types.
  */
-export type TResponse = any;
-export type TResponseInputItem = any;
-export type TResponseOutputItem = any;
-export type TResponseStreamEvent = any;
+export type TResponse = 
+  | OpenAI.Completions.Completion
+  | OpenAI.Chat.Completions.ChatCompletion
+  | OpenAI.Chat.Completions.ChatCompletionChunk
+  | OpenAI.Responses.Response;
 
-/**
- * Convert an object to a mapping or pass through if it's already a mapping.
- */
-function toMapping(item: any): Record<string, any> | null {
-  if (item && typeof item === 'object' && !Array.isArray(item)) {
-    return item;
-  }
-  return null;
-}
+export type TResponseInputItem = OpenAI.Chat.Completions.ChatCompletionMessageParam;
+export type TResponseOutputItem = OpenAI.Chat.Completions.ChatCompletionMessage;
+export type TResponseStreamEvent = OpenAI.Chat.Completions.ChatCompletionChunk;
+
 
 /**
  * Parse both input and output messages (type='message').
  */
-function parseMessage(item: Record<string, any>): Entry[] {
+function parseMessage(item: TextOnlyMessage): Entry[] {
   const role = item.role;
   const contents = item.content;
 
@@ -48,58 +47,20 @@ function parseMessage(item: Record<string, any>): Entry[] {
 
   const parts: string[] = [];
   if (Array.isArray(contents)) {
+    // Handle mixed content types (objects and strings)
     for (const part of contents) {
-      if (typeof part === 'object' && part !== null) {
-        if (part.type === 'input_text' || part.type === 'output_text') {
-          parts.push(part.text || '');
-        } else if (typeof part === 'string') {
-          parts.push(part);
-        } else {
-          console.warn('Unknown message part:', part);
-        }
-      } else if (typeof part === 'string') {
+      if (typeof part === 'string') {
         parts.push(part);
+      } else if (typeof part === 'object' && part !== null && 'text' in part) {
+        parts.push(part.text);
       }
+      // Skip unknown object types (like { type: 'unknown', foo: 'bar' })
     }
   }
 
   return [{ role, content: parts.join('') }];
 }
 
-/**
- * Generate handler for single-string fields.
- */
-function scalarHandler(role: string, key: string): (item: Record<string, any>) => Entry[] {
-  return (item: Record<string, any>): Entry[] => {
-    const val = item[key];
-    return typeof val === 'string' ? [{ role, content: val }] : [];
-  };
-}
-
-/**
- * Generate handler for list fields.
- */
-function listHandler(
-  role: string,
-  listKey: string,
-  textKey: string
-): (item: Record<string, any>) => Entry[] {
-  return (item: Record<string, any>): Entry[] => {
-    const list = item[listKey];
-    if (!Array.isArray(list)) return [];
-
-    const entries: Entry[] = [];
-    for (const listItem of list) {
-      if (typeof listItem === 'object' && listItem !== null) {
-        const text = listItem[textKey];
-        if (typeof text === 'string') {
-          entries.push({ role, content: text });
-        }
-      }
-    }
-    return entries;
-  };
-}
 
 /**
  * Parse response items into Entry objects.
@@ -119,10 +80,13 @@ export function parseResponseItems(
   }
 
   // Handle different response types
-  if (response.choices && Array.isArray(response.choices)) {
+  if ('choices' in response && response.choices && Array.isArray(response.choices)) {
     for (const choice of response.choices) {
-      if (choice.message) {
-        const messageEntries = parseMessage(choice.message);
+      if ('message' in choice && choice.message && choice.message.content) {
+        const messageEntries = parseMessage({
+          role: choice.message.role,
+          content: choice.message.content
+        });
         entries.push(...messageEntries);
       }
     }
@@ -183,13 +147,7 @@ export function formatEntriesAsText(entries: Entry[]): string {
  */
 export function formatEntries(
   entries: Entry[],
-  format: 'json' | 'text' = 'text',
-  options: {
-    indent?: number;
-    filterRole?: string;
-    lastN?: number;
-    separator?: string;
-  } = {}
+  format: 'json' | 'text' = 'text'
 ): string {
   switch (format) {
     case 'json':
@@ -217,7 +175,7 @@ export function extractTextContent(response: TResponse): string {
  * @param response - The response to extract JSON from.
  * @returns Extracted JSON content or null if parsing fails.
  */
-export function extractJsonContent(response: TResponse): any {
+export function extractJsonContent(response: TResponse): Record<string, unknown> | null {
   const entries = parseResponseItemsAsJson(response);
   if (entries.length === 0) return null;
 

@@ -11,21 +11,12 @@ import { GuardrailLLMContext } from './types';
 import {
   GuardrailsBaseClient,
   PipelineConfig,
-  GuardrailsResponse,
-  GuardrailResults,
-  StageGuardrails,
 } from './base-client';
-import { loadPipelineBundles, instantiateGuardrails } from './runtime';
 import type { Responses as GuardrailsResponses } from './resources/responses';
 import type { Chat as GuardrailsChat } from './resources/chat';
 
 // Re-export for backward compatibility
 export { GuardrailsResponse, GuardrailResults } from './base-client';
-
-// Stage name constants
-const PREFLIGHT_STAGE = 'pre_flight';
-const INPUT_STAGE = 'input';
-const OUTPUT_STAGE = 'output';
 
 /**
  * OpenAI subclass with automatic guardrail integration.
@@ -277,7 +268,7 @@ class GuardrailsBaseClientImplAzure extends GuardrailsBaseClient {
   public override async initializeClient(
     config: string | PipelineConfig,
     openaiArgs: ConstructorParameters<typeof AzureOpenAI>[0],
-    clientClass: typeof AzureOpenAI | any
+    clientClass: typeof AzureOpenAI | typeof OpenAI
   ): Promise<void> {
     // Store azure arguments
     this.azureArgs = openaiArgs;

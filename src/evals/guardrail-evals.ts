@@ -5,7 +5,7 @@
  * It loads guardrail configurations, runs evaluations asynchronously, calculates metrics, and saves results.
  */
 
-import { Context, Sample } from './core/types';
+import { Context } from './core/types';
 import { JsonlDatasetLoader } from './core/jsonl-loader';
 import { AsyncRunEngine } from './core/async-engine';
 import { GuardrailMetricsCalculator } from './core/calculator';

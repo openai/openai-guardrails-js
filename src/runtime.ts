@@ -6,7 +6,7 @@
  */
 
 import { GuardrailSpec } from './spec';
-import { GuardrailResult, TContext, TIn, TCfg } from './types';
+import { GuardrailResult, TContext, TIn, TextInput } from './types';
 import { defaultSpecRegistry } from './registry';
 
 /**
@@ -16,7 +16,7 @@ export interface GuardrailConfig {
   /** The registry name used to look up the guardrail spec. */
   name: string;
   /** Configuration object for this guardrail instance. */
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 /**
@@ -48,7 +48,7 @@ export interface PipelineConfig {
  * object. The resulting instance is used to run guardrail logic in production
  * pipelines. It supports both sync and async check functions.
  */
-export class ConfiguredGuardrail<TContext = any, TIn = any, TCfg = any> {
+export class ConfiguredGuardrail<TContext = object, TIn = TextInput, TCfg = object> {
   constructor(
     public readonly definition: GuardrailSpec<TContext, TIn, TCfg>,
     public readonly config: TCfg
@@ -64,9 +64,9 @@ export class ConfiguredGuardrail<TContext = any, TIn = any, TCfg = any> {
    * @param args Arguments for the check function.
    * @returns Promise resolving to the result of the check function.
    */
-  private async ensureAsync(
-    fn: (...args: any[]) => GuardrailResult | Promise<GuardrailResult>,
-    ...args: any[]
+  private async ensureAsync<T extends unknown[]>(
+    fn: (...args: T) => GuardrailResult | Promise<GuardrailResult>,
+    ...args: T
   ): Promise<GuardrailResult> {
     const result = fn(...args);
     if (result instanceof Promise) {
@@ -200,9 +200,9 @@ export async function instantiateGuardrails(
 
     try {
       // Validate configuration against schema if available
-      let validatedConfig = guardrailConfig.config;
+      let validatedConfig: Record<string, unknown> = guardrailConfig.config;
       if (spec.configSchema) {
-        validatedConfig = spec.configSchema.parse(guardrailConfig.config);
+        validatedConfig = spec.configSchema.parse(guardrailConfig.config) as Record<string, unknown>;
       }
 
       const guardrail = spec.instantiate(validatedConfig);
@@ -228,7 +228,7 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
     const parsed = JSON.parse(jsonString);
 
     // Handle nested structure (input.guardrails) or direct structure (guardrails)
-    let guardrailsArray: any[] | undefined;
+    let guardrailsArray: unknown[] | undefined;
 
     if (parsed.guardrails && Array.isArray(parsed.guardrails)) {
       // Direct structure
@@ -244,10 +244,11 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
 
     // Validate each guardrail config
     for (const guardrail of guardrailsArray!) {
-      if (!guardrail.name || typeof guardrail.name !== 'string') {
+      const guardrailObj = guardrail as Record<string, unknown>;
+      if (!guardrailObj.name || typeof guardrailObj.name !== 'string') {
         throw new Error('Invalid guardrail config: missing or invalid name');
       }
-      if (!guardrail.config || typeof guardrail.config !== 'object') {
+      if (!guardrailObj.config || typeof guardrailObj.config !== 'object') {
         throw new Error('Invalid guardrail config: missing or invalid config object');
       }
     }

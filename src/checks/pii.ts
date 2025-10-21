@@ -179,7 +179,7 @@ interface PiiAnalyzerResult {
 const DEFAULT_PII_PATTERNS: Record<PIIEntity, RegExp> = {
   [PIIEntity.CREDIT_CARD]: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
   [PIIEntity.CRYPTO]: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g,
-  [PIIEntity.DATE_TIME]: /\b(0[1-9]|1[0-2])[\/\-](0[1-9]|[12]\d|3[01])[\/\-](19|20)\d{2}\b/g,
+  [PIIEntity.DATE_TIME]: /\b(0[1-9]|1[0-2])[/-](0[1-9]|[12]\d|3[01])[/-](19|20)\d{2}\b/g,
   [PIIEntity.EMAIL_ADDRESS]: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
   [PIIEntity.IBAN_CODE]: /\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b/g,
   [PIIEntity.IP_ADDRESS]: /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b/g,
@@ -190,7 +190,7 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, RegExp> = {
   [PIIEntity.PHONE_NUMBER]: /\b(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g,
   [PIIEntity.MEDICAL_LICENSE]: /\b[A-Z]{2}\d{6}\b/g,
   [PIIEntity.URL]:
-    /\bhttps?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:\#(?:[\w.])*)?)?/g,
+    /\bhttps?:\/\/(?:[-\w.])+(?::[0-9]+)?(?:\/(?:[\w/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?/g,
 
   // USA
   [PIIEntity.US_BANK_NUMBER]: /\b\d{8,17}\b/g,
@@ -303,7 +303,7 @@ function _detectPii(text: string, config: PIIConfig): PiiDetectionResult {
  * @returns Text with PII replaced by entity type markers
  * @throws Error if text is empty or null
  */
-function _scrubPii(text: string, detection: PiiDetectionResult, config: PIIConfig): string {
+function _scrubPii(text: string, detection: PiiDetectionResult, _config: PIIConfig): string {
   if (!text) {
     throw new Error('Text cannot be empty or null');
   }
@@ -373,12 +373,11 @@ function _asResult(
  * @returns Indicates if any PII was found, and the findings
  * @throws Error if input text is empty or null
  */
-export const pii: CheckFn<any, string, PIIConfig> = async (
-  ctx,
+export const pii: CheckFn<Record<string, unknown>, string, PIIConfig> = async (
+  _ctx,
   data,
   config
 ): Promise<GuardrailResult> => {
-  const _ = ctx;
   const result = _detectPii(data, config);
   return _asResult(result, config, 'Contains PII', data);
 };

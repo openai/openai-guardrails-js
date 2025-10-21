@@ -144,17 +144,17 @@ export function resolveRef(
   const ref = schema.$ref;
   if (typeof ref === 'string' && ref.startsWith('#/')) {
     const path = ref.substring(2).split('/');
-    let current: any = root;
+    let current: unknown = root;
 
     for (const segment of path) {
       if (current && typeof current === 'object' && segment in current) {
-        current = current[segment];
+        current = (current as Record<string, unknown>)[segment];
       } else {
         throw new Error(`Invalid $ref path: ${ref}`);
       }
     }
 
-    return resolveRef(current, root);
+    return resolveRef(current as Record<string, unknown>, root);
   }
 
   // Recursively resolve refs in nested objects
@@ -184,8 +184,7 @@ export function resolveRef(
  */
 export function validateJson(
   jsonStr: string,
-  schema: Record<string, unknown>,
-  partial: boolean = false
+  schema: Record<string, unknown>
 ): unknown {
   try {
     const parsed = JSON.parse(jsonStr);

@@ -8,26 +8,18 @@
  *
  * The prompt injection detection check runs as both a preflight and output guardrail, checking only
  * tool_calls and tool_call_outputs, not user messages or assistant generated text.
- *
- * Configuration Parameters:
- * - `model` (str): The LLM model to use for prompt injection detection analysis
- * - `confidence_threshold` (float): Minimum confidence score to trigger guardrail
- *
- * Example:
- * ```typescript
- * const config = {
- *   model: "gpt-4.1-mini",
- *   confidence_threshold: 0.7
- * };
- * const result = await promptInjectionDetectionCheck(ctx, conversationData, config);
- * console.log(result.tripwireTriggered); // true if misaligned
- * ```
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../types';
+import {
+  CheckFn,
+  GuardrailResult,
+  GuardrailLLMContext,
+  GuardrailLLMContextWithHistory,
+  ConversationMessage,
+} from '../types';
 import { defaultSpecRegistry } from '../registry';
-import { LLMConfig, LLMOutput, runLLM } from './llm-base';
+import { LLMOutput, runLLM } from './llm-base';
 import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../utils/conversation';
 
 /**
@@ -126,19 +118,7 @@ interface UserIntentDict {
 }
 
 /**
- * Interface for parsed conversation data.
- */
-/**
  * Prompt injection detection check for function calls, outputs, and responses.
- *
- * This function parses conversation history from the context to determine if the most recent LLM
- * action aligns with the user's goal. Works with both chat.completions
- * and responses API formats.
- *
- * @param ctx Guardrail context containing the LLM client and conversation history methods.
- * @param data Fallback conversation data if context doesn't have conversation_data.
- * @param config Configuration for prompt injection detection checking.
- * @returns GuardrailResult containing prompt injection detection analysis with flagged status and confidence.
  */
 export const promptInjectionDetectionCheck: CheckFn<
   PromptInjectionDetectionContext,
@@ -148,6 +128,7 @@ export const promptInjectionDetectionCheck: CheckFn<
   try {
     const conversationHistory = safeGetConversationHistory(ctx);
     const parsedDataMessages = normalizeConversation(parseConversationInput(data));
+
     if (conversationHistory.length === 0 && parsedDataMessages.length === 0) {
       return createSkipResult(
         'No conversation history available',
@@ -187,7 +168,6 @@ export const promptInjectionDetectionCheck: CheckFn<
     }
 
     const analysisPrompt = buildAnalysisPrompt(userGoalText, recentMessages, actionableMessages);
-
     const analysis = await callPromptInjectionDetectionLLM(ctx, analysisPrompt, config);
 
     const isMisaligned = analysis.flagged && analysis.confidence >= config.confidence_threshold;
@@ -332,8 +312,8 @@ function createSkipResult(
   threshold: number,
   checkedText: string,
   userGoal: string = 'N/A',
-  action: any[] = [],
-  recentMessages: any[] = []
+  action: ConversationMessage[] = [],
+  recentMessages: ConversationMessage[] = []
 ): GuardrailResult {
   return {
     tripwireTriggered: false,
@@ -369,8 +349,8 @@ ${contextText}`;
 
 function buildAnalysisPrompt(
   userGoalText: string,
-  recentMessages: any[],
-  actionableMessages: any[]
+  recentMessages: ConversationMessage[],
+  actionableMessages: ConversationMessage[]
 ): string {
   const recentMessagesText =
     recentMessages.length > 0 ? JSON.stringify(recentMessages, null, 2) : '[]';
@@ -391,14 +371,6 @@ LLM actions to evaluate:
 ${actionableMessagesText}`;
 }
 
-/**
- * Call LLM for prompt injection detection analysis.
- *
- * @param ctx Guardrail context containing the LLM client
- * @param prompt Analysis prompt
- * @param config Configuration for prompt injection detection checking
- * @returns Prompt injection detection analysis result
- */
 async function callPromptInjectionDetectionLLM(
   ctx: GuardrailLLMContext,
   prompt: string,
@@ -407,16 +379,14 @@ async function callPromptInjectionDetectionLLM(
   try {
     const result = await runLLM(
       prompt,
-      '', // No additional system prompt needed, prompt contains everything
+      '',
       ctx.guardrailLlm,
       config.model,
       PromptInjectionDetectionOutput
     );
 
-    // Validate the result matches PromptInjectionDetectionOutput schema
     return PromptInjectionDetectionOutput.parse(result);
-  } catch (error) {
-    // If runLLM fails validation, return a safe fallback PromptInjectionDetectionOutput
+  } catch {
     console.warn('Prompt injection detection LLM call failed, using fallback');
     return {
       flagged: false,
@@ -426,13 +396,12 @@ async function callPromptInjectionDetectionLLM(
   }
 }
 
-// Register the guardrail
 defaultSpecRegistry.register(
   'Prompt Injection Detection',
   promptInjectionDetectionCheck,
   "Guardrail that detects when function calls, outputs, or assistant responses are not aligned with the user's intent. Parses conversation history and uses LLM-based analysis for prompt injection detection checking.",
   'text/plain',
   PromptInjectionDetectionConfigRequired,
-  undefined, // Context schema will be validated at runtime
-  { engine: 'LLM' }
+  undefined,
+  { engine: 'LLM', requiresConversationHistory: true }
 );

@@ -12,7 +12,7 @@ export interface VectorStoreConfig {
   /** The type of vector store to create. */
   type: 'memory' | 'pinecone' | 'weaviate' | 'chroma';
   /** Configuration specific to the vector store type. */
-  config: Record<string, any>;
+  config: Record<string, unknown>;
   /** Whether to create the store in read-only mode. */
   readOnly?: boolean;
 }
@@ -40,7 +40,7 @@ export interface Document {
   /** Text content of the document. */
   content: string;
   /** Optional metadata for the document. */
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   /** Optional embedding vector. */
   embedding?: number[];
 }
@@ -83,7 +83,7 @@ class MemoryVectorStore implements VectorStore {
   private documents: Map<string, Document> = new Map();
   private embeddings: Map<string, number[]> = new Map();
 
-  constructor(private config: Record<string, any>) {}
+  constructor(private config: Record<string, unknown>) {}
 
   async addDocuments(documents: Document[]): Promise<void> {
     for (const doc of documents) {
@@ -144,61 +144,61 @@ class MemoryVectorStore implements VectorStore {
  * Placeholder implementations for other vector store types.
  */
 class PineconeVectorStore implements VectorStore {
-  constructor(private config: Record<string, any>) {}
+  constructor(private config: Record<string, unknown>) {}
 
-  async addDocuments(documents: Document[]): Promise<void> {
+  async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Pinecone vector store not implemented');
   }
 
-  async search(query: string, limit?: number): Promise<SearchResult[]> {
+  async search(_query: string, _limit?: number): Promise<SearchResult[]> {
     throw new Error('Pinecone vector store not implemented');
   }
 
-  async deleteDocuments(documentIds: string[]): Promise<void> {
+  async deleteDocuments(_documentIds: string[]): Promise<void> {
     throw new Error('Pinecone vector store not implemented');
   }
 
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(_id: string): Promise<Document | null> {
     throw new Error('Pinecone vector store not implemented');
   }
 }
 
 class WeaviateVectorStore implements VectorStore {
-  constructor(private config: Record<string, any>) {}
+  constructor(private config: Record<string, unknown>) {}
 
-  async addDocuments(documents: Document[]): Promise<void> {
+  async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Weaviate vector store not implemented');
   }
 
-  async search(query: string, limit?: number): Promise<SearchResult[]> {
+  async search(_query: string, _limit?: number): Promise<SearchResult[]> {
     throw new Error('Weaviate vector store not implemented');
   }
 
-  async deleteDocuments(documentIds: string[]): Promise<void> {
+  async deleteDocuments(_documentIds: string[]): Promise<void> {
     throw new Error('Weaviate vector store not implemented');
   }
 
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(_id: string): Promise<Document | null> {
     throw new Error('Weaviate vector store not implemented');
   }
 }
 
 class ChromaVectorStore implements VectorStore {
-  constructor(private config: Record<string, any>) {}
+  constructor(private config: Record<string, unknown>) {}
 
-  async addDocuments(documents: Document[]): Promise<void> {
+  async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Chroma vector store not implemented');
   }
 
-  async search(query: string, limit?: number): Promise<SearchResult[]> {
+  async search(_query: string, _limit?: number): Promise<SearchResult[]> {
     throw new Error('Chroma vector store not implemented');
   }
 
-  async deleteDocuments(documentIds: string[]): Promise<void> {
+  async deleteDocuments(_documentIds: string[]): Promise<void> {
     throw new Error('Chroma vector store not implemented');
   }
 
-  async getDocument(id: string): Promise<Document | null> {
+  async getDocument(_id: string): Promise<Document | null> {
     throw new Error('Chroma vector store not implemented');
   }
 }

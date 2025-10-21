@@ -184,7 +184,8 @@ async function uploadFiles(client: OpenAI, filePaths: string[]): Promise<string[
  * Wait for files to be processed by OpenAI.
  */
 async function waitForFileProcessing(client: OpenAI, fileIds: string[]): Promise<void> {
-  while (true) {
+  let completed = false;
+  while (!completed) {
     const allCompleted = await Promise.all(
       fileIds.map(async (fileId) => {
         try {
@@ -197,7 +198,7 @@ async function waitForFileProcessing(client: OpenAI, fileIds: string[]): Promise
     );
 
     if (allCompleted.every((status) => status)) {
-      return;
+      completed = true;
     }
 
     // Wait 1 second before checking again

@@ -10,12 +10,35 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { z } from 'zod';
 import { GuardrailRegistry } from '../../registry';
 import { GuardrailSpec, GuardrailSpecMetadata } from '../../spec';
-import { CheckFn, GuardrailResult } from '../../types';
+import { CheckFn } from '../../types';
+
+// Mock interfaces for better type safety
+interface MockTestContext {
+  testProperty: string;
+}
+
+interface MockTestConfig {
+  threshold: number;
+  enabled: boolean;
+}
+
+// Zod schemas for testing
+const TestConfigSchema = z.object({
+  threshold: z.number(),
+  enabled: z.boolean(),
+});
+
+const TestContextSchema = z.object({
+  testProperty: z.string(),
+});
+
+// Removed unused schemas
 
 // Mock check function for testing
-const mockCheck: CheckFn<any, any, any> = vi.fn().mockImplementation((ctx, data, config) => ({
+const mockCheck: CheckFn<MockTestContext, string, MockTestConfig> = vi.fn().mockImplementation(() => ({
   tripwireTriggered: false,
 }));
 
@@ -49,8 +72,8 @@ describe('Registry Module', () => {
 
       const specs = registry.all();
       expect(specs).toHaveLength(2);
-      expect(specs.map((s: any) => s.name)).toContain('guard1');
-      expect(specs.map((s: any) => s.name)).toContain('guard2');
+      expect(specs.map((s: GuardrailSpec) => s.name)).toContain('guard1');
+      expect(specs.map((s: GuardrailSpec) => s.name)).toContain('guard2');
     });
 
     it('should handle guardrail with metadata', () => {
@@ -75,32 +98,20 @@ describe('Registry Module', () => {
     });
 
     it('should handle guardrail with config schema', () => {
-      const configSchema = {
-        type: 'object',
-        properties: {
-          threshold: { type: 'number' },
-        },
-      };
 
       registry.register(
         'schema_guard',
         mockCheck,
         'Guard with schema',
         'text/plain',
-        configSchema as any
+        TestConfigSchema
       );
 
       const spec = registry.get('schema_guard');
-      expect(spec?.configSchema).toEqual(configSchema);
+      expect(spec?.configSchema).toBe(TestConfigSchema);
     });
 
     it('should handle guardrail with context requirements', () => {
-      const contextRequirements = {
-        type: 'object',
-        properties: {
-          user: { type: 'string' },
-        },
-      };
 
       registry.register(
         'context_guard',
@@ -108,11 +119,11 @@ describe('Registry Module', () => {
         'Guard with context',
         'text/plain',
         undefined,
-        contextRequirements as any
+        TestContextSchema
       );
 
       const spec = registry.get('context_guard');
-      expect(spec?.ctxRequirements).toEqual(contextRequirements);
+      expect(spec?.ctxRequirements).toBe(TestContextSchema);
     });
 
     it('should allow overwriting existing guardrails', () => {
@@ -148,9 +159,9 @@ describe('Registry Module', () => {
         'full_spec',
         'Full specification',
         'text/plain',
-        { type: 'object' } as any,
+        TestConfigSchema,
         mockCheck,
-        { type: 'object' } as any,
+        TestContextSchema,
         metadata
       );
 
@@ -166,14 +177,14 @@ describe('Registry Module', () => {
         'test_spec',
         'Test specification',
         'text/plain',
-        { type: 'object' } as any,
+        TestConfigSchema,
         mockCheck,
-        { type: 'object' } as any
+        TestContextSchema
       );
 
-      const guardrail = spec.instantiate({ threshold: 5 });
+      const guardrail = spec.instantiate({ threshold: 5, enabled: true });
       expect(guardrail.definition).toBe(spec);
-      expect(guardrail.config).toEqual({ threshold: 5 });
+      expect(guardrail.config).toEqual({ threshold: 5, enabled: true });
     });
 
     it('should run instantiated guardrail', async () => {
@@ -181,16 +192,16 @@ describe('Registry Module', () => {
         'test_spec',
         'Test specification',
         'text/plain',
-        { type: 'object' } as any,
+        TestConfigSchema,
         mockCheck,
-        { type: 'object' } as any
+        TestContextSchema
       );
 
-      const guardrail = spec.instantiate({ threshold: 5 });
-      const result = await guardrail.run({}, 'Hello world');
+      const guardrail = spec.instantiate({ threshold: 5, enabled: true });
+      const result = await guardrail.run({ testProperty: 'test' }, 'Hello world');
 
       expect(result.tripwireTriggered).toBe(false);
-      expect(mockCheck).toHaveBeenCalledWith({}, 'Hello world', { threshold: 5 });
+      expect(mockCheck).toHaveBeenCalledWith({ testProperty: 'test' }, 'Hello world', { threshold: 5, enabled: true });
     });
   });
 });

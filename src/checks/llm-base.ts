@@ -8,6 +8,7 @@
  */
 
 import { z } from 'zod';
+import { OpenAI } from 'openai';
 import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
 import { defaultSpecRegistry } from '../registry';
 
@@ -28,6 +29,8 @@ export const LLMConfig = z.object({
     .describe(
       'Minimum confidence threshold to trigger the guardrail (0.0 to 1.0). Defaults to 0.7.'
     ),
+  /** Optional system prompt details for user-defined LLM guardrails */
+  system_prompt_details: z.string().optional().describe('Additional system prompt details'),
 });
 
 export type LLMConfig = z.infer<typeof LLMConfig>;
@@ -147,7 +150,7 @@ function stripJsonCodeFence(text: string): string {
 export async function runLLM(
   text: string,
   systemPrompt: string,
-  client: { chat: { completions: { create: (params: any) => Promise<any> } } },
+  client: OpenAI,
   model: string,
   outputModel: typeof LLMOutput
 ): Promise<LLMOutput> {
@@ -198,7 +201,7 @@ export async function runLLM(
     }
 
     // Fail-closed on JSON parsing errors (malformed or non-JSON responses)
-    if (error instanceof SyntaxError || (error as any)?.constructor?.name === 'SyntaxError') {
+    if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
       console.warn(
         'LLM returned non-JSON or malformed JSON. Failing closed (flagged=true).',
         error
@@ -249,12 +252,12 @@ export function createLLMCheckFn(
   description: string,
   systemPrompt: string,
   outputModel: typeof LLMOutput = LLMOutput,
-  configModel: any = LLMConfig
-): CheckFn<GuardrailLLMContext, string, any> {
+  configModel: typeof LLMConfig = LLMConfig
+): CheckFn<GuardrailLLMContext, string, z.infer<typeof LLMConfig>> {
   async function guardrailFunc(
     ctx: GuardrailLLMContext,
     data: string,
-    config: any
+    config: z.infer<typeof LLMConfig>
   ): Promise<GuardrailResult> {
     let renderedSystemPrompt = systemPrompt;
 
@@ -269,20 +272,20 @@ export function createLLMCheckFn(
     const analysis = await runLLM(
       data,
       renderedSystemPrompt,
-      ctx.guardrailLlm,
+      ctx.guardrailLlm as OpenAI, // Type assertion to handle OpenAI client compatibility
       config.model,
       outputModel
     );
 
     // Check if this is an error result (LLMErrorOutput with error_message)
     if ('info' in analysis && analysis.info) {
-      const errorInfo = analysis.info as any;
+      const errorInfo = analysis.info as Record<string, unknown>;
       if (errorInfo.error_message) {
         // This is an execution failure (LLMErrorOutput)
         return {
           tripwireTriggered: false, // Don't trigger tripwire on execution errors
           executionFailed: true,
-          originalException: new Error(errorInfo.error_message || 'LLM execution failed'),
+          originalException: new Error(String(errorInfo.error_message || 'LLM execution failed')),
           info: {
             checked_text: data,
             guardrail_name: name,
@@ -311,7 +314,7 @@ export function createLLMCheckFn(
     guardrailFunc,
     description,
     'text/plain',
-    configModel,
+    configModel as z.ZodType<z.infer<typeof LLMConfig>>,
     LLMContext,
     { engine: 'LLM' }
   );

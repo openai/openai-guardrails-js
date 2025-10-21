@@ -43,7 +43,6 @@ export class JsonlDatasetLoader implements DatasetLoader {
    */
   async load(path: string): Promise<Sample[]> {
     const fs = await import('fs/promises');
-    const pathModule = await import('path');
 
     if (!(await fs.stat(path).catch(() => false))) {
       throw new Error(`Dataset file not found: ${path}`);

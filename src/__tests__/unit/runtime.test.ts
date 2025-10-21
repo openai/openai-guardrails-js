@@ -113,7 +113,7 @@ describe('Runtime Module', () => {
       shouldTrip: z.boolean().optional(),
     });
 
-    let guardrailCheck: CheckFn<any, any, any>;
+    let guardrailCheck: CheckFn<object, string, object>;
 
     beforeEach(() => {
       guardrailCheck = vi.fn().mockImplementation((_ctx, data, cfg) => ({
@@ -130,7 +130,7 @@ describe('Runtime Module', () => {
         'Runtime test guard',
         'text/plain',
         configSchema,
-        z.any(),
+        z.object({}),
         { name: 'Runtime Test Guard' }
       );
     });
@@ -182,7 +182,7 @@ describe('Runtime Module', () => {
         'Runtime test guard',
         'text/plain',
         configSchema,
-        z.any(),
+        z.object({}),
         { name: 'Runtime Test Guard' }
       );
 
@@ -207,7 +207,7 @@ describe('Runtime Module', () => {
         'Runtime test guard',
         'text/plain',
         configSchema,
-        z.any(),
+        z.object({}),
         { name: 'Runtime Test Guard' }
       );
 
@@ -229,7 +229,7 @@ describe('Runtime Module', () => {
         'Runtime test guard',
         'text/plain',
         configSchema,
-        z.any(),
+        z.object({}),
         { name: 'Runtime Test Guard' }
       );
 
@@ -241,10 +241,11 @@ describe('Runtime Module', () => {
 
       try {
         await checkPlainText('payload', bundle, context);
-      } catch (error: any) {
-        expect(Array.isArray(error.guardrailResults)).toBe(true);
-        expect(error.guardrailResults).toHaveLength(1);
-        expect(error.guardrailResults[0].info?.reason).toBe('bad');
+      } catch (error: unknown) {
+        const err = error as { guardrailResults: unknown[] };
+        expect(Array.isArray(err.guardrailResults)).toBe(true);
+        expect(err.guardrailResults).toHaveLength(1);
+        expect((err.guardrailResults[0] as { info?: { reason: string } }).info?.reason).toBe('bad');
       }
     });
 

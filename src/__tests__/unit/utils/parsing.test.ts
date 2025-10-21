@@ -2,7 +2,7 @@
  * Tests for response parsing utilities.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, afterAll } from 'vitest';
 import {
   parseResponseItems,
   parseResponseItemsAsJson,
@@ -56,7 +56,8 @@ describe('parsing utilities', () => {
 
     const entries = parseResponseItems(response);
     expect(entries).toEqual([{ role: 'assistant', content: 'Segment 1 + segment 2' }]);
-    expect(warnSpy).toHaveBeenCalled(); // unknown part logs warning
+    // Unknown parts are now silently skipped in text-only mode
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it('supports filtering entries by predicate', () => {

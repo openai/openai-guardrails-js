@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LLMConfig, LLMOutput, createLLMCheckFn } from '../../checks/llm-base';
 import { defaultSpecRegistry } from '../../registry';
+import { GuardrailLLMContext } from '../../types';
 
 // Mock the registry
 vi.mock('../../registry', () => ({
@@ -123,7 +124,7 @@ describe('LLM Base', () => {
         },
       };
 
-      const result = await guardrail(mockContext as any, 'test text', {
+      const result = await guardrail(mockContext as unknown as GuardrailLLMContext, 'test text', {
         model: 'gpt-4',
         confidence_threshold: 0.7,
       });
@@ -160,7 +161,7 @@ describe('LLM Base', () => {
         },
       };
 
-      const result = await guardrail(mockContext as any, 'test text', {
+      const result = await guardrail(mockContext as unknown as GuardrailLLMContext, 'test text', {
         model: 'gpt-4',
         confidence_threshold: 0.7,
       });
@@ -196,7 +197,7 @@ describe('LLM Base', () => {
         },
       };
 
-      const result = await guardrail(mockContext as any, 'test text', {
+      const result = await guardrail(mockContext as unknown as GuardrailLLMContext, 'test text', {
         model: 'gpt-4',
         confidence_threshold: 0.7,
       });

@@ -7,17 +7,41 @@
  */
 
 import type { AsyncLocalStorage as AsyncLocalStorageType } from 'node:async_hooks';
-import { GuardrailLLMContext } from './types';
-import { loadPipelineBundles, instantiateGuardrails, PipelineConfig, GuardrailBundle } from './runtime';
+import type {
+  InputGuardrail,
+  OutputGuardrail,
+  InputGuardrailFunctionArgs,
+  OutputGuardrailFunctionArgs,
+} from '@openai/agents-core';
+import {
+  GuardrailLLMContext,
+  GuardrailResult,
+  TextOnlyContent,
+  ContentPart,
+} from './types';
+import { ContentUtils } from './utils/content';
+import {
+  loadPipelineBundles,
+  instantiateGuardrails,
+  PipelineConfig,
+  GuardrailBundle,
+  ConfiguredGuardrail,
+} from './runtime';
 import {
   mergeConversationWithItems,
   normalizeConversation,
   NormalizedConversationEntry,
 } from './utils/conversation';
 
+interface AgentOutput {
+  response?: string;
+  finalOutput?: string | TextOnlyContent;
+  [key: string]: string | TextOnlyContent | undefined;
+}
+
 type ConversationSession = {
-  getItems?: () => Promise<any[]>;
-  get_items?: () => Promise<any[]>;
+  getItems?: () => Promise<unknown[]>;
+  get_items?: () => Promise<unknown[]>;
 };
 
 interface PipelineWithStages extends PipelineConfig {
@@ -74,7 +98,7 @@ function cacheConversation(conversation: NormalizedConversationEntry[]): void {
   }
 }
 
-async function fetchSessionItems(session: ConversationSession | null | undefined): Promise<any[]> {
+async function fetchSessionItems(session: ConversationSession | null | undefined): Promise<unknown[]> {
   if (!session) {
     return [];
   }
@@ -183,12 +207,63 @@ function createConversationContext(
   };
 }
 
-function normalizeAgentInput(input: string | unknown): NormalizedConversationEntry[] {
+function normalizeAgentInput(input: unknown): NormalizedConversationEntry[] {
   return normalizeConversation(input);
 }
 
 function normalizeAgentOutput(outputText: string): NormalizedConversationEntry[] {
+  if (!outputText) {
+    return [];
+  }
   return normalizeConversation([{ role: 'assistant', content: outputText }]);
+}
+
+function extractLatestUserText(history: NormalizedConversationEntry[]): string {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const entry = history[i];
+    if (entry.role === 'user' && typeof entry.content === 'string' && entry.content.trim()) {
+      return entry.content;
+    }
+  }
+  return '';
+}
+
+function resolveInputText(input: unknown, history: NormalizedConversationEntry[]): string {
+  if (typeof input === 'string') {
+    return input;
+  }
+
+  if (input && typeof input === 'object' && 'content' in (input as Record<string, unknown>)) {
+    const content = (input as { content: string | ContentPart[] }).content;
+    const message = {
+      role: 'user',
+      content,
+    };
+    const extracted = ContentUtils.extractTextFromMessage(message);
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return extractLatestUserText(history);
+}
+
+function resolveOutputText(agentOutput: unknown): string {
+  if (typeof agentOutput === 'string') {
+    return agentOutput;
+  }
+
+  if (agentOutput && typeof agentOutput === 'object') {
+    if ('response' in agentOutput) {
+      return (agentOutput as AgentOutput).response || '';
+    }
+    if ('finalOutput' in agentOutput) {
+      const finalOutput = (agentOutput as AgentOutput).finalOutput;
+      return typeof finalOutput === 'string' ? finalOutput : JSON.stringify(finalOutput);
+    }
+  }
+
+  return typeof agentOutput === 'object' ? JSON.stringify(agentOutput) : '';
 }
 
 let agentRunnerPatched = false;
@@ -209,7 +284,7 @@ function ensureAgentRunnerPatch(): void {
 
     const originalRun = Runner.prototype.run;
 
-    Runner.prototype.run = function patchedRun(agent: any, input: any, options: any = {}) {
+    Runner.prototype.run = function patchedRun(agent: unknown, input: unknown, options: any = {}) {
       const session: ConversationSession | null = options?.session ?? null;
       const fallbackConversation = session ? [] : normalizeConversation(input);
       const normalizedFallback =
@@ -241,18 +316,18 @@ export class GuardrailAgent {
     config: string | PipelineConfig,
     name: string,
     instructions: string,
-    agentKwargs: Record<string, any> = {},
+    agentKwargs: Record<string, unknown> = {},
     raiseGuardrailErrors: boolean = false
-  ): Promise<any> {
+  ): Promise<unknown> {
     ensureAgentRunnerPatch();
 
     try {
       const agentsModule = await import('@openai/agents');
       const { Agent } = agentsModule;
 
-      const pipeline = await loadPipelineBundles(config) as PipelineWithStages;
+      const pipeline = (await loadPipelineBundles(config)) as PipelineWithStages;
 
-      const inputGuardrails = [];
+      const inputGuardrails: InputGuardrail[] = [];
       if (pipeline.pre_flight) {
         const preFlightGuardrails = await createInputGuardrailsFromStage(
           'pre_flight',
@@ -262,7 +337,6 @@ export class GuardrailAgent {
         );
         inputGuardrails.push(...preFlightGuardrails);
       }
-
       if (pipeline.input) {
         const inputStageGuardrails = await createInputGuardrailsFromStage(
           'input',
@@ -273,7 +347,7 @@ export class GuardrailAgent {
         inputGuardrails.push(...inputStageGuardrails);
       }
 
-      const outputGuardrails = [];
+      const outputGuardrails: OutputGuardrail[] = [];
       if (pipeline.output) {
         const outputStageGuardrails = await createOutputGuardrailsFromStage(
           'output',
@@ -305,18 +379,22 @@ export class GuardrailAgent {
 
 async function createInputGuardrailsFromStage(
   stageName: string,
-  stageConfig: any,
+  stageConfig: GuardrailBundle,
   context?: GuardrailLLMContext,
   raiseGuardrailErrors: boolean = false
-): Promise<any[]> {
-  const guardrails = await instantiateGuardrails(stageConfig);
+): Promise<InputGuardrail[]> {
+  const guardrails: ConfiguredGuardrail[] = await instantiateGuardrails(stageConfig);
 
-  return guardrails.map((guardrail: any) => ({
-    name: `${stageName}: ${guardrail.name || guardrail.definition?.name || 'Unknown Guardrail'}`,
-    execute: async ({ input, context: agentContext }: { input: string; context?: any }) => {
+  return guardrails.map((guardrail: ConfiguredGuardrail) => ({
+    name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
+    execute: async (args: InputGuardrailFunctionArgs) => {
+      const { input, context: agentContext } = args;
+
       try {
-        let guardContext: GuardrailLLMContext = (context ||
-          agentContext || {}) as GuardrailLLMContext;
+        let guardContext: GuardrailLLMContext =
+          (context as GuardrailLLMContext) ||
+          (agentContext as GuardrailLLMContext) ||
+          ({} as GuardrailLLMContext);
 
         if (!guardContext.guardrailLlm) {
           const { OpenAI } = require('openai');
@@ -326,57 +404,33 @@ async function createInputGuardrailsFromStage(
           };
         }
 
-        const inputConversationItems = normalizeAgentInput(input);
-        const conversationHistory = await ensureConversationIncludes(inputConversationItems);
+        const normalizedItems = normalizeAgentInput(input);
+        const conversationHistory = await ensureConversationIncludes(normalizedItems);
         const ctxWithConversation = createConversationContext(guardContext, conversationHistory);
+        const inputText = resolveInputText(input, conversationHistory);
 
-        // Extract the latest user message text for guardrails that need text input
-        // (e.g., moderation, custom prompt checks)
-        let textToCheck = '';
-        if (typeof input === 'string') {
-          textToCheck = input;
-        } else {
-          // Find the latest user message in the conversation
-          for (let i = conversationHistory.length - 1; i >= 0; i--) {
-            const entry = conversationHistory[i];
-            if (entry.role === 'user' && entry.content) {
-              textToCheck = entry.content;
-              break;
-            }
-          }
+        const result: GuardrailResult = await guardrail.run(ctxWithConversation, inputText);
+
+        if (raiseGuardrailErrors && result.executionFailed) {
+          throw result.originalException;
         }
 
-        const result = await guardrail.run(ctxWithConversation, textToCheck);
-
-        // If execution failed, handle according to raiseGuardrailErrors flag
-        if (result.executionFailed) {
-          if (raiseGuardrailErrors) {
-            throw result.originalException;
-          }
-          // Execution failed but not raising errors - return safe result
-          return {
-            outputInfo: {
-              error: result.originalException?.message || 'Guardrail execution failed',
-              guardrail_name: guardrail.name || 'unknown',
-            },
-            tripwireTriggered: false,
-          };
-        }
-
-        // Return the guardrail result - Agents SDK will handle tripwire exceptions
         return {
-          outputInfo: result.info || null,
+          outputInfo: {
+            ...(result.info || {}),
+            input: inputText,
+          },
           tripwireTriggered: result.tripwireTriggered || false,
         };
       } catch (error) {
-        // Unexpected error during guardrail execution
         if (raiseGuardrailErrors) {
           throw error;
         }
         return {
           outputInfo: {
             error: error instanceof Error ? error.message : String(error),
-            guardrail_name: guardrail.name || 'unknown',
+            guardrail_name: guardrail.definition.name || 'unknown',
+            input: typeof input === 'string' ? input : JSON.stringify(input),
           },
           tripwireTriggered: false,
         };
@@ -387,38 +441,22 @@ async function createInputGuardrailsFromStage(
 
 async function createOutputGuardrailsFromStage(
   stageName: string,
-  stageConfig: any,
+  stageConfig: GuardrailBundle,
   context?: GuardrailLLMContext,
   raiseGuardrailErrors: boolean = false
-): Promise<any[]> {
-  const guardrails = await instantiateGuardrails(stageConfig);
+): Promise<OutputGuardrail[]> {
+  const guardrails: ConfiguredGuardrail[] = await instantiateGuardrails(stageConfig);
 
-  return guardrails.map((guardrail: any) => ({
-    name: `${stageName}: ${guardrail.name || guardrail.definition?.name || 'Unknown Guardrail'}`,
-    execute: async ({
-      agentOutput,
-      context: agentContext,
-    }: {
-      agentOutput: any;
-      context?: any;
-    }) => {
+  return guardrails.map((guardrail: ConfiguredGuardrail) => ({
+    name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
+    execute: async (args: OutputGuardrailFunctionArgs) => {
+      const { agentOutput, context: agentContext } = args;
+
       try {
-        let outputText = '';
-        if (typeof agentOutput === 'string') {
-          outputText = agentOutput;
-        } else if (agentOutput?.response) {
-          outputText = agentOutput.response;
-        } else if (agentOutput?.finalOutput) {
-          outputText =
-            typeof agentOutput.finalOutput === 'string'
-              ? agentOutput.finalOutput
-              : JSON.stringify(agentOutput.finalOutput);
-        } else {
-          outputText = JSON.stringify(agentOutput);
-        }
-
-        let guardContext: GuardrailLLMContext = (context ||
-          agentContext || {}) as GuardrailLLMContext;
+        let guardContext: GuardrailLLMContext =
+          (context as GuardrailLLMContext) ||
+          (agentContext as GuardrailLLMContext) ||
+          ({} as GuardrailLLMContext);
         if (!guardContext.guardrailLlm) {
           const { OpenAI } = require('openai');
           guardContext = {
@@ -427,41 +465,36 @@ async function createOutputGuardrailsFromStage(
           };
         }
 
-        const outputConversationItems = normalizeAgentOutput(outputText);
-        const conversationHistory = await ensureConversationIncludes(outputConversationItems);
+        const outputText = resolveOutputText(agentOutput);
+        const normalizedItems = normalizeAgentOutput(outputText);
+        const conversationHistory = await ensureConversationIncludes(normalizedItems);
         const ctxWithConversation = createConversationContext(guardContext, conversationHistory);
 
-        const result = await guardrail.run(ctxWithConversation, outputText);
+        const result: GuardrailResult = await guardrail.run(ctxWithConversation, outputText);
 
-        // If execution failed, handle according to raiseGuardrailErrors flag
-        if (result.executionFailed) {
-          if (raiseGuardrailErrors) {
-            throw result.originalException;
-          }
-          // Execution failed but not raising errors - return safe result
-          return {
-            outputInfo: {
-              error: result.originalException?.message || 'Guardrail execution failed',
-              guardrail_name: guardrail.name || 'unknown',
-            },
-            tripwireTriggered: false,
-          };
+        if (raiseGuardrailErrors && result.executionFailed) {
+          throw result.originalException;
         }
 
-        // Return the guardrail result - Agents SDK will handle tripwire exceptions
         return {
-          outputInfo: result.info || null,
+          outputInfo: {
+            ...(result.info || {}),
+            input: outputText,
+          },
           tripwireTriggered: result.tripwireTriggered || false,
         };
       } catch (error) {
-        // Unexpected error during guardrail execution
         if (raiseGuardrailErrors) {
           throw error;
         }
         return {
           outputInfo: {
             error: error instanceof Error ? error.message : String(error),
-            guardrail_name: guardrail.name || 'unknown',
+            guardrail_name: guardrail.definition.name || 'unknown',
+            input:
+              typeof agentOutput === 'string'
+                ? agentOutput
+                : JSON.stringify(agentOutput, null, 2),
           },
           tripwireTriggered: false,
         };

@@ -5,8 +5,10 @@ Base configuration for LLM-based guardrails. Provides common configuration optio
 ## Configuration
 
 ```json
+// This is a base configuration class, not a standalone guardrail
+// Use one of the LLM-based guardrails instead:
 {
-    "name": "LLM Base",
+    "name": "NSFW Text",  // or "Jailbreak", "Hallucination Detection", etc.
     "config": {
         "model": "gpt-5",
         "confidence_threshold": 0.7

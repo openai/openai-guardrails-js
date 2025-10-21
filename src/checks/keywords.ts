@@ -8,7 +8,6 @@
 import { z } from 'zod';
 import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
-import { GuardrailSpecMetadata } from '../spec';
 
 /**
  * Configuration schema for the keywords guardrail.
@@ -47,8 +46,8 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   config
 ): GuardrailResult => {
   // Handle the case where config might be wrapped in another object
-  const actualConfig = (config as any).config || config;
-  const { keywords } = actualConfig;
+  const actualConfig = (config as Record<string, unknown>).config || config;
+  const { keywords } = actualConfig as KeywordsConfig;
 
   // Sanitize keywords by stripping trailing punctuation
   const sanitizedKeywords = keywords.map((k: string) => k.replace(/[.,!?;:]+$/, ''));

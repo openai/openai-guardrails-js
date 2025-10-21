@@ -18,7 +18,7 @@ const _WRAPPER_DICT_KEY = 'response';
  */
 export class OutputSchema {
   /** The type of the output. */
-  private outputType: any;
+  private outputType: unknown;
 
   /** Whether the output type is wrapped in a dictionary. */
   private isWrapped: boolean;
@@ -35,7 +35,7 @@ export class OutputSchema {
    * @param outputType - The target TypeScript type of the LLM output.
    * @param strictJsonSchema - Whether to enforce strict JSON schema generation.
    */
-  constructor(outputType: any, strictJsonSchema: boolean = true) {
+  constructor(outputType: unknown, strictJsonSchema: boolean = true) {
     this.outputType = outputType;
     this.strictJsonSchema = strictJsonSchema;
 
@@ -89,7 +89,7 @@ export class OutputSchema {
    * @param partial - Whether to allow partial JSON parsing.
    * @returns The validated object.
    */
-  validateJson(jsonStr: string, partial: boolean = false): unknown {
+  validateJson(jsonStr: string): unknown {
     const validated = validateJson(jsonStr, this.outputSchema);
 
     if (this.isWrapped) {
@@ -117,7 +117,7 @@ export class OutputSchema {
    * @param type - The type to generate a schema for.
    * @returns The JSON schema.
    */
-  private generateJsonSchema(type: any): Record<string, unknown> {
+  private generateJsonSchema(type: unknown): Record<string, unknown> {
     // This is a basic implementation - you might want to use a proper schema generator
     if (type === String || type === 'string') {
       return { type: 'string' };
@@ -171,7 +171,7 @@ export class OutputSchema {
    * @param type - The type to check.
    * @returns True if the type is a subclass of BaseModel or dict.
    */
-  private isSubclassOfBaseModelOrDict(type: any): boolean {
+  private isSubclassOfBaseModelOrDict(type: unknown): boolean {
     // In TypeScript, we'll use a simplified check
     // In a full implementation, you might want to check for specific base classes
     return (
@@ -190,7 +190,7 @@ export class OutputSchema {
  * @returns An OutputSchema instance.
  */
 export function createOutputSchema(
-  outputType: any,
+  outputType: unknown,
   strictJsonSchema: boolean = true
 ): OutputSchema {
   return new OutputSchema(outputType, strictJsonSchema);
@@ -202,7 +202,7 @@ export function createOutputSchema(
  * @param type - The type to check.
  * @returns True if the type can be represented as a JSON Schema object.
  */
-export function canRepresentAsJsonSchemaObject(type: any): boolean {
+export function canRepresentAsJsonSchemaObject(type: unknown): boolean {
   if (type === null || type === undefined || type === String) {
     return false;
   }

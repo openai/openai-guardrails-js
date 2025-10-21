@@ -22,13 +22,27 @@ describe('topicalAlignmentCheck', () => {
     buildFullPromptMock.mockClear();
   });
 
-  const config = {
+  interface TopicalAlignmentConfig {
+    model: string;
+    confidence_threshold: number;
+    system_prompt_details: string;
+  }
+
+  const config: TopicalAlignmentConfig = {
     model: 'gpt-topic',
     confidence_threshold: 0.6,
     system_prompt_details: 'Stay on topic about finance.',
   };
 
-  const makeCtx = (response: any) => {
+  interface MockLLMResponse {
+    choices: Array<{
+      message: {
+        content: string;
+      };
+    }>;
+  }
+
+  const makeCtx = (response: MockLLMResponse) => {
     const create = vi.fn().mockResolvedValue(response);
     return {
       ctx: {
@@ -56,7 +70,7 @@ describe('topicalAlignmentCheck', () => {
       ],
     });
 
-    const result = await topicalAlignmentCheck(ctx, 'Discussing sports', config as any);
+    const result = await topicalAlignmentCheck(ctx, 'Discussing sports', config);
 
     expect(buildFullPromptMock).toHaveBeenCalled();
     expect(create).toHaveBeenCalledWith({
@@ -76,11 +90,11 @@ describe('topicalAlignmentCheck', () => {
   it('returns failure info when no content is returned', async () => {
     const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
     const { ctx } = makeCtx({
-      choices: [{ message: {} }],
+      choices: [{ message: { content: '' } }],
     });
 
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const result = await topicalAlignmentCheck(ctx, 'Hi', config as any);
+    const result = await topicalAlignmentCheck(ctx, 'Hi', config);
 
     consoleSpy.mockRestore();
 
@@ -101,7 +115,17 @@ describe('topicalAlignmentCheck', () => {
       },
     };
 
-    const result = await topicalAlignmentCheck(ctx as any, 'Test', config as any);
+    interface MockContext {
+      guardrailLlm: {
+        chat: {
+          completions: {
+            create: ReturnType<typeof vi.fn>;
+          };
+        };
+      };
+    }
+    
+    const result = await topicalAlignmentCheck(ctx as MockContext, 'Test', config);
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.error).toContain('timeout');

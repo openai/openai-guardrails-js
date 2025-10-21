@@ -1,10 +1,14 @@
-/* eslint-disable no-dupe-class-members */
 /**
  * Chat completions with guardrails.
  */
 
+/* eslint-disable no-dupe-class-members */
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import { Message } from '../../types';
+
+// Note: We need to filter out non-text content since guardrails only work with text
+// The existing extractLatestUserTextMessage method expects TextOnlyMessageArray
 
 /**
  * Chat completions with guardrails.
@@ -31,7 +35,7 @@ export class ChatCompletions {
   // Overload: streaming
   create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream: true;
       suppressTripwire?: boolean;
@@ -41,7 +45,7 @@ export class ChatCompletions {
   // Overload: non-streaming (default)
   create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream?: false;
       suppressTripwire?: boolean;
@@ -50,7 +54,7 @@ export class ChatCompletions {
 
   async create(
     params: {
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+      messages: Message[];
       model: string;
       stream?: boolean;
       suppressTripwire?: boolean;
@@ -58,7 +62,8 @@ export class ChatCompletions {
   ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion> | AsyncIterableIterator<GuardrailsResponse>> {
     const { messages, model, stream = false, suppressTripwire = false, ...kwargs } = params;
 
-    const [latestMessage] = this.client.extractLatestUserMessage(messages);
+    // Extract latest user message text for guardrails (guardrails only work with text content)
+    const [latestMessage] = this.client.extractLatestUserTextMessage(messages);
     const normalizedConversation = this.client.normalizeConversationHistory(messages);
 
     // Preflight first
@@ -85,6 +90,8 @@ export class ChatCompletions {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
+      // Access protected _resourceClient - necessary for external resource classes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (this.client as any)._resourceClient.chat.completions.create({
         messages: modifiedMessages,
         model,
@@ -103,10 +110,12 @@ export class ChatCompletions {
         llmResponse,
         preflightResults,
         inputResults,
-        messages,
+        normalizedConversation,
         suppressTripwire
       );
     } else {
+      // Access protected handleLlmResponse - necessary for external resource classes
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return (this.client as any).handleLlmResponse(
         llmResponse,
         preflightResults,

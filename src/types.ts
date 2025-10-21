@@ -21,6 +21,12 @@ export interface GuardrailLLMContext {
 }
 
 /**
+ * Extended message type for conversation handling that includes additional properties
+ * not present in the base Message type.
+ */
+export type ConversationMessage = NormalizedConversationEntry;
+
+/**
  * Extended context interface for guardrails that need conversation history.
  *
  * This interface extends the base GuardrailLLMContext with methods for
@@ -52,8 +58,16 @@ export interface GuardrailResult {
   info: {
     /** The processed/checked text that should be used if modifications were made */
     checked_text: string;
+    /** The media type this guardrail was designed for */
+    media_type?: string;
+    /** The detected content type of the input data */
+    detected_content_type?: string;
+    /** The stage where this guardrail was executed (pre_flight, input, output) */
+    stage_name?: string;
+    /** The name of the guardrail that produced this result */
+    guardrail_name?: string;
     /** Additional guardrail-specific metadata */
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -63,7 +77,7 @@ export interface GuardrailResult {
  * A guardrail function accepts a context object, input data, and a configuration object,
  * returning either a `GuardrailResult` or a Promise resolving to `GuardrailResult`.
  */
-export type CheckFn<TContext = object, TIn = unknown, TCfg = object> = (
+export type CheckFn<TContext = object, TIn = TextInput, TCfg = object> = (
   ctx: TContext,
   input: TIn,
   config: TCfg
@@ -79,9 +93,63 @@ export type MaybeAwaitableResult = GuardrailResult | Promise<GuardrailResult>;
  *
  * These provide sensible defaults while allowing for more specific types:
  * - TContext: object (any object, including interfaces)
- * - TIn: unknown (any input type, most flexible)
+ * - TIn: TextInput (string input type for guardrails) // Future: Union type for different input types
  * - TCfg: object (any object, including interfaces and classes)
  */
 export type TContext = object;
-export type TIn = unknown;
+export type TIn = TextInput;
 export type TCfg = object;
+
+/**
+ * Core message structure - clear and extensible.
+ */
+export type Message = {
+  role: string;
+  content: string | ContentPart[];
+};
+
+/**
+ * Content part structure - clear and extensible.
+ */
+export type ContentPart = {
+  type: string;
+  [key: string]: unknown;
+};
+
+/**
+ * Text content part for structured content (Responses API).
+ */
+export type TextContentPart = ContentPart & {
+  type: 'input_text' | 'text' | 'output_text' | 'summary_text';
+  text: string;
+};
+
+
+/**
+ * Type alias for text-only input to guardrails.
+ *
+ * Currently represents string input for text-based guardrails. In the future,
+ * this may be extended to support multi-modal content types (images, audio, video)
+ * through a union type or more sophisticated content representation.
+ */
+export type TextInput = string;
+
+/**
+ * Text-only content types for guardrails.
+ * These types enforce that only text content is processed.
+ */
+
+/** Plain text content */
+export type TextContent = string;
+
+/** Union type for all text-only content */
+export type TextOnlyContent = TextContent | TextContentPart[];
+
+/** Message with text-only content */
+export type TextOnlyMessage = {
+  role: string;
+  content: TextOnlyContent;
+};
+
+/** Array of text-only messages */
+export type TextOnlyMessageArray = TextOnlyMessage[];

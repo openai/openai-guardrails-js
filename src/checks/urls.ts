@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
+import { CheckFn } from '../types';
 import { defaultSpecRegistry } from '../registry';
 
 /**
@@ -56,11 +56,11 @@ function detectUrls(text: string): string[] {
 
   // Pattern 1: URLs with schemes (highest priority)
   const schemePatterns = [
-    /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-    /ftp:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-    /data:[^\s<>"{}|\\^`\[\]]+/gi,
-    /javascript:[^\s<>"{}|\\^`\[\]]+/gi,
-    /vbscript:[^\s<>"{}|\\^`\[\]]+/gi,
+    /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi,
+    /ftp:\/\/[^\s<>"{}|\\^`[\]]+/gi,
+    /data:[^\s<>"{}|\\^`[\]]+/gi,
+    /javascript:[^\s<>"{}|\\^`[\]]+/gi,
+    /vbscript:[^\s<>"{}|\\^`[\]]+/gi,
   ];
 
   const schemeUrls = new Set<string>();
@@ -128,7 +128,7 @@ function detectUrls(text: string): string[] {
           const bareDomain = parsed.hostname.toLowerCase().replace(/^www\./, '');
           schemeUrlDomains.add(bareDomain);
         }
-      } catch (error) {
+      } catch {
         // Skip URLs with parsing errors (malformed URLs, encoding issues)
         // This is expected for edge cases and doesn't require logging
       }

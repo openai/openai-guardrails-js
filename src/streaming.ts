@@ -6,9 +6,9 @@
  */
 
 import { GuardrailResult } from './types';
-import { GuardrailsResponse, GuardrailsBaseClient } from './base-client';
+import { GuardrailsResponse, GuardrailsBaseClient, OpenAIResponseType } from './base-client';
 import { GuardrailTripwireTriggered } from './exceptions';
-import { mergeConversationWithItems, normalizeConversation } from './utils/conversation';
+import { mergeConversationWithItems, NormalizedConversationEntry } from './utils/conversation';
 
 /**
  * Mixin providing streaming functionality for guardrails clients.
@@ -19,43 +19,33 @@ export class StreamingMixin {
    */
   async *streamWithGuardrails(
     this: GuardrailsBaseClient,
-    llmStream: AsyncIterable<any>,
+    llmStream: AsyncIterable<unknown>,
     preflightResults: GuardrailResult[],
     inputResults: GuardrailResult[],
-    conversationHistory?: any[],
+    conversationHistory?: NormalizedConversationEntry[],
     checkInterval: number = 100,
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
     let accumulatedText = '';
     let chunkCount = 0;
-    const baseHistory = conversationHistory
-      ? normalizeConversation(conversationHistory)
-      : [];
+    const baseHistory = conversationHistory ? conversationHistory.map((entry) => ({ ...entry })) : [];
 
     for await (const chunk of llmStream) {
-      // Extract text from chunk
-      const chunkText = (this as any).extractResponseText(chunk);
+      const chunkText = this.extractResponseText(chunk as OpenAIResponseType);
       if (chunkText) {
         accumulatedText += chunkText;
-        chunkCount++;
+        chunkCount += 1;
 
-        // Run output guardrails periodically
         if (chunkCount % checkInterval === 0) {
           try {
             const history = mergeConversationWithItems(baseHistory, [
               { role: 'assistant', content: accumulatedText },
             ]);
-            await (this as any).runStageGuardrails(
-              'output',
-              accumulatedText,
-              history,
-              suppressTripwire
-            );
+            await this.runStageGuardrails('output', accumulatedText, history, suppressTripwire);
           } catch (error) {
             if (error instanceof GuardrailTripwireTriggered) {
-              // Create a final response with the error
-              const finalResponse = (this as any).createGuardrailsResponse(
-                chunk,
+              const finalResponse = this.createGuardrailsResponse(
+                chunk as OpenAIResponseType,
                 preflightResults,
                 inputResults,
                 [error.guardrailResult]
@@ -68,32 +58,29 @@ export class StreamingMixin {
         }
       }
 
-      // Yield the chunk wrapped in GuardrailsResponse
-      const response = (this as any).createGuardrailsResponse(
-        chunk,
+      const response = this.createGuardrailsResponse(
+        chunk as OpenAIResponseType,
         preflightResults,
         inputResults,
-        [] // No output results yet for streaming chunks
+        []
       );
       yield response;
     }
 
-    // Final guardrail check on complete text
     if (!suppressTripwire && accumulatedText) {
       try {
         const history = mergeConversationWithItems(baseHistory, [
           { role: 'assistant', content: accumulatedText },
         ]);
-        const finalOutputResults = await (this as any).runStageGuardrails(
+        const finalOutputResults = await this.runStageGuardrails(
           'output',
           accumulatedText,
           history,
           suppressTripwire
         );
 
-        // Create a final response with all results
-        const finalResponse = (this as any).createGuardrailsResponse(
-          { type: 'final', accumulated_text: accumulatedText },
+        const finalResponse = this.createGuardrailsResponse(
+          { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
           preflightResults,
           inputResults,
           finalOutputResults
@@ -101,9 +88,8 @@ export class StreamingMixin {
         yield finalResponse;
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
-          // Create a final response with the error
-          const finalResponse = (this as any).createGuardrailsResponse(
-            { type: 'final', accumulated_text: accumulatedText },
+          const finalResponse = this.createGuardrailsResponse(
+            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
             preflightResults,
             inputResults,
             [error.guardrailResult]
@@ -121,10 +107,10 @@ export class StreamingMixin {
    */
   static streamWithGuardrailsSync(
     client: GuardrailsBaseClient,
-    llmStream: AsyncIterable<any>,
+    llmStream: AsyncIterable<unknown>,
     preflightResults: GuardrailResult[],
     inputResults: GuardrailResult[],
-    conversationHistory?: any[],
+    conversationHistory?: NormalizedConversationEntry[],
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
     const streamingMixin = new StreamingMixin();
@@ -133,7 +119,7 @@ export class StreamingMixin {
       llmStream,
       preflightResults,
       inputResults,
-      conversationHistory ? normalizeConversation(conversationHistory) : undefined,
+      conversationHistory,
       100,
       suppressTripwire
     );

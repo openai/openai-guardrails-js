@@ -7,7 +7,6 @@
  * engineering.
  */
 
-import { z } from 'zod';
 import { CheckFn, GuardrailLLMContext } from '../types';
 import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
 

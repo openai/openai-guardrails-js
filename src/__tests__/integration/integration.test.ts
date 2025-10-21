@@ -10,12 +10,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GuardrailRegistry } from '../../registry';
-import { GuardrailSpec } from '../../spec';
-import { CheckFn, GuardrailResult } from '../../types';
+import { CheckFn } from '../../types';
 import { loadConfigBundle } from '../../runtime';
 
 // Mock check function for testing
-const mockCheck: CheckFn<any, any, any> = (ctx, data, config) => ({
+const mockCheck: CheckFn<object, string, object> = (ctx, data) => ({
   tripwireTriggered: data === 'trigger',
   info: {
     checked_text: data,

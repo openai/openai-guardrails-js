@@ -42,17 +42,17 @@ export type CompetitorContext = z.infer<typeof CompetitorContext>;
  * @param config Configuration specifying competitor keywords.
  * @returns GuardrailResult indicating whether any competitor keyword was detected.
  */
-export const competitorsCheck: CheckFn<CompetitorContext, string, CompetitorConfig> = async (
+export const competitorsCheck: CheckFn<CompetitorContext, string, CompetitorConfig> = (
   ctx,
   data,
   config
-): Promise<GuardrailResult> => {
+): GuardrailResult => {
   // Convert to KeywordsConfig format and reuse the keywords check
   const keywordsConfig: KeywordsConfig = {
     keywords: config.keywords,
   };
 
-  const result = await keywordsCheck(ctx, data, keywordsConfig);
+  const result = keywordsCheck(ctx, data, keywordsConfig) as GuardrailResult;
 
   // Update the guardrail name in the result
   return {

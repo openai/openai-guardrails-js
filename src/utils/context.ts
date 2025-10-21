@@ -5,7 +5,6 @@
  */
 
 import { GuardrailError } from '../exceptions';
-import { TContext, TIn } from '../types';
 
 /**
  * Error thrown when context validation fails.
@@ -25,8 +24,8 @@ export class ContextValidationError extends GuardrailError {
  * @throws {ContextValidationError} If ctx does not satisfy required fields.
  * @throws {TypeError} If ctx's attributes cannot be introspected.
  */
-export function validateGuardrailContext<TContext extends object, TIn, TCfg>(
-  guardrail: { definition: { name: string; ctxRequirements: any } },
+export function validateGuardrailContext<TContext extends object>(
+  guardrail: { definition: { name: string; ctxRequirements: unknown } },
   ctx: TContext
 ): void {
   const model = guardrail.definition.ctxRequirements;
@@ -52,16 +51,16 @@ export function validateGuardrailContext<TContext extends object, TIn, TCfg>(
     }
 
     // Attempt to get application context schema for better error message
-    let appCtxFields: Record<string, any> = {};
+    let appCtxFields: Record<string, unknown> = {};
     try {
       appCtxFields = Object.getOwnPropertyNames(ctx).reduce(
         (acc, prop) => {
-          acc[prop] = typeof (ctx as any)[prop];
+          acc[prop] = typeof (ctx as Record<string, unknown>)[prop];
           return acc;
         },
-        {} as Record<string, any>
+        {} as Record<string, unknown>
       );
-    } catch (exc) {
+    } catch {
       const msg = `Context must support property access, please pass Context as a class instead of '${typeof ctx}'.`;
       throw new ContextValidationError(msg);
     }
