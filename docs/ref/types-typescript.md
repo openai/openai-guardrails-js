@@ -16,9 +16,7 @@ Context interface providing access to the OpenAI client used by guardrails.
 
 ```typescript
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
-  getConversationHistory(): TextOnlyMessageArray;
-  getInjectionLastCheckedIndex(): number;
-  updateInjectionLastCheckedIndex(index: number): void;
+  getConversationHistory(): any[];
 }
 ```
 
@@ -63,5 +61,4 @@ export type TCfg = object;
 ```
 
 For the full source, see [src/types.ts](https://github.com/openai/openai-guardrails-js/blob/main/src/types.ts) in the repository.
-
 

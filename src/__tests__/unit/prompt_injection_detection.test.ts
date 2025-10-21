@@ -53,8 +53,6 @@ describe('Prompt Injection Detection Check', () => {
           output: '{"temperature": 22, "condition": "sunny"}',
         },
       ],
-      getInjectionLastCheckedIndex: () => 0,
-      updateInjectionLastCheckedIndex: () => {},
     };
   });
 
@@ -75,7 +73,6 @@ describe('Prompt Injection Detection Check', () => {
     const contextWithOnlyUserMessages = {
       ...mockContext,
       getConversationHistory: () => [{ role: 'user', content: 'Hello there!' }],
-      getInjectionLastCheckedIndex: () => 0,
     };
 
     const result = await promptInjectionDetectionCheck(
@@ -85,14 +82,13 @@ describe('Prompt Injection Detection Check', () => {
     );
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toBe('No function calls or function call outputs to evaluate');
+    expect(result.info.observation).toBe('No actionable tool messages to evaluate');
   });
 
   it('should return skip result when no LLM actions', async () => {
     const contextWithNoLLMActions = {
       ...mockContext,
       getConversationHistory: () => [{ role: 'user', content: 'Hello there!' }],
-      getInjectionLastCheckedIndex: () => 1, // Already checked all messages
     };
 
     const result = await promptInjectionDetectionCheck(
@@ -102,7 +98,7 @@ describe('Prompt Injection Detection Check', () => {
     );
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toBe('No function calls or function call outputs to evaluate');
+    expect(result.info.observation).toBe('No actionable tool messages to evaluate');
   });
 
   it('should extract user intent correctly', async () => {
@@ -124,6 +120,6 @@ describe('Prompt Injection Detection Check', () => {
     const result = await promptInjectionDetectionCheck(contextWithError, 'test data', config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info.observation).toContain('Error during prompt injection detection check');
+    expect(result.info.observation).toBe('No conversation history available');
   });
 });

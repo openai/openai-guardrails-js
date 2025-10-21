@@ -92,6 +92,8 @@ export class Responses {
         stream,
         tools,
         ...kwargs,
+        // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+        safety_identifier: 'oai-guardrails-ts',
       }),
     ]);
 

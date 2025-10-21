@@ -107,7 +107,6 @@ export abstract class GuardrailsBaseClient {
   protected guardrails!: StageGuardrails;
   protected context!: GuardrailLLMContext;
   protected _resourceClient!: OpenAI;
-  protected _injectionLastCheckedIndex: number = 0;
   public raiseGuardrailErrors: boolean = false;
 
   /**
@@ -539,14 +538,8 @@ export abstract class GuardrailsBaseClient {
       guardrailLlm: this.context.guardrailLlm,
       // Add conversation history methods
       getConversationHistory: () => conversationHistory,
-      getInjectionLastCheckedIndex: () => this._injectionLastCheckedIndex,
-      updateInjectionLastCheckedIndex: (newIndex: number) => {
-        this._injectionLastCheckedIndex = newIndex;
-      },
     } as GuardrailLLMContext & {
-      getConversationHistory(): TextOnlyMessageArray;
-      getInjectionLastCheckedIndex(): number;
-      updateInjectionLastCheckedIndex(index: number): void;
+      getConversationHistory(): any[];
     };
   }
 
