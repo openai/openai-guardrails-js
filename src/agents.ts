@@ -218,6 +218,39 @@ function normalizeAgentOutput(outputText: string): NormalizedConversationEntry[]
   return normalizeConversation([{ role: 'assistant', content: outputText }]);
 }
 
+function hasGuardrailLlm(value: unknown): value is GuardrailLLMContext {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'guardrailLlm' in (value as Record<string, unknown>) &&
+    (value as Record<string, unknown>).guardrailLlm != null
+  );
+}
+
+function ensureGuardrailContext(
+  providedContext: GuardrailLLMContext | undefined,
+  agentContext: unknown
+): GuardrailLLMContext {
+  if (providedContext?.guardrailLlm) {
+    return providedContext;
+  }
+
+  if (hasGuardrailLlm(agentContext)) {
+    return agentContext;
+  }
+
+  const { OpenAI } = require('openai');
+  const base =
+    typeof agentContext === 'object' && agentContext !== null
+      ? (agentContext as Record<string, unknown>)
+      : {};
+
+  return {
+    ...base,
+    guardrailLlm: new OpenAI(),
+  } as GuardrailLLMContext;
+}
+
 function extractLatestUserText(history: NormalizedConversationEntry[]): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const entry = history[i];
@@ -284,8 +317,17 @@ function ensureAgentRunnerPatch(): void {
 
     const originalRun = Runner.prototype.run;
 
-    Runner.prototype.run = function patchedRun(agent: unknown, input: unknown, options: any = {}) {
-      const session: ConversationSession | null = options?.session ?? null;
+    Runner.prototype.run = function patchedRun(
+      agent: unknown,
+      input: unknown,
+      options?: Record<string, unknown>
+    ) {
+      const normalizedOptions = options ?? {};
+      const sessionCandidate = normalizedOptions.session;
+      const session: ConversationSession | null =
+        typeof sessionCandidate === 'object' && sessionCandidate !== null
+          ? (sessionCandidate as ConversationSession)
+          : null;
       const fallbackConversation = session ? [] : normalizeConversation(input);
       const normalizedFallback =
         fallbackConversation.length > 0 ? cloneEntries(fallbackConversation) : null;
@@ -296,7 +338,9 @@ function ensureAgentRunnerPatch(): void {
         cachedConversation: normalizedFallback,
       };
 
-      return runWithConversationContext(context, () => originalRun.call(this, agent, input, options));
+      return runWithConversationContext(context, () =>
+        originalRun.call(this, agent, input, normalizedOptions)
+      );
     };
 
     agentRunnerPatched = true;
@@ -391,18 +435,7 @@ async function createInputGuardrailsFromStage(
       const { input, context: agentContext } = args;
 
       try {
-        let guardContext: GuardrailLLMContext =
-          (context as GuardrailLLMContext) ||
-          (agentContext as GuardrailLLMContext) ||
-          ({} as GuardrailLLMContext);
-
-        if (!guardContext.guardrailLlm) {
-          const { OpenAI } = require('openai');
-          guardContext = {
-            ...guardContext,
-            guardrailLlm: new OpenAI(),
-          };
-        }
+        const guardContext = ensureGuardrailContext(context, agentContext);
 
         const normalizedItems = normalizeAgentInput(input);
         const conversationHistory = await ensureConversationIncludes(normalizedItems);
@@ -453,17 +486,7 @@ async function createOutputGuardrailsFromStage(
       const { agentOutput, context: agentContext } = args;
 
       try {
-        let guardContext: GuardrailLLMContext =
-          (context as GuardrailLLMContext) ||
-          (agentContext as GuardrailLLMContext) ||
-          ({} as GuardrailLLMContext);
-        if (!guardContext.guardrailLlm) {
-          const { OpenAI } = require('openai');
-          guardContext = {
-            ...guardContext,
-            guardrailLlm: new OpenAI(),
-          };
-        }
+        const guardContext = ensureGuardrailContext(context, agentContext);
 
         const outputText = resolveOutputText(agentOutput);
         const normalizedItems = normalizeAgentOutput(outputText);

@@ -51,7 +51,11 @@ export class Responses {
   ): Promise<GuardrailsResponse<OpenAI.Responses.Response> | AsyncIterableIterator<GuardrailsResponse>> {
     const { input, model, stream = false, tools, suppressTripwire = false, ...kwargs } = params;
 
-    const previousResponseId = (kwargs as any).previous_response_id ?? (kwargs as any).previousResponseId;
+    const extraOptions = kwargs as Record<string, unknown>;
+    const previousResponseIdValue =
+      extraOptions['previous_response_id'] ?? extraOptions['previousResponseId'];
+    const previousResponseId =
+      typeof previousResponseIdValue === 'string' ? previousResponseIdValue : undefined;
     const priorHistory = await this.client.loadConversationHistoryFromPreviousResponse(previousResponseId);
     const currentTurn = this.client.normalizeConversationHistory(input);
     const normalizedConversation =

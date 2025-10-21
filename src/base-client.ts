@@ -19,6 +19,42 @@ import {
   NormalizedConversationEntry,
 } from './utils/conversation';
 
+type UnknownFunction = (...args: unknown[]) => unknown;
+
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === 'object' && value !== null) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+function getRecord(record: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+  if (!record) {
+    return null;
+  }
+  return toRecord(record[key]);
+}
+
+function getFunction(record: Record<string, unknown> | null, key: string): UnknownFunction | null {
+  if (!record) {
+    return null;
+  }
+  const candidate = record[key];
+  return typeof candidate === 'function' ? (candidate as UnknownFunction) : null;
+}
+
+interface AsyncIterableLike {
+  [Symbol.asyncIterator]?: () => AsyncIterator<unknown>;
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const iterator = (value as AsyncIterableLike)[Symbol.asyncIterator];
+  return typeof iterator === 'function';
+}
+
 // Type alias for OpenAI response types
 export type OpenAIResponseType =
   | OpenAI.Completions.Completion
@@ -457,33 +493,44 @@ export abstract class GuardrailsBaseClient {
   private async collectConversationItems(previousResponseId: string): Promise<unknown[]> {
     const items: unknown[] = [];
 
+    const clientRecord = toRecord(this._resourceClient);
+    const responsesRecord = getRecord(clientRecord, 'responses');
+    const conversationsRecord = getRecord(clientRecord, 'conversations');
+
     let response: unknown;
-    try {
-      response = await (this._resourceClient as any)?.responses?.retrieve?.(previousResponseId);
-    } catch {
-      return items;
+    const retrieve = getFunction(responsesRecord, 'retrieve');
+    if (retrieve) {
+      try {
+        response = await retrieve(previousResponseId);
+      } catch {
+        return items;
+      }
     }
 
     if (!response) {
       return items;
     }
 
-    const conversationId = (response as any)?.conversation?.id;
-    const conversationItemsApi = (this._resourceClient as any)?.conversations?.items;
+    const responseRecord = toRecord(response);
+    const conversation = responseRecord ? toRecord(responseRecord.conversation) : null;
+    const conversationIdValue = conversation?.id;
+    const conversationId = typeof conversationIdValue === 'string' ? conversationIdValue : null;
+    const conversationItems = conversation ? getRecord(conversationsRecord, 'items') : null;
+    const listConversationItems = getFunction(conversationItems, 'list');
 
-    if (conversationId && typeof conversationId === 'string' && conversationItemsApi?.list) {
+    if (conversationId && listConversationItems) {
       try {
-        const page = await conversationItemsApi.list(conversationId, {
-          order: 'asc',
-          limit: 100,
-        });
-
-        if (page && typeof (page as any)[Symbol.asyncIterator] === 'function') {
-          for await (const entry of page as any) {
+        const pageResult = await listConversationItems(conversationId, { order: 'asc', limit: 100 });
+        if (isAsyncIterable(pageResult)) {
+          for await (const entry of pageResult) {
             items.push(entry);
           }
-        } else if (page?.data && Array.isArray(page.data)) {
-          items.push(...page.data);
+        } else {
+          const resultRecord = toRecord(pageResult);
+          const data = resultRecord?.data;
+          if (Array.isArray(data)) {
+            items.push(...data);
+          }
         }
       } catch {
         // Ignore and fall back to input items
@@ -491,31 +538,33 @@ export abstract class GuardrailsBaseClient {
     }
 
     if (items.length === 0) {
-      try {
-        const inputItemsApi = (this._resourceClient as any)?.responses?.inputItems;
-        if (inputItemsApi?.list) {
-          const page = await inputItemsApi.list(previousResponseId, {
-            order: 'asc',
-            limit: 100,
-          });
+      const inputItemsRecord = responsesRecord ? getRecord(responsesRecord, 'inputItems') : null;
+      const listInputItems = getFunction(inputItemsRecord, 'list');
 
-          if (page && typeof (page as any)[Symbol.asyncIterator] === 'function') {
-            for await (const entry of page as any) {
-              if (entry) {
+      if (listInputItems) {
+        try {
+          const pageResult = await listInputItems(previousResponseId, { order: 'asc', limit: 100 });
+          if (isAsyncIterable(pageResult)) {
+            for await (const entry of pageResult) {
+              if (entry != null) {
                 items.push(entry);
               }
             }
-          } else if (page?.data && Array.isArray(page.data)) {
-            items.push(...page.data.filter((item: unknown) => item != null));
+          } else {
+            const resultRecord = toRecord(pageResult);
+            const data = resultRecord?.data;
+            if (Array.isArray(data)) {
+              items.push(...data.filter((item) => item != null));
+            }
           }
+        } catch {
+          // Ignore, items remain empty
         }
-      } catch {
-        // Ignore, items remain empty
       }
 
-      const outputItems = Array.isArray((response as any)?.output) ? (response as any).output : [];
-      if (outputItems.length > 0) {
-        items.push(...outputItems.filter((item: unknown) => item != null));
+      const outputItems = responseRecord?.output;
+      if (Array.isArray(outputItems)) {
+        items.push(...outputItems.filter((item) => item != null));
       }
     }
 
