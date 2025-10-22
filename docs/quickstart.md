@@ -83,6 +83,45 @@ main();
 
 **That's it!** Your existing OpenAI code now includes automatic guardrail validation based on your pipeline configuration. The response object works exactly like the original OpenAI response with additional `guardrail_results` property.
 
+## Multi-Turn Conversations
+
+When maintaining conversation history across multiple turns, **only append messages after guardrails pass**. This prevents blocked input messages from polluting your conversation context.
+
+```typescript
+import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '@openai/guardrails';
+
+const client = await GuardrailsOpenAI.create('./guardrails_config.json');
+const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+while (true) {
+  const userInput = await readUserInput(); // replace with your input routine
+
+  try {
+    // ✅ Pass user input inline (don't mutate messages first)
+    const response = await client.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [...messages, { role: 'user', content: userInput }],
+    });
+
+    const responseContent = response.choices[0].message?.content ?? '';
+    console.log(`Assistant: ${responseContent}`);
+
+    // ✅ Only append AFTER guardrails pass
+    messages.push({ role: 'user', content: userInput });
+    messages.push({ role: 'assistant', content: responseContent });
+  } catch (error) {
+    if (error instanceof GuardrailTripwireTriggered) {
+      // ❌ Guardrail blocked - message NOT added to history
+      console.log('Message blocked by guardrails');
+      continue;
+    }
+    throw error;
+  }
+}
+```
+
+**Why this matters**: If you append the user message before the guardrail check, blocked messages remain in your conversation history and get sent on every subsequent turn, even though they violated your safety policies.
+
 ## Guardrail Execution Error Handling
 
 Guardrails supports two error handling modes for guardrail execution failures:

@@ -60,14 +60,20 @@ const PIPELINE_CONFIG = {
  * @param responseId Optional response ID for conversation tracking
  * @returns Promise resolving to a response ID
  */
+type ChatMessage = {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+};
+
 async function processInput(
   guardrailsClient: GuardrailsAzureOpenAI,
-  userInput: string
+  userInput: string,
+  messages: ChatMessage[]
 ): Promise<string> {
-  // Use the new GuardrailsAzureOpenAI - it handles all guardrail validation automatically
+  // Pass user input inline WITHOUT mutating messages first
   const response = await guardrailsClient.guardrails.chat.completions.create({
     model: process.env.AZURE_DEPLOYMENT!,
-    messages: [{ role: 'user', content: userInput }],
+    messages: [...messages, { role: 'user', content: userInput }],
   });
 
   console.log(`\nAssistant output: ${response.choices[0].message.content}`);
@@ -78,6 +84,13 @@ async function processInput(
       `[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`
     );
   }
+
+  // Guardrails passed - now safe to add to conversation history
+  messages.push({ role: 'user', content: userInput });
+  messages.push({
+    role: 'assistant',
+    content: response.choices[0].message.content ?? '',
+  });
 
   return response.id;
 }
@@ -126,6 +139,7 @@ async function main(): Promise<void> {
   });
 
   const rl = createReadlineInterface();
+  const messages: ChatMessage[] = [];
   // let responseId: string | undefined;
 
   // Handle graceful shutdown
@@ -150,7 +164,7 @@ async function main(): Promise<void> {
       }
 
       try {
-        await processInput(guardrailsClient, userInput);
+        await processInput(guardrailsClient, userInput, messages);
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const stageName = error.guardrailResult.info?.stage_name || 'unknown';
@@ -158,6 +172,7 @@ async function main(): Promise<void> {
           console.log('\n📋 Guardrail Result:');
           console.log(JSON.stringify(error.guardrailResult, null, 2));
           console.log('\nPlease rephrase your message to avoid triggering security checks.\n');
+          // Guardrail blocked - user message NOT added to history
         } else {
           console.error(`\n❌ Error: ${error instanceof Error ? error.message : String(error)}\n`);
         }

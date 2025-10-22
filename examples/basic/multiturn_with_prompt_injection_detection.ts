@@ -278,37 +278,38 @@ async function main(malicious: boolean = false): Promise<void> {
         continue;
       }
 
-      // Append user message as content parts
-      messages.push({
+      const userMessage = {
         role: 'user',
         content: [{ type: 'input_text', text: userInput }],
-      });
+      };
 
       // First call: ask the model (may request function_call)
       console.log(`🔄 Making initial API call...`);
 
       let response: GuardrailsResponse;
       let functionCalls: any[] = [];
+      let assistantOutputs: any[] = [];
 
       try {
         response = await client.guardrails.responses.create({
           model: 'gpt-4.1-nano',
           tools: tools,
-          input: messages,
+          input: messages.concat(userMessage),
         });
 
         printGuardrailResults('initial', response);
 
-        // Add the assistant response to conversation history
-        messages.push(...response.output);
+        assistantOutputs = response.output ?? [];
+
+        // Guardrails passed - now safe to add user message to conversation history
+        messages.push(userMessage);
 
         // Grab any function calls from the response
-        functionCalls = response.output.filter(
-          (item: any) => item.type === 'function_call'
-        );
+        functionCalls = assistantOutputs.filter((item: any) => item.type === 'function_call');
 
         // Handle the case where there are no function calls
         if (functionCalls.length === 0) {
+          messages.push(...assistantOutputs);
           console.log(`\n🤖 Assistant: ${response.output_text}`);
           continue;
         }
@@ -325,6 +326,7 @@ async function main(malicious: boolean = false): Promise<void> {
           );
           console.log(`Confidence: ${info.confidence || 'N/A'}`);
           console.log('='.repeat(50));
+          // Guardrail blocked - user message NOT added to history
           continue;
         } else {
           throw error;
@@ -333,6 +335,8 @@ async function main(malicious: boolean = false): Promise<void> {
 
       if (functionCalls && functionCalls.length > 0) {
         // Execute function calls and add results to conversation
+        const toolMessages: any[] = [];
+
         for (const fc of functionCalls) {
           const fname = fc.name;
           const fargs = JSON.parse(fc.arguments);
@@ -359,20 +363,20 @@ async function main(malicious: boolean = false): Promise<void> {
                 };
               }
 
-              messages.push({
+              toolMessages.push({
                 type: 'function_call_output',
                 call_id: fc.call_id,
                 output: JSON.stringify(result),
               });
             } catch (ex) {
-              messages.push({
+              toolMessages.push({
                 type: 'function_call_output',
                 call_id: fc.call_id,
                 output: JSON.stringify({ error: String(ex) }),
               });
             }
           } else {
-            messages.push({
+            toolMessages.push({
               type: 'function_call_output',
               call_id: fc.call_id,
               output: JSON.stringify({ error: `Unknown function: ${fname}` }),
@@ -386,13 +390,15 @@ async function main(malicious: boolean = false): Promise<void> {
           const response = await client.guardrails.responses.create({
             model: 'gpt-4.1-nano',
             tools: tools,
-            input: messages,
+            input: messages.concat(assistantOutputs, toolMessages),
           });
 
           printGuardrailResults('final', response);
           console.log(`\n🤖 Assistant: ${response.output_text}`);
 
-          // Add the final assistant response to conversation history
+          // Guardrails passed - now safe to add tool results and assistant responses to history
+          messages.push(...assistantOutputs);
+          messages.push(...toolMessages);
           messages.push(...response.output);
         } catch (error: any) {
           if (error instanceof GuardrailTripwireTriggered) {
@@ -408,6 +414,7 @@ async function main(malicious: boolean = false): Promise<void> {
             console.log(`Observation: ${info.observation || 'N/A'}`);
             console.log(`Confidence: ${info.confidence || 'N/A'}`);
             console.log('='.repeat(50));
+            // Guardrail blocked - tool results NOT added to history
             continue;
           } else {
             throw error;
