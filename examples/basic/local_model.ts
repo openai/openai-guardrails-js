@@ -34,25 +34,25 @@ const GEMMA3_PIPELINE_CONFIG = {
 async function processInput(
   guardrailsClient: GuardrailsOpenAI,
   userInput: string,
-  inputData: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+  conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
 ): Promise<void> {
   try {
-    // Use GuardrailsClient for chat completions with guardrails
+    // Pass user input inline WITHOUT mutating conversation history first
     const response = await guardrailsClient.guardrails.chat.completions.create({
-      messages: [...inputData, { role: 'user', content: userInput }],
+      messages: [...conversation, { role: 'user', content: userInput }],
       model: 'gemma3',
     });
 
     // Access response content using standard OpenAI API
-    const responseContent = response.choices[0].message.content;
+    const responseContent = response.choices[0].message.content ?? '';
     console.log(`\nAssistant output: ${responseContent}\n`);
 
-    // Add to conversation history
-    inputData.push({ role: 'user', content: userInput });
-    inputData.push({ role: 'assistant', content: responseContent || '' });
+    // Guardrails passed - now safe to add to conversation history
+    conversation.push({ role: 'user', content: userInput });
+    conversation.push({ role: 'assistant', content: responseContent });
   } catch (error) {
     if (error instanceof GuardrailTripwireTriggered) {
-      // Handle guardrail violations
+      // Guardrail blocked - user message NOT added to history
       throw error;
     }
     throw error;
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
     apiKey: 'ollama',
   });
 
-  const inputData: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+  const conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
   try {
     // eslint-disable-next-line no-constant-condition
@@ -87,7 +87,7 @@ async function main(): Promise<void> {
           });
         });
 
-        await processInput(guardrailsClient, userInput, inputData);
+        await processInput(guardrailsClient, userInput, conversation);
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const stageName = error.guardrailResult.info?.stage_name || 'unknown';
@@ -95,6 +95,7 @@ async function main(): Promise<void> {
 
           console.log(`\n🛑 Guardrail '${guardrailName}' triggered in stage '${stageName}'!`);
           console.log('Guardrail Result:', error.guardrailResult);
+          // Guardrail blocked - conversation history unchanged
           continue;
         }
         throw error;

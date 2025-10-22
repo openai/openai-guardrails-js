@@ -112,12 +112,14 @@ async function main(): Promise<void> {
 
         console.log('🤔 Processing...\n');
 
-        // Pass conversation history with the new user message
-        const result = await run(agent, thread.concat({ role: 'user', content: userInput }));
-        
-        // Update thread with the complete history including newly generated items
+        // Pass conversation history with the new user message (without mutating thread yet)
+        const conversationWithUser = thread.concat({ role: 'user', content: userInput });
+
+        const result = await run(agent, conversationWithUser);
+
+        // Guardrails passed - now safe to update thread with complete history
         thread = result.history;
-        
+
         console.log(`Assistant: ${result.finalOutput}\n`);
       } catch (error: any) {
         // Handle guardrail tripwire exceptions
@@ -125,9 +127,11 @@ async function main(): Promise<void> {
         
         if (errorType === 'InputGuardrailTripwireTriggered' || error instanceof InputGuardrailTripwireTriggered) {
           console.log('🛑 Input guardrail triggered! Please try a different message.\n');
+          // Guardrail blocked - user message NOT added to history
           continue;
         } else if (errorType === 'OutputGuardrailTripwireTriggered' || error instanceof OutputGuardrailTripwireTriggered) {
           console.log('🛑 Output guardrail triggered! The response was blocked.\n');
+          // Guardrail blocked - assistant response NOT added to history
           continue;
         } else {
           console.error('❌ An error occurred:', error.message);
