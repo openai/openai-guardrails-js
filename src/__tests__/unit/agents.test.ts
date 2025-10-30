@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { InputGuardrail, OutputGuardrail } from '@openai/agents-core';
 import { GuardrailAgent } from '../../agents';
 import { TextInput } from '../../types';
 import { z } from 'zod';
@@ -10,9 +11,19 @@ import { z } from 'zod';
 // Define the expected agent interface for testing
 interface MockAgent {
   name: string;
-  instructions: string;
-  inputGuardrails: Array<{ execute: (input: TextInput) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }> }>;
-  outputGuardrails: Array<{ execute: (input: TextInput) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }> }>;
+  instructions?: string | ((context: unknown, agent: unknown) => string | Promise<string>);
+  inputGuardrails: Array<{
+    name?: string;
+    execute: (
+      input: TextInput
+    ) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }>;
+  }>;
+  outputGuardrails: Array<{
+    name?: string;
+    execute: (
+      input: TextInput
+    ) => Promise<{ outputInfo: Record<string, unknown>; tripwireTriggered: boolean }>;
+  }>;
   model?: string;
   temperature?: number;
   max_tokens?: number;
@@ -35,20 +46,20 @@ vi.mock('../../runtime', () => ({
   instantiateGuardrails: vi.fn(() =>
     Promise.resolve([
       {
-        definition: { 
+        definition: {
           name: 'Keywords',
           description: 'Test guardrail',
           mediaType: 'text/plain',
           configSchema: z.object({}),
           checkFn: vi.fn(),
           contextSchema: z.object({}),
-          metadata: {}
+          metadata: {},
         },
         config: {},
-            run: vi.fn().mockResolvedValue({
-              tripwireTriggered: false,
-              info: { checked_text: 'test input' },
-            }),
+        run: vi.fn().mockResolvedValue({
+          tripwireTriggered: false,
+          info: { checked_text: 'test input' },
+        }),
       },
     ])
   ),
@@ -83,7 +94,11 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -100,7 +115,11 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -125,7 +144,11 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -148,12 +171,12 @@ describe('GuardrailAgent', () => {
         max_tokens: 1000,
       };
 
-      const agent = await GuardrailAgent.create(
+      const agent = (await GuardrailAgent.create(
         config,
         'Test Agent',
         'Test instructions',
         agentKwargs
-      ) as MockAgent;
+      )) as MockAgent;
 
       expect(agent.model).toBe('gpt-4');
       expect(agent.temperature).toBe(0.7);
@@ -163,7 +186,11 @@ describe('GuardrailAgent', () => {
     it('should handle empty configuration gracefully', async () => {
       const config = { version: 1 };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -180,13 +207,13 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(
+      const agent = (await GuardrailAgent.create(
         config,
         'Test Agent',
         'Test instructions',
         {},
         true // raiseGuardrailErrors = true
-      ) as MockAgent;
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -202,7 +229,11 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.name).toBe('Test Agent');
       expect(agent.instructions).toBe('Test instructions');
@@ -213,6 +244,97 @@ describe('GuardrailAgent', () => {
       // This test would require more complex mocking setup
       // For now, we'll skip it since the error handling is tested in the actual implementation
       expect(true).toBe(true); // Placeholder assertion
+    });
+
+    it('should work without instructions parameter', async () => {
+      const config = { version: 1 };
+
+      // Should not throw TypeError about missing instructions
+      const agent = (await GuardrailAgent.create(config, 'NoInstructions')) as MockAgent;
+
+      expect(agent.name).toBe('NoInstructions');
+      expect(agent.instructions).toBeUndefined();
+    });
+
+    it('should accept callable instructions', async () => {
+      const config = { version: 1 };
+
+      const dynamicInstructions = (ctx: unknown, agent: unknown) => {
+        return `You are ${(agent as { name: string }).name}`;
+      };
+
+      const agent = (await GuardrailAgent.create(
+        config,
+        'DynamicAgent',
+        dynamicInstructions
+      )) as MockAgent;
+
+      expect(agent.name).toBe('DynamicAgent');
+      expect(typeof agent.instructions).toBe('function');
+      expect(agent.instructions).toBe(dynamicInstructions);
+    });
+
+    it('should merge user input guardrails with config guardrails', async () => {
+      const config = {
+        version: 1,
+        input: {
+          version: 1,
+          guardrails: [{ name: 'Keywords', config: {} }],
+        },
+      };
+
+      // Create a custom user guardrail
+      const customGuardrail: InputGuardrail = {
+        name: 'Custom Input Guard',
+        execute: async () => ({ outputInfo: {}, tripwireTriggered: false }),
+      };
+
+      const agent = (await GuardrailAgent.create(config, 'MergedAgent', 'Test instructions', {
+        inputGuardrails: [customGuardrail],
+      })) as MockAgent;
+
+      // Should have both config and user guardrails merged (config first, then user)
+      expect(agent.inputGuardrails).toHaveLength(2);
+      expect(agent.inputGuardrails[0].name).toContain('input:');
+      expect(agent.inputGuardrails[1].name).toBe('Custom Input Guard');
+    });
+
+    it('should merge user output guardrails with config guardrails', async () => {
+      const config = {
+        version: 1,
+        output: {
+          version: 1,
+          guardrails: [{ name: 'URL Filter', config: {} }],
+        },
+      };
+
+      // Create a custom user guardrail
+      const customGuardrail: OutputGuardrail = {
+        name: 'Custom Output Guard',
+        execute: async () => ({ outputInfo: {}, tripwireTriggered: false }),
+      };
+
+      const agent = (await GuardrailAgent.create(config, 'MergedAgent', 'Test instructions', {
+        outputGuardrails: [customGuardrail],
+      })) as MockAgent;
+
+      // Should have both config and user guardrails merged (config first, then user)
+      expect(agent.outputGuardrails).toHaveLength(2);
+      expect(agent.outputGuardrails[0].name).toContain('output:');
+      expect(agent.outputGuardrails[1].name).toBe('Custom Output Guard');
+    });
+
+    it('should handle empty user guardrail arrays gracefully', async () => {
+      const config = { version: 1 };
+
+      const agent = (await GuardrailAgent.create(config, 'EmptyListAgent', 'Test instructions', {
+        inputGuardrails: [],
+        outputGuardrails: [],
+      })) as MockAgent;
+
+      expect(agent.name).toBe('EmptyListAgent');
+      expect(agent.inputGuardrails).toHaveLength(0);
+      expect(agent.outputGuardrails).toHaveLength(0);
     });
   });
 
@@ -226,7 +348,11 @@ describe('GuardrailAgent', () => {
         },
       };
 
-      const agent = await GuardrailAgent.create(config, 'Test Agent', 'Test instructions') as MockAgent;
+      const agent = (await GuardrailAgent.create(
+        config,
+        'Test Agent',
+        'Test instructions'
+      )) as MockAgent;
 
       expect(agent.inputGuardrails).toHaveLength(1);
 
@@ -254,7 +380,7 @@ describe('GuardrailAgent', () => {
       vi.mocked(instantiateGuardrails).mockImplementationOnce(() =>
         Promise.resolve([
           {
-            definition: { 
+            definition: {
               name: 'Keywords',
               description: 'Test guardrail',
               mediaType: 'text/plain',
@@ -263,22 +389,26 @@ describe('GuardrailAgent', () => {
               metadata: {},
               ctxRequirements: z.object({}),
               schema: () => ({}),
-              instantiate: vi.fn()
+              instantiate: vi.fn(),
             },
             config: {},
             run: vi.fn().mockRejectedValue(new Error('Guardrail execution failed')),
-          } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T> ? T extends readonly (infer U)[] ? U : never : never,
+          } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T>
+            ? T extends readonly (infer U)[]
+              ? U
+              : never
+            : never,
         ])
       );
 
       // Test with raiseGuardrailErrors = false (default behavior)
-      const agentDefault = await GuardrailAgent.create(
+      const agentDefault = (await GuardrailAgent.create(
         config,
         'Test Agent',
         'Test instructions',
         {},
         false
-      ) as MockAgent;
+      )) as MockAgent;
 
       const guardrailFunctionDefault = agentDefault.inputGuardrails[0];
       const resultDefault = await guardrailFunctionDefault.execute('test');
@@ -293,7 +423,7 @@ describe('GuardrailAgent', () => {
       vi.mocked(instantiateGuardrails).mockImplementationOnce(() =>
         Promise.resolve([
           {
-            definition: { 
+            definition: {
               name: 'Keywords',
               description: 'Test guardrail',
               mediaType: 'text/plain',
@@ -302,22 +432,26 @@ describe('GuardrailAgent', () => {
               metadata: {},
               ctxRequirements: z.object({}),
               schema: () => ({}),
-              instantiate: vi.fn()
+              instantiate: vi.fn(),
             },
             config: {},
             run: vi.fn().mockRejectedValue(new Error('Guardrail execution failed')),
-          } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T> ? T extends readonly (infer U)[] ? U : never : never,
+          } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T>
+            ? T extends readonly (infer U)[]
+              ? U
+              : never
+            : never,
         ])
       );
 
       // Test with raiseGuardrailErrors = true (fail-secure mode)
-      const agentStrict = await GuardrailAgent.create(
+      const agentStrict = (await GuardrailAgent.create(
         config,
         'Test Agent',
         'Test instructions',
         {},
         true
-      ) as MockAgent;
+      )) as MockAgent;
 
       const guardrailFunctionStrict = agentStrict.inputGuardrails[0];
 
