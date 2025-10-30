@@ -131,6 +131,15 @@ export class AsyncRunEngine implements RunEngine {
       return await this.runPromptInjectionIncremental(context, guardrail, sampleData);
     }
 
+    if (this.guardrailRequiresConversationHistory(guardrail)) {
+      const conversation = normalizeConversation(parseConversationInput(sampleData));
+      const guardrailContext = this.createConversationContext(context, conversation);
+      return await guardrail.run(
+        guardrailContext as GuardrailLLMContextWithHistory,
+        sampleData
+      );
+    }
+
     return await guardrail.run(context as GuardrailLLMContext, sampleData);
   }
 
@@ -142,6 +151,10 @@ export class AsyncRunEngine implements RunEngine {
     return normalized === 'prompt injection detection';
   }
 
+  private guardrailRequiresConversationHistory(guardrail: ConfiguredGuardrail): boolean {
+    return Boolean(guardrail.definition.metadata?.requiresConversationHistory);
+  }
+
   private async runPromptInjectionIncremental(
     context: Context,
     guardrail: ConfiguredGuardrail,
@@ -150,7 +163,7 @@ export class AsyncRunEngine implements RunEngine {
     const conversation = normalizeConversation(parseConversationInput(sampleData));
 
     if (conversation.length === 0) {
-      const guardrailContext = this.createPromptInjectionContext(context, []);
+      const guardrailContext = this.createConversationContext(context, []);
       return await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
     }
 
@@ -158,7 +171,7 @@ export class AsyncRunEngine implements RunEngine {
 
     for (let turnIndex = 0; turnIndex < conversation.length; turnIndex += 1) {
       const historySlice = conversation.slice(0, turnIndex + 1);
-      const guardrailContext = this.createPromptInjectionContext(
+      const guardrailContext = this.createConversationContext(
         context,
         historySlice
       );
@@ -192,7 +205,7 @@ export class AsyncRunEngine implements RunEngine {
     return finalResult;
   }
 
-  private createPromptInjectionContext(
+  private createConversationContext(
     context: Context,
     conversationHistory: NormalizedConversationEntry[]
   ): GuardrailLLMContextWithHistory {

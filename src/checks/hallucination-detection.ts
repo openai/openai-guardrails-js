@@ -20,6 +20,7 @@
 import { z } from 'zod';
 import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import { createErrorResult, LLMErrorOutput } from './llm-base';
 
 /**
  * Configuration schema for hallucination detection.
@@ -196,22 +197,24 @@ export const hallucination_detection: CheckFn<
       parsedJson = JSON.parse(jsonText);
     } catch (error) {
       console.warn('Failed to parse LLM response as JSON:', jsonText);
-      // Return a safe default if JSON parsing fails
-      return {
-        tripwireTriggered: false,
-        info: {
-          guardrail_name: 'Hallucination Detection',
-          flagged: false,
-          confidence: 0.0,
+      // Return a safe default if JSON parsing fails using shared error helper
+      const errorOutput: LLMErrorOutput = {
+        flagged: false,
+        confidence: 0.0,
+        info: { error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}` },
+      };
+      return createErrorResult(
+        'Hallucination Detection',
+        errorOutput,
+        candidate,
+        {
+          threshold: config.confidence_threshold,
           reasoning: 'LLM response could not be parsed as JSON',
           hallucination_type: null,
           hallucinated_statements: null,
           verified_statements: null,
-          threshold: config.confidence_threshold,
-          error: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}`,
-          checked_text: candidate,
-        },
-      };
+        }
+      );
     }
 
     const analysis = HallucinationDetectionOutput.parse(parsedJson);
@@ -234,23 +237,25 @@ export const hallucination_detection: CheckFn<
       },
     };
   } catch (error) {
-    // Log unexpected errors and return safe default
+    // Log unexpected errors and return safe default using shared error helper
     console.error('Unexpected error in hallucination_detection:', error);
-    return {
-      tripwireTriggered: false,
-      info: {
-        guardrail_name: 'Hallucination Detection',
-        flagged: false,
-        confidence: 0.0,
+    const errorOutput: LLMErrorOutput = {
+      flagged: false,
+      confidence: 0.0,
+      info: { error_message: error instanceof Error ? error.message : String(error) },
+    };
+    return createErrorResult(
+      'Hallucination Detection',
+      errorOutput,
+      candidate,
+      {
+        threshold: config.confidence_threshold,
         reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
         hallucination_type: null,
         hallucinated_statements: null,
         verified_statements: null,
-        threshold: config.confidence_threshold,
-        error: error instanceof Error ? error.message : String(error),
-        checked_text: candidate, // Hallucination Detection doesn't modify text, pass through unchanged
-      },
-    };
+      }
+    );
   }
 };
 

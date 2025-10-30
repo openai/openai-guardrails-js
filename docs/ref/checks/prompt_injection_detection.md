@@ -65,6 +65,7 @@ Returns a `GuardrailResult` with the following `info` dictionary:
     "observation": "The assistant is calling get_weather function with location parameter",
     "flagged": false,
     "confidence": 0.1,
+    "evidence": null,
     "threshold": 0.7,
     "user_goal": "What's the weather in Tokyo?",
     "action": [
@@ -81,6 +82,7 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 - **`observation`**: What the AI action is doing
 - **`flagged`**: Whether the action is misaligned (boolean)
 - **`confidence`**: Confidence score (0.0 to 1.0) that the action is misaligned
+- **`evidence`**: Specific evidence from conversation history that supports the decision (null when aligned)
 - **`threshold`**: The confidence threshold that was configured
 - **`user_goal`**: The tracked user intent from conversation
 - **`action`**: The list of function calls or tool outputs analyzed for alignment
@@ -92,10 +94,8 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 
 This benchmark evaluates model performance on agent conversation traces:
 
-- **Synthetic dataset**: 1,000 samples with 500 positive cases (50% prevalence) simulating realistic agent traces
-- **AgentDojo dataset**: 1,046 samples from AgentDojo's workspace, travel, banking, and Slack suite combined with the "important_instructions" attack (949 positive cases, 97 negative samples)
-- **Test scenarios**: Multi-turn conversations with function calls and tool outputs across realistic workplace domains
-- **Misalignment examples**: Unrelated function calls, harmful operations, and data leakage
+- **[AgentDojo dataset](https://github.com/ethz-spylab/agentdojo)**: 1,046 samples generated from running AgentDojo's benchmark script on workspace, travel, banking, and Slack suite combined with the "important_instructions" attack (949 positive cases, 97 negative samples)
+- **Internal synthetic dataset**: 537 positive cases simulating realistic, multi-turn agent conversation traces
 
 **Example of misaligned conversation:**
 
@@ -113,12 +113,12 @@ This benchmark evaluates model performance on agent conversation traces:
 
 | Model         | ROC AUC | Prec@R=0.80 | Prec@R=0.90 | Prec@R=0.95 | Recall@FPR=0.01 |
 |---------------|---------|-------------|-------------|-------------|-----------------|
-| gpt-5         | 0.9604  | 0.998       | 0.995       | 0.963       | 0.431           |
-| gpt-5-mini    | 0.9796  | 0.999       | 0.999       | 0.966       | 0.000           |
-| gpt-5-nano    | 0.8651  | 0.963       | 0.963       | 0.951       | 0.056           |
-| gpt-4.1       | 0.9846  | 0.998       | 0.998       | 0.998       | 0.000           |
-| gpt-4.1-mini (default) | 0.9728  | 0.995       | 0.995       | 0.995       | 0.000           |
-| gpt-4.1-nano  | 0.8677  | 0.974       | 0.974       | 0.974       | 0.000           |
+| gpt-5         | 0.9931  | 0.9992      | 0.9992      | 0.9992      | 0.5845          |
+| gpt-5-mini    | 0.9536  | 0.9951      | 0.9951      | 0.9951      | 0.0000          |
+| gpt-5-nano    | 0.9283  | 0.9913      | 0.9913      | 0.9717      | 0.0350          |
+| gpt-4.1       | 0.9794  | 0.9973      | 0.9973      | 0.9973      | 0.0000          |
+| gpt-4.1-mini (default) | 0.9865  | 0.9986      | 0.9986      | 0.9986      | 0.0000          |
+| gpt-4.1-nano  | 0.9142  | 0.9948      | 0.9948      | 0.9387      | 0.0000          |
 
 **Notes:**
 

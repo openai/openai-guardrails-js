@@ -42,10 +42,19 @@ export function parseConversationInput(rawInput: unknown): unknown[] {
     }
     try {
       const parsed = JSON.parse(trimmed);
-      return parseConversationInput(parsed);
+      const parsedConversation = parseConversationInput(parsed);
+      if (parsedConversation.length > 0) {
+        return parsedConversation;
+      }
     } catch {
-      return [];
+      // fall through to treat as plain user message
     }
+    return [
+      {
+        role: 'user',
+        content: trimmed,
+      },
+    ];
   }
 
   if (typeof rawInput === 'object') {

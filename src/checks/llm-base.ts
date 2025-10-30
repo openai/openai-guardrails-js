@@ -63,6 +63,37 @@ export const LLMErrorOutput = LLMOutput.extend({
 export type LLMErrorOutput = z.infer<typeof LLMErrorOutput>;
 
 /**
+ * Create a standardized error result for LLM-based guardrails.
+ *
+ * This helper provides a consistent way to handle errors across all LLM-based checks,
+ * ensuring uniform error reporting and preventing tripwire triggers on execution failures.
+ *
+ * @param guardrailName - Name of the guardrail that encountered the error.
+ * @param analysis - LLMErrorOutput containing error information.
+ * @param checkedText - The original text that was being checked.
+ * @param additionalInfo - Optional additional information to include in the result.
+ * @returns GuardrailResult with tripwireTriggered=false and error information.
+ */
+export function createErrorResult(
+  guardrailName: string,
+  analysis: LLMErrorOutput,
+  checkedText: string,
+  additionalInfo: Record<string, unknown> = {}
+): GuardrailResult {
+  return {
+    tripwireTriggered: false,
+    info: {
+      guardrail_name: guardrailName,
+      flagged: analysis.flagged,
+      confidence: analysis.confidence,
+      checked_text: checkedText,
+      ...analysis.info,
+      ...additionalInfo,
+    },
+  };
+}
+
+/**
  * Assemble a complete LLM prompt with instructions and response schema.
  *
  * Incorporates the supplied system prompt and specifies the required JSON response fields.
