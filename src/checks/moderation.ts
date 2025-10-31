@@ -95,7 +95,10 @@ function isNotFoundError(error: unknown): boolean {
  * @param data The text to analyze
  * @returns The moderation API response
  */
-function callModerationAPI(client: OpenAI, data: string) {
+function callModerationAPI(
+  client: OpenAI,
+  data: string
+): ReturnType<OpenAI['moderations']['create']> {
   return client.moderations.create({
     model: 'omni-moderation-latest',
     input: data,
