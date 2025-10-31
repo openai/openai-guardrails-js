@@ -102,6 +102,7 @@ describe('moderation guardrail', () => {
     expect(contextCreateMock).toHaveBeenCalledWith({
       model: 'omni-moderation-latest',
       input: 'test text',
+      safety_identifier: 'openai-guardrails-js',
     });
     expect(result.tripwireTriggered).toBe(false);
   });

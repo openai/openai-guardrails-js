@@ -156,7 +156,6 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
       try {
         resp = await callModerationAPI(client, data);
       } catch (error) {
-        
         // Moderation endpoint doesn't exist on this provider (e.g., third-party)
         // Fall back to the OpenAI client
         if (isNotFoundError(error)) {
