@@ -241,7 +241,8 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, RegExp> = {
   [PIIEntity.FI_PERSONAL_IDENTITY_CODE]: /\b\d{6}[+-A]\d{3}[A-Z0-9]\b/g,
 
   // Korea
-  [PIIEntity.KR_RRN]: /\b\d{6}-\d{7}\b/g,
+  // Format: YYMMDD-GNNNNNN where YY=year, MM=month(01-12), DD=day(01-31), G=gender/century(1-4)
+  [PIIEntity.KR_RRN]: /\b\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])-[1-4]\d{6}\b/g,
 };
 
 /**
