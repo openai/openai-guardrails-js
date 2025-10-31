@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import OpenAI from 'openai';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
 /**
  * Enumeration of supported moderation categories.
@@ -99,10 +100,19 @@ function callModerationAPI(
   client: OpenAI,
   data: string
 ): ReturnType<OpenAI['moderations']['create']> {
-  return client.moderations.create({
+  const params: Record<string, unknown> = {
     model: 'omni-moderation-latest',
     input: data,
-  });
+  };
+  
+  // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+  if (supportsSafetyIdentifier(client)) {
+    // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+    params.safety_identifier = SAFETY_IDENTIFIER;
+  }
+  
+  // @ts-ignore - safety_identifier is not in the OpenAI types yet
+  return client.moderations.create(params);
 }
 
 /**
@@ -146,6 +156,7 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
       try {
         resp = await callModerationAPI(client, data);
       } catch (error) {
+        
         // Moderation endpoint doesn't exist on this provider (e.g., third-party)
         // Fall back to the OpenAI client
         if (isNotFoundError(error)) {

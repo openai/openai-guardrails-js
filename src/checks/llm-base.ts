@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { OpenAI } from 'openai';
 import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
 /**
  * Configuration schema for LLM-based content checks.
@@ -195,7 +196,8 @@ export async function runLLM(
       temperature = 1.0;
     }
 
-    const response = await client.chat.completions.create({
+    // Build API call parameters
+    const params: Record<string, unknown> = {
       messages: [
         { role: 'system', content: fullPrompt },
         { role: 'user', content: `# Text\n\n${text}` },
@@ -203,7 +205,16 @@ export async function runLLM(
       model: model,
       temperature: temperature,
       response_format: { type: 'json_object' },
-    });
+    };
+    
+    // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+    if (supportsSafetyIdentifier(client)) {
+      // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+      params.safety_identifier = SAFETY_IDENTIFIER;
+    }
+
+    // @ts-ignore - safety_identifier is not in the OpenAI types yet
+    const response = await client.chat.completions.create(params);
 
     const result = response.choices[0]?.message?.content;
     if (!result) {

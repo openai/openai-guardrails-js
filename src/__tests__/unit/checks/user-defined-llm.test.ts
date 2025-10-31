@@ -52,6 +52,7 @@ describe('userDefinedLLMCheck', () => {
       model: 'gpt-test',
       temperature: 0.0,
       response_format: { type: 'json_object' },
+      safety_identifier: 'openai-guardrails-js',
     });
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.flagged).toBe(true);

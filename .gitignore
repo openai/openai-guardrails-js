@@ -102,5 +102,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# internal
+# internal examples
 internal_examples/
