@@ -13,12 +13,7 @@ import type {
   InputGuardrailFunctionArgs,
   OutputGuardrailFunctionArgs,
 } from '@openai/agents-core';
-import {
-  GuardrailLLMContext,
-  GuardrailResult,
-  TextOnlyContent,
-  ContentPart,
-} from './types';
+import { GuardrailLLMContext, GuardrailResult, TextOnlyContent, ContentPart } from './types';
 import { ContentUtils } from './utils/content';
 import {
   loadPipelineBundles,
@@ -87,7 +82,9 @@ function getConversationContext(): AgentConversationContext | null {
   return fallbackConversationContext;
 }
 
-function cloneEntries(entries: NormalizedConversationEntry[] | null | undefined): NormalizedConversationEntry[] {
+function cloneEntries(
+  entries: NormalizedConversationEntry[] | null | undefined
+): NormalizedConversationEntry[] {
   return entries ? entries.map((entry) => ({ ...entry })) : [];
 }
 
@@ -98,7 +95,9 @@ function cacheConversation(conversation: NormalizedConversationEntry[]): void {
   }
 }
 
-async function fetchSessionItems(session: ConversationSession | null | undefined): Promise<unknown[]> {
+async function fetchSessionItems(
+  session: ConversationSession | null | undefined
+): Promise<unknown[]> {
   if (!session) {
     return [];
   }
@@ -359,7 +358,7 @@ export class GuardrailAgent {
   static async create(
     config: string | PipelineConfig,
     name: string,
-    instructions: string,
+    instructions?: string | ((context: unknown, agent: unknown) => string | Promise<string>),
     agentKwargs: Record<string, unknown> = {},
     raiseGuardrailErrors: boolean = false
   ): Promise<unknown> {
@@ -371,6 +370,16 @@ export class GuardrailAgent {
 
       const pipeline = (await loadPipelineBundles(config)) as PipelineWithStages;
 
+      // Extract any user-provided guardrails from agentKwargs
+      const userInputGuardrails = agentKwargs.inputGuardrails as InputGuardrail[] | undefined;
+      const userOutputGuardrails = agentKwargs.outputGuardrails as OutputGuardrail[] | undefined;
+
+      // Remove them from agentKwargs to avoid duplication
+      const filteredAgentKwargs = { ...agentKwargs };
+      delete filteredAgentKwargs.inputGuardrails;
+      delete filteredAgentKwargs.outputGuardrails;
+
+      // Create agent-level INPUT guardrails from config
       const inputGuardrails: InputGuardrail[] = [];
       if (pipeline.pre_flight) {
         const preFlightGuardrails = await createInputGuardrailsFromStage(
@@ -391,6 +400,12 @@ export class GuardrailAgent {
         inputGuardrails.push(...inputStageGuardrails);
       }
 
+      // Merge with user-provided input guardrails (config ones run first, then user ones)
+      if (userInputGuardrails && Array.isArray(userInputGuardrails)) {
+        inputGuardrails.push(...userInputGuardrails);
+      }
+
+      // Create agent-level OUTPUT guardrails from config
       const outputGuardrails: OutputGuardrail[] = [];
       if (pipeline.output) {
         const outputStageGuardrails = await createOutputGuardrailsFromStage(
@@ -402,12 +417,17 @@ export class GuardrailAgent {
         outputGuardrails.push(...outputStageGuardrails);
       }
 
+      // Merge with user-provided output guardrails (config ones run first, then user ones)
+      if (userOutputGuardrails && Array.isArray(userOutputGuardrails)) {
+        outputGuardrails.push(...userOutputGuardrails);
+      }
+
       return new Agent({
         name,
         instructions,
         inputGuardrails,
         outputGuardrails,
-        ...agentKwargs,
+        ...filteredAgentKwargs,
       });
     } catch (error) {
       if (error instanceof Error && error.message.includes('Cannot resolve module')) {
@@ -515,9 +535,7 @@ async function createOutputGuardrailsFromStage(
             error: error instanceof Error ? error.message : String(error),
             guardrail_name: guardrail.definition.name || 'unknown',
             input:
-              typeof agentOutput === 'string'
-                ? agentOutput
-                : JSON.stringify(agentOutput, null, 2),
+              typeof agentOutput === 'string' ? agentOutput : JSON.stringify(agentOutput, null, 2),
           },
           tripwireTriggered: false,
         };
