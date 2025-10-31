@@ -48,6 +48,7 @@ describe('moderation guardrail', () => {
     expect(createMock).toHaveBeenCalledWith({
       model: 'omni-moderation-latest',
       input: 'bad content',
+      safety_identifier: 'openai-guardrails-js',
     });
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.flagged_categories).toEqual([Category.HATE]);

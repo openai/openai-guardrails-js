@@ -9,6 +9,7 @@
 import { z } from 'zod';
 import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
 /**
  * Configuration schema for user-defined LLM moderation checks.
@@ -91,7 +92,8 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
     // Try with JSON response format first, fall back to text if not supported
     let response;
     try {
-      response = await ctx.guardrailLlm.chat.completions.create({
+      // Build API call parameters
+      const params: Record<string, unknown> = {
         messages: [
           { role: 'system', content: renderedSystemPrompt },
           { role: 'user', content: data },
@@ -99,19 +101,36 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
         model: config.model,
         temperature: 0.0,
         response_format: { type: 'json_object' },
-      });
+      };
+      
+      // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+      if (supportsSafetyIdentifier(ctx.guardrailLlm)) {
+        // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+        params.safety_identifier = SAFETY_IDENTIFIER;
+      }
+      
+      response = await ctx.guardrailLlm.chat.completions.create(params);
     } catch (error: unknown) {
       // If JSON response format is not supported, try without it
       if (error && typeof error === 'object' && 'error' in error && 
           (error as { error?: { param?: string } }).error?.param === 'response_format') {
-        response = await ctx.guardrailLlm.chat.completions.create({
+        // Build fallback parameters without response_format
+        const fallbackParams: Record<string, unknown> = {
           messages: [
             { role: 'system', content: renderedSystemPrompt },
             { role: 'user', content: data },
           ],
           model: config.model,
           temperature: 0.0,
-        });
+        };
+        
+        // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+        if (supportsSafetyIdentifier(ctx.guardrailLlm)) {
+          // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+          fallbackParams.safety_identifier = SAFETY_IDENTIFIER;
+        }
+        
+        response = await ctx.guardrailLlm.chat.completions.create(fallbackParams);
       } else {
         // Return error information instead of re-throwing
         return {
