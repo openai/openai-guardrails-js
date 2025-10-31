@@ -146,7 +146,26 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
         // Moderation endpoint doesn't exist on this provider (e.g., third-party)
         // Fall back to the OpenAI client
         if (isNotFoundError(error)) {
-          resp = await callModerationAPI(new OpenAI(), data);
+          try {
+            resp = await callModerationAPI(new OpenAI(), data);
+          } catch (fallbackError) {
+            // If fallback fails, provide a helpful error message
+            const errorMessage = fallbackError instanceof Error 
+              ? fallbackError.message 
+              : String(fallbackError);
+            
+            // Check if it's an API key error
+            if (errorMessage.includes('api_key') || errorMessage.includes('OPENAI_API_KEY')) {
+              return {
+                tripwireTriggered: false,
+                info: {
+                  checked_text: data,
+                  error: 'Moderation API requires OpenAI API key. Set OPENAI_API_KEY environment variable or pass a client with valid credentials.',
+                },
+              };
+            }
+            throw fallbackError;
+          }
         } else {
           throw error;
         }
