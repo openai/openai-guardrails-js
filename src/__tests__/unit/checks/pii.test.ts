@@ -42,4 +42,31 @@ describe('pii guardrail', () => {
 
     await expect(pii({}, '', config)).rejects.toThrow('Text cannot be empty or null');
   });
+
+  it('detects Korean Resident Registration Number (KR_RRN)', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.KR_RRN],
+      block: false,
+    });
+    const text = 'Korean RRN: 123456-1234567';
+
+    const result = await pii({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual(['123456-1234567']);
+    expect(result.info?.checked_text).toBe('Korean RRN: <KR_RRN>');
+  });
+
+  it('triggers tripwire for KR_RRN when block=true', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.KR_RRN],
+      block: true,
+    });
+    const text = 'Korean RRN: 123456-1234567';
+
+    const result = await pii({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual(['123456-1234567']);
+  });
 });

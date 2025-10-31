@@ -125,6 +125,9 @@ export enum PIIEntity {
 
   // Finland
   FI_PERSONAL_IDENTITY_CODE = 'FI_PERSONAL_IDENTITY_CODE',
+
+  // Korea
+  KR_RRN = 'KR_RRN',
 }
 
 /**
@@ -236,6 +239,9 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, RegExp> = {
 
   // Finland
   [PIIEntity.FI_PERSONAL_IDENTITY_CODE]: /\b\d{6}[+-A]\d{3}[A-Z0-9]\b/g,
+
+  // Korea
+  [PIIEntity.KR_RRN]: /\b\d{6}-\d{7}\b/g,
 };
 
 /**
