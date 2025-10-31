@@ -138,7 +138,7 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
 
   try {
     // Try the context client first, fall back if moderation endpoint doesn't exist
-    let resp;
+    let resp: Awaited<ReturnType<typeof callModerationAPI>>;
     if (client !== null) {
       try {
         resp = await callModerationAPI(client, data);
@@ -146,16 +146,14 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
         // Moderation endpoint doesn't exist on this provider (e.g., third-party)
         // Fall back to the OpenAI client
         if (isNotFoundError(error)) {
-          client = new OpenAI();
-          resp = await callModerationAPI(client, data);
+          resp = await callModerationAPI(new OpenAI(), data);
         } else {
           throw error;
         }
       }
     } else {
       // No context client, use fallback
-      client = new OpenAI();
-      resp = await callModerationAPI(client, data);
+      resp = await callModerationAPI(new OpenAI(), data);
     }
 
     const results = resp.results || [];
