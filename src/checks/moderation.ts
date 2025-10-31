@@ -79,14 +79,24 @@ export const ModerationContext = z.object({
 export type ModerationContext = z.infer<typeof ModerationContext>;
 
 /**
+ * Check if an error is a 404 Not Found error from the OpenAI API.
+ *
+ * @param error The error to check
+ * @returns True if the error is a 404 error
+ */
+function isNotFoundError(error: unknown): boolean {
+  return !!(error && typeof error === 'object' && 'status' in error && error.status === 404);
+}
+
+/**
  * Call the OpenAI moderation API.
  *
  * @param client The OpenAI client to use
  * @param data The text to analyze
  * @returns The moderation API response
  */
-async function callModerationAPI(client: OpenAI, data: string) {
-  return await client.moderations.create({
+function callModerationAPI(client: OpenAI, data: string) {
+  return client.moderations.create({
     model: 'omni-moderation-latest',
     input: data,
   });
@@ -135,7 +145,7 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
       } catch (error) {
         // Moderation endpoint doesn't exist on this provider (e.g., third-party)
         // Fall back to the OpenAI client
-        if (error && typeof error === 'object' && 'status' in error && error.status === 404) {
+        if (isNotFoundError(error)) {
           client = new OpenAI();
           resp = await callModerationAPI(client, data);
         } else {
