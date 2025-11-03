@@ -87,6 +87,35 @@ describe('topicalAlignmentCheck', () => {
     expect(result.info?.confidence).toBe(0.8);
   });
 
+  it('uses temperature 1.0 for GPT-5 models', async () => {
+    const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
+    const gpt5Config = {
+      ...config,
+      model: 'gpt-5-nano',
+    };
+    const { ctx, create } = makeCtx({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ flagged: false, confidence: 0.3 }),
+          },
+        },
+      ],
+    });
+
+    await topicalAlignmentCheck(ctx, 'Finance question', gpt5Config);
+
+    expect(create).toHaveBeenCalledWith({
+      messages: [
+        { role: 'system', content: expect.stringContaining('Stay on topic about finance.') },
+        { role: 'user', content: 'Finance question' },
+      ],
+      model: 'gpt-5-nano',
+      temperature: 1.0,
+      response_format: { type: 'json_object' },
+    });
+  });
+
   it('returns failure info when no content is returned', async () => {
     const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
     const { ctx } = makeCtx({

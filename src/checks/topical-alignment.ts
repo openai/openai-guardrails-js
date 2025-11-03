@@ -85,6 +85,13 @@ export const topicalAlignmentCheck: CheckFn<
     // Use buildFullPrompt to ensure "json" is included for OpenAI's response_format requirement
     const fullPrompt = buildFullPrompt(renderedSystemPrompt);
 
+    // Handle temperature based on model capabilities
+    let temperature = 0.0;
+    if (config.model.includes('gpt-5')) {
+      // GPT-5 doesn't support temperature 0, use default (1)
+      temperature = 1.0;
+    }
+
     // Use the OpenAI API to analyze the text
     const response = await ctx.guardrailLlm.chat.completions.create({
       messages: [
@@ -92,7 +99,7 @@ export const topicalAlignmentCheck: CheckFn<
         { role: 'user', content: data },
       ],
       model: config.model,
-      temperature: 0.0,
+      temperature: temperature,
       response_format: { type: 'json_object' },
     });
 
