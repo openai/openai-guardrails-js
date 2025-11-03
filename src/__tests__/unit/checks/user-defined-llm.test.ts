@@ -2,115 +2,311 @@
  * Tests for the user-defined LLM guardrail.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import {
-  userDefinedLLMCheck,
-  UserDefinedConfig,
-  UserDefinedContext,
-} from '../../../checks/user-defined-llm';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GuardrailLLMContext } from '../../../types';
 
-const makeCtx = () => {
-  const create = vi.fn();
-  const ctx: UserDefinedContext = {
-    guardrailLlm: {
-      chat: {
-        completions: {
-          create,
-        },
-      },
-    },
-  };
-  return { ctx, create };
-};
+const createLLMCheckFnMock = vi.fn(() => 'mocked-guardrail');
+const registerMock = vi.fn();
 
-const config = UserDefinedConfig.parse({
-  model: 'gpt-test',
-  confidence_threshold: 0.7,
-  system_prompt_details: 'Only allow positive comments.',
+vi.mock('../../../checks/llm-base', () => ({
+  createLLMCheckFn: createLLMCheckFnMock,
+  LLMConfig: {
+    omit: vi.fn(() => ({
+      extend: vi.fn(() => ({})),
+    })),
+  },
+  LLMOutput: {
+    extend: vi.fn(() => ({})),
+  },
+}));
+
+vi.mock('../../../registry', () => ({
+  defaultSpecRegistry: {
+    register: registerMock,
+  },
+}));
+
+describe('userDefinedLLM guardrail', () => {
+  beforeEach(() => {
+    registerMock.mockClear();
+    createLLMCheckFnMock.mockClear();
+  });
+
+  it('is created via createLLMCheckFn', async () => {
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+
+    expect(userDefinedLLM).toBe('mocked-guardrail');
+    expect(createLLMCheckFnMock).toHaveBeenCalled();
+  });
 });
 
-describe('userDefinedLLMCheck', () => {
-  it('triggers tripwire when flagged above threshold from JSON response', async () => {
-    const { ctx, create } = makeCtx();
-    create.mockResolvedValue({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({ flagged: true, confidence: 0.95, reason: 'negative tone' }),
+describe('userDefinedLLM integration tests', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  interface UserDefinedConfig {
+    model: string;
+    confidence_threshold: number;
+    system_prompt_details: string;
+  }
+
+  interface MockLLMResponse {
+    choices: Array<{
+      message: {
+        content: string;
+      };
+    }>;
+  }
+
+  const makeCtx = (response: MockLLMResponse, capturedParams?: { value?: unknown }) => {
+    const create = vi.fn().mockImplementation((params) => {
+      if (capturedParams) {
+        capturedParams.value = params;
+      }
+      return Promise.resolve(response);
+    });
+    return {
+      ctx: {
+        guardrailLlm: {
+          chat: {
+            completions: {
+              create,
+            },
           },
+          baseURL: 'https://api.openai.com/v1',
         },
-      ],
-    });
+      } as unknown as GuardrailLLMContext,
+      create,
+    };
+  };
 
-    const result = await userDefinedLLMCheck(ctx, 'This is bad.', config);
+  it('triggers tripwire when flagged above threshold with gpt-4', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
 
-    expect(create).toHaveBeenCalledWith({
-      messages: [
-        { role: 'system', content: expect.stringContaining('Only allow positive comments.') },
-        { role: 'user', content: 'This is bad.' },
-      ],
-      model: 'gpt-test',
-      temperature: 0.0,
-      response_format: { type: 'json_object' },
-      safety_identifier: 'openai-guardrails-js',
-    });
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: true, confidence: 0.95, reason: 'negative tone' }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: UserDefinedConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Only allow positive comments.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'This is bad.', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-4');
+    expect(params.temperature).toBe(0.0);
+    expect(params.response_format).toEqual({ type: 'json_object' });
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.flagged).toBe(true);
     expect(result.info?.confidence).toBe(0.95);
-    expect(result.info?.reason).toBe('negative tone');
   });
 
-  it('falls back to text parsing when response_format is unsupported', async () => {
-    const { ctx, create } = makeCtx();
-    interface OpenAIError extends Error {
-      error: {
-        param: string;
-        code?: string;
-        message?: string;
-      };
-    }
-    
-    const errorObj = new Error('format not supported') as OpenAIError;
-    errorObj.error = { param: 'response_format' };
-    create.mockRejectedValueOnce(errorObj);
-    create.mockResolvedValueOnce({
+  it('uses temperature 1.0 for gpt-5 models', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
+
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: false, confidence: 0.2 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: UserDefinedConfig = {
+      model: 'gpt-5',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Only allow technical content.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'This is technical content.', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-5');
+    expect(params.temperature).toBe(1.0); // gpt-5 uses temperature 1.0
+    expect(params.response_format).toEqual({ type: 'json_object' });
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('works with gpt-4o model', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
+
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: true, confidence: 0.9 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: UserDefinedConfig = {
+      model: 'gpt-4o',
+      confidence_threshold: 0.8,
+      system_prompt_details: 'Flag inappropriate language.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'Bad words here', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-4o');
+    expect(params.temperature).toBe(0.0);
+    expect(result.tripwireTriggered).toBe(true);
+  });
+
+  it('works with gpt-3.5-turbo model', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
+
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: false, confidence: 0.1 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: UserDefinedConfig = {
+      model: 'gpt-3.5-turbo',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Check for spam.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'Normal message', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-3.5-turbo');
+    expect(params.temperature).toBe(0.0);
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('does not trigger when confidence is below threshold', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
+
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const { ctx } = makeCtx({
       choices: [
         {
           message: {
-            content: 'flagged: false, confidence: 0.4, reason: "acceptable"',
+            content: JSON.stringify({ flagged: true, confidence: 0.5 }),
           },
         },
       ],
     });
 
-    const result = await userDefinedLLMCheck(ctx, 'All good here.', config);
+    const config: UserDefinedConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Custom check.',
+    };
 
-    expect(create).toHaveBeenCalledTimes(2);
+    const result = await userDefinedLLM(ctx, 'Maybe problematic', config);
+
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info?.flagged).toBe(false);
-    expect(result.info?.confidence).toBe(0.4);
-    expect(result.info?.reason).toBe('acceptable');
+    expect(result.info?.flagged).toBe(true);
+    expect(result.info?.confidence).toBe(0.5);
   });
 
-  it('returns execution failure metadata when other errors occur', async () => {
-    const { ctx, create } = makeCtx();
-    create.mockRejectedValueOnce(new Error('network down'));
+  it('handles execution failures gracefully', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
 
-    const result = await userDefinedLLMCheck(ctx, 'Hello', config);
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const ctx = {
+      guardrailLlm: {
+        chat: {
+          completions: {
+            create: vi.fn().mockRejectedValue(new Error('Network error')),
+          },
+        },
+        baseURL: 'https://api.openai.com/v1',
+      },
+    } as unknown as GuardrailLLMContext;
+
+    const config: UserDefinedConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Custom check.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'Test text', config);
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.executionFailed).toBe(true);
-    expect(result.info?.error_message).toContain('network down');
+    consoleSpy.mockRestore();
   });
 
-  it('handles missing content gracefully', async () => {
-    const { ctx, create } = makeCtx();
-    create.mockResolvedValue({ choices: [{ message: {} }] });
+  it('supports optional reason field in output', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/user-defined-llm');
 
-    const result = await userDefinedLLMCheck(ctx, 'Test', config);
+    const { userDefinedLLM } = await import('../../../checks/user-defined-llm');
+    const { ctx } = makeCtx({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              flagged: true,
+              confidence: 0.9,
+              reason: 'Contains profanity',
+            }),
+          },
+        },
+      ],
+    });
 
-    expect(result.tripwireTriggered).toBe(false);
-    expect(result.executionFailed).toBe(true);
-    expect(result.info?.error_message).toBe('No response content from LLM');
+    const config: UserDefinedConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Flag profanity.',
+    };
+
+    const result = await userDefinedLLM(ctx, 'Bad words', config);
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.reason).toBe('Contains profanity');
   });
 });
