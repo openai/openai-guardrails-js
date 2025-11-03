@@ -65,7 +65,23 @@ describe('moderation guardrail', () => {
     const result = await moderationCheck({}, 'safe text', ModerationConfig.parse({}));
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info?.error).toBe('Moderation API call failed');
+    expect(result.executionFailed).toBe(true);
+    expect(result.originalException).toBeDefined();
+    expect(result.info?.error).toContain('network down');
+  });
+
+  it('returns executionFailed for API key errors to support raiseGuardrailErrors', async () => {
+    const apiKeyError = new Error(
+      'Incorrect API key provided: sk-invalid. You can find your API key at https://platform.openai.com/account/api-keys.'
+    );
+    createMock.mockRejectedValue(apiKeyError);
+
+    const result = await moderationCheck({}, 'test text', ModerationConfig.parse({}));
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.executionFailed).toBe(true);
+    expect(result.originalException).toBe(apiKeyError);
+    expect(result.info?.error).toContain('Incorrect API key');
   });
 
   it('uses context client when available', async () => {

@@ -162,25 +162,32 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
           try {
             resp = await callModerationAPI(new OpenAI(), data);
           } catch (fallbackError) {
-            // If fallback fails, provide a helpful error message
-            const errorMessage = fallbackError instanceof Error 
-              ? fallbackError.message 
-              : String(fallbackError);
-            
-            // Check if it's an API key error
-            if (errorMessage.includes('api_key') || errorMessage.includes('OPENAI_API_KEY')) {
-              return {
-                tripwireTriggered: false,
-                info: {
-                  checked_text: data,
-                  error: 'Moderation API requires OpenAI API key. Set OPENAI_API_KEY environment variable or pass a client with valid credentials.',
-                },
-              };
-            }
-            throw fallbackError;
+            // If fallback fails, return execution failure
+            // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+            return {
+              tripwireTriggered: false,
+              executionFailed: true,
+              originalException: fallbackError instanceof Error 
+                ? fallbackError 
+                : new Error(String(fallbackError)),
+              info: {
+                checked_text: data,
+                error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+              },
+            };
           }
         } else {
-          throw error;
+          // Non-404 error from context client - return execution failure
+          // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+          return {
+            tripwireTriggered: false,
+            executionFailed: true,
+            originalException: error instanceof Error ? error : new Error(String(error)),
+            info: {
+              checked_text: data,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          };
         }
       }
     } else {
@@ -232,9 +239,11 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     console.warn('AI-based moderation failed:', error);
     return {
       tripwireTriggered: false,
+      executionFailed: true,
+      originalException: error instanceof Error ? error : new Error(String(error)),
       info: {
         checked_text: data,
-        error: 'Moderation API call failed',
+        error: error instanceof Error ? error.message : 'Moderation API call failed',
       },
     };
   }
