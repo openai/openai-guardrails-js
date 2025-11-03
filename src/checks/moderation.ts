@@ -144,8 +144,9 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
   if (ctx) {
     const contextObj = ctx as Record<string, unknown>;
     const candidate = contextObj.guardrailLlm;
-    if (candidate && candidate instanceof OpenAI) {
-      client = candidate;
+    // Just use whatever is provided, let the try-catch handle validation
+    if (candidate) {
+      client = candidate as OpenAI;
     }
   }
 
