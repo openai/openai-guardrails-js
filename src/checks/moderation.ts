@@ -90,6 +90,17 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 /**
+ * Ensure a value is an Error instance.
+ * Converts non-Error values to Error instances with a string representation.
+ *
+ * @param error The error value to convert
+ * @returns An Error instance
+ */
+function ensureError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+/**
  * Call the OpenAI moderation API.
  *
  * @param client The OpenAI client to use
@@ -168,12 +179,10 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
             return {
               tripwireTriggered: false,
               executionFailed: true,
-              originalException: fallbackError instanceof Error 
-                ? fallbackError 
-                : new Error(String(fallbackError)),
+              originalException: ensureError(fallbackError),
               info: {
                 checked_text: data,
-                error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+                error: ensureError(fallbackError).message,
               },
             };
           }
@@ -183,10 +192,10 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
           return {
             tripwireTriggered: false,
             executionFailed: true,
-            originalException: error instanceof Error ? error : new Error(String(error)),
+            originalException: ensureError(error),
             info: {
               checked_text: data,
-              error: error instanceof Error ? error.message : String(error),
+              error: ensureError(error).message,
             },
           };
         }
@@ -241,10 +250,10 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     return {
       tripwireTriggered: false,
       executionFailed: true,
-      originalException: error instanceof Error ? error : new Error(String(error)),
+      originalException: ensureError(error),
       info: {
         checked_text: data,
-        error: error instanceof Error ? error.message : 'Moderation API call failed',
+        error: ensureError(error).message,
       },
     };
   }
