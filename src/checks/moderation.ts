@@ -176,26 +176,28 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
           } catch (fallbackError) {
             // If fallback fails, return execution failure
             // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+            const errorObj = ensureError(fallbackError);
             return {
               tripwireTriggered: false,
               executionFailed: true,
-              originalException: ensureError(fallbackError),
+              originalException: errorObj,
               info: {
                 checked_text: data,
-                error: ensureError(fallbackError).message,
+                error: errorObj.message,
               },
             };
           }
         } else {
           // Non-404 error from context client - return execution failure
           // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+          const errorObj = ensureError(error);
           return {
             tripwireTriggered: false,
             executionFailed: true,
-            originalException: ensureError(error),
+            originalException: errorObj,
             info: {
               checked_text: data,
-              error: ensureError(error).message,
+              error: errorObj.message,
             },
           };
         }
@@ -247,13 +249,14 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     };
   } catch (error) {
     console.warn('AI-based moderation failed:', error);
+    const errorObj = ensureError(error);
     return {
       tripwireTriggered: false,
       executionFailed: true,
-      originalException: ensureError(error),
+      originalException: errorObj,
       info: {
         checked_text: data,
-        error: ensureError(error).message,
+        error: errorObj.message,
       },
     };
   }
