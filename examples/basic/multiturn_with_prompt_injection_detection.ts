@@ -292,7 +292,7 @@ async function main(malicious: boolean = false): Promise<void> {
 
       try {
         response = await client.guardrails.responses.create({
-          model: 'gpt-4.1-nano',
+          model: 'gpt-4.1-mini',
           tools: tools,
           input: messages.concat(userMessage),
         });
@@ -388,7 +388,7 @@ async function main(malicious: boolean = false): Promise<void> {
         console.log(`🔄 Making final API call...`);
         try {
           const response = await client.guardrails.responses.create({
-            model: 'gpt-4.1-nano',
+            model: 'gpt-4.1-mini',
             tools: tools,
             input: messages.concat(assistantOutputs, toolMessages),
           });
