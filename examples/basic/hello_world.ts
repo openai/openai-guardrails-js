@@ -31,7 +31,7 @@ const PIPELINE_CONFIG = {
       {
         name: 'Custom Prompt Check',
         config: {
-          model: 'gpt-4.1-nano',
+          model: 'gpt-4.1-mini',
           confidence_threshold: 0.7,
           system_prompt_details: 'Check if the text contains any math problems.',
         },
@@ -67,7 +67,7 @@ async function processInput(
   // Use the new GuardrailsOpenAI - it handles all guardrail validation automatically
   const response = await guardrailsClient.guardrails.responses.create({
     input: userInput,
-    model: 'gpt-4.1-nano',
+    model: 'gpt-4.1-mini',
     previous_response_id: responseId,
   });
 

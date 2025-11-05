@@ -6,6 +6,7 @@
 import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
 import { Message } from '../../types';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../../utils/safety-identifier';
 
 // Note: We need to filter out non-text content since guardrails only work with text
 // The existing extractLatestUserTextMessage method expects TextOnlyMessageArray
@@ -82,6 +83,24 @@ export class ChatCompletions {
     );
 
     // Run input guardrails and LLM call concurrently
+    // Access protected _resourceClient - necessary for external resource classes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resourceClient = (this.client as any)._resourceClient;
+    
+    // Build API call parameters
+    const apiParams: Record<string, unknown> = {
+      messages: modifiedMessages,
+      model,
+      stream,
+      ...kwargs,
+    };
+    
+    // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+    if (supportsSafetyIdentifier(resourceClient)) {
+      // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+      apiParams.safety_identifier = SAFETY_IDENTIFIER;
+    }
+    
     const [inputResults, llmResponse] = await Promise.all([
       this.client.runStageGuardrails(
         'input',
@@ -90,16 +109,7 @@ export class ChatCompletions {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
-      // Access protected _resourceClient - necessary for external resource classes
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.client as any)._resourceClient.chat.completions.create({
-        messages: modifiedMessages,
-        model,
-        stream,
-        ...kwargs,
-        // @ts-ignore - safety_identifier is not defined in OpenAI types yet
-        safety_identifier: 'oai-guardrails-ts',
-      }),
+      resourceClient.chat.completions.create(apiParams),
     ]);
 
     // Handle streaming vs non-streaming

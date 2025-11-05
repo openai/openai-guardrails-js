@@ -50,3 +50,6 @@ export {
 
 // OpenAI vector store utilities
 export { createOpenAIVectorStoreFromPath, OpenAIVectorStoreConfig } from './openai-vector-store';
+
+// Safety identifier utilities
+export { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from './safety-identifier';

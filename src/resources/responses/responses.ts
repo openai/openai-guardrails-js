@@ -6,6 +6,7 @@ import { OpenAI } from 'openai';
 import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
 import { Message } from '../../types';
 import { mergeConversationWithItems } from '../../utils/conversation';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../../utils/safety-identifier';
 
 /**
  * Responses API with guardrails.
@@ -85,6 +86,24 @@ export class Responses {
     );
 
     // Input guardrails and LLM call concurrently
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resourceClient = (this.client as any)._resourceClient;
+    
+    // Build API call parameters
+    const apiParams: Record<string, unknown> = {
+      input: modifiedInput,
+      model,
+      stream,
+      tools,
+      ...kwargs,
+    };
+    
+    // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+    if (supportsSafetyIdentifier(resourceClient)) {
+      // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+      apiParams.safety_identifier = SAFETY_IDENTIFIER;
+    }
+    
     const [inputResults, llmResponse] = await Promise.all([
       this.client.runStageGuardrails(
         'input',
@@ -93,16 +112,7 @@ export class Responses {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (this.client as any)._resourceClient.responses.create({
-        input: modifiedInput,
-        model,
-        stream,
-        tools,
-        ...kwargs,
-        // @ts-ignore - safety_identifier is not defined in OpenAI types yet
-        safety_identifier: 'oai-guardrails-ts',
-      }),
+      resourceClient.responses.create(apiParams),
     ]);
 
     // Handle streaming vs non-streaming

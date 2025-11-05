@@ -22,6 +22,7 @@ import { z } from 'zod';
 import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import OpenAI from 'openai';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
 /**
  * Enumeration of supported moderation categories.
@@ -79,6 +80,53 @@ export const ModerationContext = z.object({
 export type ModerationContext = z.infer<typeof ModerationContext>;
 
 /**
+ * Check if an error is a 404 Not Found error from the OpenAI API.
+ *
+ * @param error The error to check
+ * @returns True if the error is a 404 error
+ */
+function isNotFoundError(error: unknown): boolean {
+  return !!(error && typeof error === 'object' && 'status' in error && error.status === 404);
+}
+
+/**
+ * Ensure a value is an Error instance.
+ * Converts non-Error values to Error instances with a string representation.
+ *
+ * @param error The error value to convert
+ * @returns An Error instance
+ */
+function ensureError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+/**
+ * Call the OpenAI moderation API.
+ *
+ * @param client The OpenAI client to use
+ * @param data The text to analyze
+ * @returns The moderation API response
+ */
+function callModerationAPI(
+  client: OpenAI,
+  data: string
+): ReturnType<OpenAI['moderations']['create']> {
+  const params: Record<string, unknown> = {
+    model: 'omni-moderation-latest',
+    input: data,
+  };
+  
+  // Only include safety_identifier for official OpenAI API (not Azure or local providers)
+  if (supportsSafetyIdentifier(client)) {
+    // @ts-ignore - safety_identifier is not defined in OpenAI types yet
+    params.safety_identifier = SAFETY_IDENTIFIER;
+  }
+  
+  // @ts-ignore - safety_identifier is not in the OpenAI types yet
+  return client.moderations.create(params);
+}
+
+/**
  * Guardrail check_fn to flag disallowed content categories using OpenAI moderation API.
  *
  * Calls the OpenAI moderation endpoint on input text and flags if any of the
@@ -102,39 +150,62 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
   const configObj = actualConfig as Record<string, unknown>;
   const categories = (configObj.categories as string[]) || Object.values(Category);
 
-  // Reuse provided client only if it targets the official OpenAI API.
-  const reuseClientIfOpenAI = (context: unknown): OpenAI | null => {
-    try {
-      const contextObj = context as Record<string, unknown>;
-      const candidate = contextObj?.guardrailLlm;
-      if (!candidate || typeof candidate !== 'object') return null;
-      if (!(candidate instanceof OpenAI)) return null;
-
-      const candidateObj = candidate as unknown as Record<string, unknown>;
-      const baseURL: string | undefined =
-        (candidateObj.baseURL as string) ??
-        ((candidateObj._client as Record<string, unknown>)?.baseURL as string) ??
-        (candidateObj._baseURL as string);
-
-      if (
-        baseURL === undefined ||
-        (typeof baseURL === 'string' && baseURL.includes('api.openai.com'))
-      ) {
-        return candidate as OpenAI;
-      }
-      return null;
-    } catch {
-      return null;
+  // Get client from context if available
+  let client: OpenAI | null = null;
+  if (ctx) {
+    const contextObj = ctx as Record<string, unknown>;
+    const candidate = contextObj.guardrailLlm;
+    // Just use whatever is provided, let the try-catch handle validation
+    if (candidate) {
+      client = candidate as OpenAI;
     }
-  };
-
-  const client = reuseClientIfOpenAI(ctx) ?? new OpenAI();
+  }
 
   try {
-    const resp = await client.moderations.create({
-      model: 'omni-moderation-latest',
-      input: data,
-    });
+    // Try the context client first, fall back if moderation endpoint doesn't exist
+    let resp: Awaited<ReturnType<typeof callModerationAPI>>;
+    if (client !== null) {
+      try {
+        resp = await callModerationAPI(client, data);
+      } catch (error) {
+        // Moderation endpoint doesn't exist on this provider (e.g., third-party)
+        // Fall back to the OpenAI client
+        if (isNotFoundError(error)) {
+          try {
+            resp = await callModerationAPI(new OpenAI(), data);
+          } catch (fallbackError) {
+            // If fallback fails, return execution failure
+            // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+            const errorObj = ensureError(fallbackError);
+            return {
+              tripwireTriggered: false,
+              executionFailed: true,
+              originalException: errorObj,
+              info: {
+                checked_text: data,
+                error: errorObj.message,
+              },
+            };
+          }
+        } else {
+          // Non-404 error from context client - return execution failure
+          // This allows runGuardrails to handle based on raiseGuardrailErrors flag
+          const errorObj = ensureError(error);
+          return {
+            tripwireTriggered: false,
+            executionFailed: true,
+            originalException: errorObj,
+            info: {
+              checked_text: data,
+              error: errorObj.message,
+            },
+          };
+        }
+      }
+    } else {
+      // No context client, use fallback
+      resp = await callModerationAPI(new OpenAI(), data);
+    }
 
     const results = resp.results || [];
     if (!results.length) {
@@ -178,11 +249,14 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     };
   } catch (error) {
     console.warn('AI-based moderation failed:', error);
+    const errorObj = ensureError(error);
     return {
       tripwireTriggered: false,
+      executionFailed: true,
+      originalException: errorObj,
       info: {
         checked_text: data,
-        error: 'Moderation API call failed',
+        error: errorObj.message,
       },
     };
   }
