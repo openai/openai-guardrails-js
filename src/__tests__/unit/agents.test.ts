@@ -58,7 +58,7 @@ vi.mock('../../runtime', () => ({
         config: {},
         run: vi.fn().mockResolvedValue({
           tripwireTriggered: false,
-          info: { checked_text: 'test input' },
+          info: { guardrail_name: 'Keywords', preview: 'test input' },
         }),
       },
     ])

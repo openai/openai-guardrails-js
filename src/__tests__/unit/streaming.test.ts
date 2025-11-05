@@ -106,7 +106,7 @@ describe('StreamingMixin', () => {
   it('propagates tripwire errors during periodic checks but yields final response', async () => {
     const tripwire = new GuardrailTripwireTriggered({
       tripwireTriggered: true,
-      info: { guardrail_name: 'Test', checked_text: 'test input' },
+      info: { guardrail_name: 'Test' },
     });
 
     client.runStageGuardrails.mockImplementationOnce(async () => {

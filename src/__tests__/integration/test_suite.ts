@@ -46,6 +46,7 @@ const TEST_CASES: GuardrailTest[] = [
     {
       entities: ['US_SSN', 'PHONE_NUMBER', 'EMAIL_ADDRESS', 'CREDIT_CARD', 'PERSON'],
       block: true,
+      detect_encoded_pii: false,
     },
     [
       'Please let me know how I can help you today.',

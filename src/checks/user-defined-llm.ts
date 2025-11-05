@@ -119,7 +119,6 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
           executionFailed: true,
           originalException: error instanceof Error ? error : new Error(String(error)),
           info: {
-            checked_text: data,
             error_message: String(error),
             flagged: false,
             confidence: 0.0,
@@ -135,7 +134,6 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
         executionFailed: true,
         originalException: new Error('No response content from LLM'),
         info: {
-          checked_text: data,
           error_message: 'No response content from LLM',
           flagged: false,
           confidence: 0.0,
@@ -167,7 +165,6 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
     return {
       tripwireTriggered: isTrigger,
       info: {
-        checked_text: data, // Custom check doesn't modify the text
         guardrail_name: 'Custom Prompt Check',
         ...analysis,
         threshold: config.confidence_threshold,
@@ -182,7 +179,6 @@ export const userDefinedLLMCheck: CheckFn<UserDefinedContext, string, UserDefine
       executionFailed: true,
       originalException: error instanceof Error ? error : new Error(String(error)),
       info: {
-        checked_text: data, // Return original text on error
         guardrail_name: 'Custom Prompt Check',
         flagged: false,
         confidence: 0.0,

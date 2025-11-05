@@ -53,11 +53,10 @@ export interface GuardrailResult {
   /** The original exception if execution failed. */
   originalException?: Error;
   /** Additional structured data about the check result,
-        such as error details, matched patterns, or diagnostic messages.
-        Must include checked_text field containing the processed text. */
+        such as error details, matched patterns, or diagnostic messages. */
   info: {
-    /** The processed/checked text that should be used if modifications were made */
-    checked_text: string;
+    /** The processed/checked text when the guardrail modifies content */
+    checked_text?: string;
     /** The media type this guardrail was designed for */
     media_type?: string;
     /** The detected content type of the input data */

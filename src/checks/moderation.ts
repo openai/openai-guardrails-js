@@ -141,7 +141,6 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
       return {
         tripwireTriggered: false,
         info: {
-          checked_text: data,
           error: 'No moderation results returned',
         },
       };
@@ -169,7 +168,6 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     return {
       tripwireTriggered: isFlagged,
       info: {
-        checked_text: data, // Moderation doesn't modify the text
         guardrail_name: 'Moderation',
         flagged_categories: flaggedCategories,
         categories_checked: categories,
@@ -181,7 +179,6 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
     return {
       tripwireTriggered: false,
       info: {
-        checked_text: data,
         error: 'Moderation API call failed',
       },
     };

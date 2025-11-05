@@ -119,8 +119,8 @@ describe('Runtime Module', () => {
       guardrailCheck = vi.fn().mockImplementation((_ctx, data, cfg) => ({
         tripwireTriggered: Boolean(cfg.shouldTrip),
         info: {
-          checked_text: data,
           threshold: cfg.threshold,
+          payload: data,
         },
       }));
 
@@ -166,7 +166,6 @@ describe('Runtime Module', () => {
       expect(results).toHaveLength(1);
       expect(results[0].tripwireTriggered).toBe(false);
       expect(results[0].info).toMatchObject({
-        checked_text: 'payload',
         threshold: 7,
       });
       expect(guardrailCheck).toHaveBeenCalledWith(context, 'payload', { threshold: 7 });
@@ -194,7 +193,6 @@ describe('Runtime Module', () => {
       expect(results[0].executionFailed).toBe(true);
       expect(results[0].tripwireTriggered).toBe(false);
       expect(results[0].info?.guardrailName).toBe('Runtime Test Guard');
-      expect(results[0].info?.checked_text).toBe('payload');
     });
 
     it('should rethrow the first execution failure when raiseGuardrailErrors=true', async () => {

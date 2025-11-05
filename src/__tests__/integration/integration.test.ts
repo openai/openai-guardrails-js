@@ -17,7 +17,7 @@ import { loadConfigBundle } from '../../runtime';
 const mockCheck: CheckFn<object, string, object> = (ctx, data) => ({
   tripwireTriggered: data === 'trigger',
   info: {
-    checked_text: data,
+    sampled_text: data,
   },
 });
 

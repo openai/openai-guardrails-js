@@ -400,7 +400,6 @@ export abstract class GuardrailsBaseClient {
             executionFailed: true,
             originalException: error instanceof Error ? error : new Error(String(error)),
             info: {
-              checked_text: text,
               stage_name: stageName,
               guardrail_name: guardrail.definition.name,
               media_type: guardrail.definition.mediaType,

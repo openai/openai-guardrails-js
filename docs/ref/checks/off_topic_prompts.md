@@ -36,11 +36,11 @@ Returns a `GuardrailResult` with the following `info` dictionary:
     "flagged": false,
     "confidence": 0.85,
     "threshold": 0.7,
-    "checked_text": "Original input text"
+    "business_scope": "Customer support for our e-commerce platform. Topics include order status, returns, shipping, and product questions."
 }
 ```
 
 - **`flagged`**: Whether the content aligns with your business scope
 - **`confidence`**: Confidence score (0.0 to 1.0) for the prompt injection detection assessment
 - **`threshold`**: The confidence threshold that was configured
-- **`checked_text`**: Original input text
+- **`business_scope`**: Copy of the scope provided in configuration

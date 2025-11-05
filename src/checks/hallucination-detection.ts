@@ -203,18 +203,13 @@ export const hallucination_detection: CheckFn<
         confidence: 0.0,
         info: { error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}` },
       };
-      return createErrorResult(
-        'Hallucination Detection',
-        errorOutput,
-        candidate,
-        {
-          threshold: config.confidence_threshold,
-          reasoning: 'LLM response could not be parsed as JSON',
-          hallucination_type: null,
-          hallucinated_statements: null,
-          verified_statements: null,
-        }
-      );
+      return createErrorResult('Hallucination Detection', errorOutput, {
+        threshold: config.confidence_threshold,
+        reasoning: 'LLM response could not be parsed as JSON',
+        hallucination_type: null,
+        hallucinated_statements: null,
+        verified_statements: null,
+      });
     }
 
     const analysis = HallucinationDetectionOutput.parse(parsedJson);
@@ -233,7 +228,6 @@ export const hallucination_detection: CheckFn<
         hallucinated_statements: analysis.hallucinated_statements,
         verified_statements: analysis.verified_statements,
         threshold: config.confidence_threshold,
-        checked_text: candidate, // Hallucination Detection doesn't modify text, pass through unchanged
       },
     };
   } catch (error) {
@@ -244,18 +238,13 @@ export const hallucination_detection: CheckFn<
       confidence: 0.0,
       info: { error_message: error instanceof Error ? error.message : String(error) },
     };
-    return createErrorResult(
-      'Hallucination Detection',
-      errorOutput,
-      candidate,
-      {
-        threshold: config.confidence_threshold,
-        reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-        hallucination_type: null,
-        hallucinated_statements: null,
-        verified_statements: null,
-      }
-    );
+    return createErrorResult('Hallucination Detection', errorOutput, {
+      threshold: config.confidence_threshold,
+      reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+      hallucination_type: null,
+      hallucinated_statements: null,
+      verified_statements: null,
+    });
   }
 };
 

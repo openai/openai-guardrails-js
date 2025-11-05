@@ -236,7 +236,7 @@ export const promptInjectionDetectionCheck: CheckFn<
         user_goal: userGoalText,
         action: actionableMessages,
         recent_messages: recentMessages,
-        checked_text: checkedText,
+        recent_messages_json: checkedText,
       },
     };
   } catch (error) {
@@ -363,7 +363,7 @@ function isActionableMessage(message: NormalizedConversationEntry): boolean {
 function createSkipResult(
   observation: string,
   threshold: number,
-  checkedText: string,
+  recentMessagesJson: string,
   userGoal: string = 'N/A',
   action: ConversationMessage[] = [],
   recentMessages: ConversationMessage[] = []
@@ -380,7 +380,7 @@ function createSkipResult(
       user_goal: userGoal,
       action: action ?? [],
       recent_messages: recentMessages,
-      checked_text: checkedText,
+      recent_messages_json: recentMessagesJson,
     },
   };
 }

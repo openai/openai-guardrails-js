@@ -189,7 +189,7 @@ describe('GuardrailsBaseClient helpers', () => {
 
     beforeEach(() => {
       client.setGuardrails({
-        pre_flight: [createGuardrail('Test Guard', async () => ({ ...baseResult, info: { ...baseResult.info, checked_text: 'payload' } })) as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
+        pre_flight: [createGuardrail('Test Guard', async () => ({ ...baseResult })) as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
         input: [],
         output: [],
       });
@@ -210,7 +210,7 @@ describe('GuardrailsBaseClient helpers', () => {
         pre_flight: [
           createGuardrail('Tripwire', async () => ({
             tripwireTriggered: true,
-            info: { checked_text: 'payload', reason: 'bad' },
+            info: { reason: 'bad' },
           })) as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0],
         ],
         input: [],
@@ -227,7 +227,7 @@ describe('GuardrailsBaseClient helpers', () => {
         pre_flight: [
           createGuardrail('Tripwire', async () => ({
             tripwireTriggered: true,
-            info: { checked_text: 'payload', reason: 'bad' },
+            info: { reason: 'bad' },
           })) as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0],
         ],
         input: [],
@@ -258,7 +258,7 @@ describe('GuardrailsBaseClient helpers', () => {
     it('creates a conversation-aware context for prompt injection detection guardrails', async () => {
       const guardrail = createGuardrail('Prompt Injection Detection', async () => ({
         tripwireTriggered: false,
-        info: { checked_text: 'payload' },
+        info: { observation: 'ok' },
       }), { requiresConversationHistory: true });
       client.setGuardrails({
         pre_flight: [guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
@@ -282,7 +282,7 @@ describe('GuardrailsBaseClient helpers', () => {
   describe('handleLlmResponse', () => {
     it('appends LLM response to conversation history and returns guardrail results', async () => {
       const conversation: TextOnlyMessageArray = [{ role: 'user', content: 'hi' }];
-      const outputResult: GuardrailResult = { tripwireTriggered: false, info: { checked_text: 'All good' } };
+      const outputResult: GuardrailResult = { tripwireTriggered: false, info: { message: 'All good' } };
       interface MockLLMResponse {
         choices: Array<{
           message: {

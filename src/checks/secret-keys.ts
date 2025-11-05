@@ -256,9 +256,9 @@ function detectSecretKeys(
   return {
     tripwireTriggered: secrets.length > 0,
     info: {
-      checked_text: checkedText,
       guardrail_name: 'Secret Keys',
       detected_secrets: secrets,
+      masked_text: checkedText,
     },
   };
 }

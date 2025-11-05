@@ -154,7 +154,6 @@ export async function runGuardrails(
         executionFailed: true,
         originalException: error instanceof Error ? error : new Error(String(error)),
         info: {
-          checked_text: data, // Return original data on error
           error: error instanceof Error ? error.message : String(error),
           guardrailName: guardrail.definition.metadata?.name || 'Unknown',
         },

@@ -18,11 +18,11 @@ describe('Types Module', () => {
       const result: GuardrailResult = {
         tripwireTriggered: true,
         info: {
-          checked_text: 'test',
+          guardrail_name: 'Example',
         },
       };
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.info.checked_text).toBe('test');
+      expect(result.info.guardrail_name).toBe('Example');
     });
 
     it('should create result with custom info', () => {
@@ -30,25 +30,26 @@ describe('Types Module', () => {
       const result: GuardrailResult = {
         tripwireTriggered: false,
         info: {
+          guardrail_name: 'Example',
           checked_text: 'test',
           ...info,
         },
       };
       expect(result.tripwireTriggered).toBe(false);
-      expect(result.info.checked_text).toBe('test');
       expect(result.info.reason).toBe('test');
       expect(result.info.severity).toBe('high');
+      expect(result.info.checked_text).toBe('test');
     });
 
     it('should handle minimal info', () => {
       const result: GuardrailResult = {
         tripwireTriggered: true,
         info: {
-          checked_text: 'test',
+          guardrail_name: 'Example',
         },
       };
       expect(result.tripwireTriggered).toBe(true);
-      expect(result.info.checked_text).toBe('test');
+      expect(result.info.guardrail_name).toBe('Example');
     });
   });
 
@@ -57,7 +58,7 @@ describe('Types Module', () => {
       const syncCheck = (ctx: Record<string, unknown>, data: string): GuardrailResult => ({
         tripwireTriggered: data === 'trigger',
         info: {
-          checked_text: data,
+          guardrail_name: 'Sync',
         },
       });
 
@@ -69,7 +70,7 @@ describe('Types Module', () => {
       const asyncCheck = async (ctx: Record<string, unknown>, data: string): Promise<GuardrailResult> => ({
         tripwireTriggered: data === 'trigger',
         info: {
-          checked_text: data,
+          guardrail_name: 'Async',
         },
       });
 
@@ -109,7 +110,7 @@ describe('Types Module', () => {
       ): GuardrailResult => ({
         tripwireTriggered: data.length > config.threshold,
         info: {
-          checked_text: data,
+          guardrail_name: 'Length',
         },
       });
 
@@ -121,7 +122,8 @@ describe('Types Module', () => {
       const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
-          checked_text: String(data),
+          guardrail_name: 'FlexibleInput',
+          preview: String(data),
         },
       });
 
@@ -133,7 +135,8 @@ describe('Types Module', () => {
       const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
-          checked_text: String(data),
+          guardrail_name: 'FlexibleConfig',
+          preview: String(data),
         },
       });
 

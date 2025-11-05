@@ -78,7 +78,6 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   return {
     tripwireTriggered,
     info: {
-      checked_text: text, // For keywords, we don't modify the text by default
       matchedKeywords: matches,
       originalKeywords: keywords,
       sanitizedKeywords: sanitizedKeywords,

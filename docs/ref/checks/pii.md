@@ -62,6 +62,7 @@ Returns a `GuardrailResult` with the following `info` dictionary:
         "US_SSN": ["123-45-6789"]
     },
     "entity_types_checked": ["EMAIL_ADDRESS", "US_SSN", "CREDIT_CARD"],
+    "checked_text": "Contact me at <EMAIL_ADDRESS>, SSN: <US_SSN>",
     "block_mode": false,
     "pii_detected": true
 }
@@ -83,6 +84,7 @@ When `detect_encoded_pii: true`, the guardrail also detects and masks encoded PI
         ]
     },
     "entity_types_checked": ["EMAIL_ADDRESS"],
+    "checked_text": "Contact <EMAIL_ADDRESS> or <EMAIL_ADDRESS_ENCODED> or <EMAIL_ADDRESS_ENCODED>",
     "block_mode": false,
     "pii_detected": true
 }
@@ -94,5 +96,6 @@ Note: Encoded PII is masked with `<ENTITY_TYPE_ENCODED>` to distinguish it from 
 
 - **`detected_entities`**: Detected entities and their values (includes both plain and encoded forms when `detect_encoded_pii` is enabled)
 - **`entity_types_checked`**: List of entity types that were configured for detection
+- **`checked_text`**: Text with PII masked. Plain PII uses `<ENTITY_TYPE>`, encoded PII uses `<ENTITY_TYPE_ENCODED>`
 - **`block_mode`**: Whether the check was configured to block or mask
 - **`pii_detected`**: Boolean indicating if any PII was found (plain or encoded)

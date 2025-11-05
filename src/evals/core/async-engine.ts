@@ -96,7 +96,7 @@ export class AsyncRunEngine implements RunEngine {
           console.error(`Error running guardrail ${name} on sample ${sample.id}:`, guardrailError);
           triggered[name] = false;
           details[name] = {
-            checked_text: sample.data,
+            input_text: sample.data,
             error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
           };
         }
@@ -197,7 +197,7 @@ export class AsyncRunEngine implements RunEngine {
           observation: 'No conversation turns evaluated',
           flagged: false,
           confidence: 0.0,
-          checked_text: sampleData,
+          input_text: sampleData,
         },
       };
     }

@@ -360,7 +360,6 @@ export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, 
       allowed: allowed,
       blocked: blocked,
       blocked_reasons: blockedReasons,
-      checked_text: data,
     },
   };
 };

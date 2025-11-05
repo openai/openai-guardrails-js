@@ -17,7 +17,7 @@ import { z } from 'zod';
 const mockCheck: CheckFn<object, TextInput, object> = (ctx, data) => ({
   tripwireTriggered: false,
   info: {
-    checked_text: data,
+    sample_text: data,
   },
 });
 

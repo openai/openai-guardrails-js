@@ -24,12 +24,16 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 ```json
 {
     "guardrail_name": "Keyword Filter",
-    "matched": ["confidential", "secret"],
-    "checked": ["confidential", "secret", "internal only"],
-    "checked_text": "This is confidential information that should be kept secret"
+    "matchedKeywords": ["confidential", "secret"],
+    "originalKeywords": ["confidential", "secret", "internal only"],
+    "sanitizedKeywords": ["confidential", "secret", "internal only"],
+    "totalKeywords": 3,
+    "textLength": 68
 }
 ```
 
-- **`matched`**: List of keywords found in the text
-- **`checked`**: List of keywords that were configured for detection
-- **`checked_text`**: Original input text
+- **`matchedKeywords`**: List of keywords found in the text (case-insensitive, deduplicated)
+- **`originalKeywords`**: Original keywords that were configured for detection
+- **`sanitizedKeywords`**: Keywords after trimming trailing punctuation
+- **`totalKeywords`**: Count of configured keywords
+- **`textLength`**: Length of the scanned text

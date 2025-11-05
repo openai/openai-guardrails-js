@@ -80,8 +80,8 @@ describe('secret key guardrail', () => {
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.detected_secrets).toContain('sk-1234567890');
-    expect(result.info?.checked_text).toContain('<SECRET>');
-    expect(result.info?.checked_text).not.toContain('sk-1234567890');
+    expect(result.info?.masked_text).toContain('<SECRET>');
+    expect(result.info?.masked_text).not.toContain('sk-1234567890');
   });
 
   it('respects custom regex patterns', async () => {

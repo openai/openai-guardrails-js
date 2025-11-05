@@ -77,7 +77,6 @@ export type LLMErrorOutput = z.infer<typeof LLMErrorOutput>;
 export function createErrorResult(
   guardrailName: string,
   analysis: LLMErrorOutput,
-  checkedText: string,
   additionalInfo: Record<string, unknown> = {}
 ): GuardrailResult {
   return {
@@ -86,7 +85,6 @@ export function createErrorResult(
       guardrail_name: guardrailName,
       flagged: analysis.flagged,
       confidence: analysis.confidence,
-      checked_text: checkedText,
       ...analysis.info,
       ...additionalInfo,
     },
@@ -318,7 +316,6 @@ export function createLLMCheckFn(
           executionFailed: true,
           originalException: new Error(String(errorInfo.error_message || 'LLM execution failed')),
           info: {
-            checked_text: data,
             guardrail_name: name,
             ...analysis,
           },
@@ -331,7 +328,6 @@ export function createLLMCheckFn(
     return {
       tripwireTriggered: isTrigger,
       info: {
-        checked_text: data, // LLM guardrails typically don't modify the text
         guardrail_name: name,
         ...analysis,
         threshold: config.confidence_threshold,

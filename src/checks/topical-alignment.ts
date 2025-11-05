@@ -110,7 +110,6 @@ export const topicalAlignmentCheck: CheckFn<
     return {
       tripwireTriggered: isTrigger,
       info: {
-        checked_text: data, // Alignment doesn't modify the text
         guardrail_name: 'Off Topic Content',
         ...analysis,
         threshold: config.confidence_threshold,
@@ -123,7 +122,6 @@ export const topicalAlignmentCheck: CheckFn<
     return {
       tripwireTriggered: false,
       info: {
-        checked_text: data, // Return original text on error
         guardrail_name: 'Off Topic Content',
         flagged: false,
         confidence: 0.0,

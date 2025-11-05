@@ -35,9 +35,9 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 {
     "guardrail_name": "Secret Keys",
     "detected_secrets": ["sk-abc123...", "Bearer xyz789..."],
-    "checked_text": "Original input text"
+    "masked_text": "Original input text with <SECRET> markers"
 }
 ```
 
 - **`detected_secrets`**: List of potential secrets detected in the text
-- **`checked_text`**: Original input text (unchanged)
+- **`masked_text`**: Text with detected secrets replaced by `<SECRET>` tokens

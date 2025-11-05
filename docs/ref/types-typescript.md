@@ -30,7 +30,7 @@ export interface GuardrailResult {
   executionFailed?: boolean;
   originalException?: Error;
   info: {
-    checked_text: string;
+    checked_text?: string;
     media_type?: string;
     detected_content_type?: string;
     stage_name?: string;
@@ -61,4 +61,3 @@ export type TCfg = object;
 ```
 
 For the full source, see [src/types.ts](https://github.com/openai/openai-guardrails-js/blob/main/src/types.ts) in the repository.
-
