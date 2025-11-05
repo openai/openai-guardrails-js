@@ -643,7 +643,7 @@ function _tryDecodeBase64(text: string): string | null {
   try {
     const buffer = Buffer.from(sanitized, 'base64');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new Error(`Base64 decoded content too large (${buffer.length.toLocaleString()} bytes). Maximum allowed is 10KB.`);
+      throw new Error(`Base64 decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
@@ -662,7 +662,7 @@ function _tryDecodeHex(text: string): string | null {
   try {
     const buffer = Buffer.from(text, 'hex');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new Error(`Hex decoded content too large (${buffer.length.toLocaleString()} bytes). Maximum allowed is 10KB.`);
+      throw new Error(`Hex decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
@@ -685,7 +685,7 @@ function _tryDecodeUrl(text: string): string | null {
     const encoder = new TextEncoder();
     const length = encoder.encode(decoded).length;
     if (length > MAX_DECODED_BYTES) {
-      throw new Error(`URL decoded content too large (${length.toLocaleString()} bytes). Maximum allowed is 10KB.`);
+      throw new Error(`URL decoded content too large (${length} bytes). Maximum allowed is 10KB.`);
     }
     return decoded;
   } catch (error) {
