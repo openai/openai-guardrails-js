@@ -106,4 +106,149 @@ describe('pii guardrail', () => {
     expect(result.tripwireTriggered).toBe(true);
     expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual(['900101-1234567']);
   });
+
+  it('normalizes fullwidth characters for email detection', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.EMAIL_ADDRESS],
+      block: false,
+    });
+    const text = 'Contact: test＠example.com';
+
+    const result = await pii({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual(['test@example.com']);
+    expect(result.info?.checked_text).toBe('Contact: <EMAIL_ADDRESS>');
+  });
+
+  it('detects phone numbers with zero-width spaces', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.PHONE_NUMBER],
+      block: false,
+    });
+    const text = 'Call 212\u200B-555\u200B-1234';
+
+    const result = await pii({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER).toEqual(['212-555-1234']);
+    expect(result.info?.checked_text).toBe('Call <PHONE_NUMBER>');
+  });
+
+  it('detects base64 encoded PII when enabled', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.EMAIL_ADDRESS],
+      block: false,
+      detect_encoded_pii: true,
+    });
+    const text = 'Base64 PII: am9obkBleGFtcGxlLmNvbQ==';
+
+    const result = await pii({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual([
+      'am9obkBleGFtcGxlLmNvbQ==',
+    ]);
+    expect(result.info?.checked_text).toBe('Base64 PII: <EMAIL_ADDRESS_ENCODED>');
+  });
+
+  it('detects URL encoded PII when enabled', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.EMAIL_ADDRESS],
+      block: false,
+      detect_encoded_pii: true,
+    });
+    const text = 'Encoded %6a%61%6e%65%40securemail.net email';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual([
+      '%6a%61%6e%65%40securemail.net',
+    ]);
+    expect(result.info?.checked_text).toBe('Encoded <EMAIL_ADDRESS_ENCODED> email');
+  });
+
+  it('detects hex encoded PII when enabled', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.EMAIL_ADDRESS],
+      block: false,
+      detect_encoded_pii: true,
+    });
+    const text = 'Hex 6a6f686e406578616d706c652e636f6d string';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual([
+      '6a6f686e406578616d706c652e636f6d',
+    ]);
+    expect(result.info?.checked_text).toBe('Hex <EMAIL_ADDRESS_ENCODED> string');
+  });
+
+  it('does not detect encoded PII when detection is disabled', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.EMAIL_ADDRESS],
+      block: false,
+      detect_encoded_pii: false,
+    });
+    const text = 'Base64 PII: am9obkBleGFtcGxlLmNvbQ==';
+
+    const result = await pii({}, text, config);
+
+    expect(result.info?.detected_entities).toEqual({});
+    expect(result.info?.checked_text).toBe(text);
+  });
+
+  it('detects CVV codes in free text', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.CVV],
+      block: false,
+    });
+    const text = 'Credit card CVC 274 exp 12/28';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.CVV).toEqual(['274']);
+    expect(result.info?.checked_text).toBe('Credit card CVC <CVV> exp 12/28');
+  });
+
+  it('detects CVV codes with equals syntax', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.CVV],
+      block: false,
+    });
+    const text = 'cvv=533';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.CVV).toEqual(['533']);
+    expect(result.info?.checked_text).toBe('cvv=<CVV>');
+  });
+
+  it('detects BIC/SWIFT codes', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.BIC_SWIFT],
+      block: false,
+    });
+    const text = 'Transfer to BIC DEXXDEXX tomorrow.';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual(['DEXXDEXX']);
+    expect(result.info?.checked_text).toBe('Transfer to BIC <BIC_SWIFT> tomorrow.');
+  });
+
+  it('detects precise street addresses as location', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.LOCATION],
+      block: false,
+    });
+    const text = 'Ship to 782 Maple Ridge Ave, Austin, TX for delivery.';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.LOCATION).toContain(
+      '782 Maple Ridge Ave, Austin, TX'
+    );
+    expect(result.info?.checked_text).toBe('Ship to <LOCATION> for delivery.');
+  });
 });
