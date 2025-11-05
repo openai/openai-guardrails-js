@@ -731,7 +731,7 @@ function _scrubPii(originalText: string, detection: PiiDetectionResult): string 
  * @param config Original detection configuration
  * @param name Name for the guardrail in result metadata
  * @param text Original input text for scrubbing
- * @returns Includes anonymized_text/checked_text and respects block setting for tripwire
+ * @returns Includes masked text and respects block setting for tripwire
  */
 function _asResult(
   detection: PiiDetectionResult,
@@ -752,7 +752,6 @@ function _asResult(
       guardrail_name: name,
       detected_entities: detectedEntities,
       entity_types_checked: config.entities,
-      anonymized_text: checkedText,
       checked_text: checkedText,
       block_mode: config.block,
       pii_detected: hasPii,
