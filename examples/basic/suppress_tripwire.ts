@@ -15,7 +15,7 @@ const PIPELINE_CONFIG: Record<string, any> = {
       {
         name: 'Custom Prompt Check',
         config: {
-          model: 'gpt-4.1-nano-2025-04-14',
+          model: 'gpt-4.1-mini-2025-04-14',
           confidence_threshold: 0.7,
           system_prompt_details: 'Check if the text contains any math problems.',
         },
@@ -36,7 +36,7 @@ async function processInput(
     // Use GuardrailsClient with suppressTripwire=true
     const response = await guardrailsClient.guardrails.responses.create({
       input: userInput,
-      model: 'gpt-4.1-nano-2025-04-14',
+      model: 'gpt-4.1-mini-2025-04-14',
       previous_response_id: responseId,
       suppressTripwire: true,
     });

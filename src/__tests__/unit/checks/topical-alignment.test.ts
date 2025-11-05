@@ -2,13 +2,20 @@
  * Tests for the topical alignment guardrail.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { GuardrailLLMContext } from '../../../types';
 
-const buildFullPromptMock = vi.fn((prompt: string) => `FULL:${prompt}`);
+const createLLMCheckFnMock = vi.fn(() => 'mocked-guardrail');
 const registerMock = vi.fn();
 
 vi.mock('../../../checks/llm-base', () => ({
-  buildFullPrompt: buildFullPromptMock,
+  createLLMCheckFn: createLLMCheckFnMock,
+  LLMConfig: {
+    omit: vi.fn(() => ({
+      extend: vi.fn(() => ({})),
+    })),
+  },
+  LLMOutput: {},
 }));
 
 vi.mock('../../../registry', () => ({
@@ -17,9 +24,23 @@ vi.mock('../../../registry', () => ({
   },
 }));
 
-describe('topicalAlignmentCheck', () => {
-  afterEach(() => {
-    buildFullPromptMock.mockClear();
+describe('topicalAlignment guardrail', () => {
+  beforeEach(() => {
+    registerMock.mockClear();
+    createLLMCheckFnMock.mockClear();
+  });
+
+  it('is created via createLLMCheckFn', async () => {
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+
+    expect(topicalAlignment).toBe('mocked-guardrail');
+    expect(createLLMCheckFnMock).toHaveBeenCalled();
+  });
+});
+
+describe('topicalAlignment integration tests', () => {
+  beforeEach(() => {
+    vi.resetModules();
   });
 
   interface TopicalAlignmentConfig {
@@ -27,12 +48,6 @@ describe('topicalAlignmentCheck', () => {
     confidence_threshold: number;
     system_prompt_details: string;
   }
-
-  const config: TopicalAlignmentConfig = {
-    model: 'gpt-topic',
-    confidence_threshold: 0.6,
-    system_prompt_details: 'Stay on topic about finance.',
-  };
 
   interface MockLLMResponse {
     choices: Array<{
@@ -42,8 +57,13 @@ describe('topicalAlignmentCheck', () => {
     }>;
   }
 
-  const makeCtx = (response: MockLLMResponse) => {
-    const create = vi.fn().mockResolvedValue(response);
+  const makeCtx = (response: MockLLMResponse, capturedParams?: { value?: unknown }) => {
+    const create = vi.fn().mockImplementation((params) => {
+      if (capturedParams) {
+        capturedParams.value = params;
+      }
+      return Promise.resolve(response);
+    });
     return {
       ctx: {
         guardrailLlm: {
@@ -52,83 +72,208 @@ describe('topicalAlignmentCheck', () => {
               create,
             },
           },
+          baseURL: 'https://api.openai.com/v1',
         },
-      },
+      } as GuardrailLLMContext,
       create,
     };
   };
 
-  it('triggers when LLM flags off-topic content above threshold', async () => {
-    const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
-    const { ctx, create } = makeCtx({
-      choices: [
-        {
-          message: {
-            content: JSON.stringify({ flagged: true, confidence: 0.8 }),
+  it('triggers when LLM flags off-topic content above threshold with gpt-4', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: true, confidence: 0.8 }),
+            },
           },
-        },
-      ],
-    });
+        ],
+      },
+      capturedParams
+    );
 
-    const result = await topicalAlignmentCheck(ctx, 'Discussing sports', config);
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Stay on topic about finance.',
+    };
 
-    expect(buildFullPromptMock).toHaveBeenCalled();
-    expect(create).toHaveBeenCalledWith({
-      messages: [
-        { role: 'system', content: expect.stringContaining('Stay on topic about finance.') },
-        { role: 'user', content: 'Discussing sports' },
-      ],
-      model: 'gpt-topic',
-      temperature: 0.0,
-      response_format: { type: 'json_object' },
-    });
+    const result = await topicalAlignment(ctx, 'Discussing sports', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-4');
+    expect(params.temperature).toBe(0.0); // gpt-4 uses temperature 0
+    expect(params.response_format).toEqual({ type: 'json_object' });
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.flagged).toBe(true);
     expect(result.info?.confidence).toBe(0.8);
   });
 
-  it('returns failure info when no content is returned', async () => {
-    const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
-    const { ctx } = makeCtx({
-      choices: [{ message: { content: '' } }],
-    });
+  it('uses temperature 1.0 for gpt-5 models (which do not support temperature 0)', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: false, confidence: 0.2 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
 
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const result = await topicalAlignmentCheck(ctx, 'Hi', config);
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-5',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Stay on topic about technology.',
+    };
 
-    consoleSpy.mockRestore();
+    const result = await topicalAlignment(ctx, 'Discussing AI and ML', config);
 
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-5');
+    expect(params.temperature).toBe(1.0); // gpt-5 uses temperature 1.0, not 0
+    expect(params.response_format).toEqual({ type: 'json_object' });
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info?.error).toBeDefined();
   });
 
-  it('handles unexpected errors gracefully', async () => {
+  it('works with gpt-4o model', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: true, confidence: 0.9 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-4o',
+      confidence_threshold: 0.8,
+      system_prompt_details: 'Stay on topic about healthcare.',
+    };
+
+    const result = await topicalAlignment(ctx, 'Talking about cars', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-4o');
+    expect(params.temperature).toBe(0.0); // gpt-4o uses temperature 0
+    expect(result.tripwireTriggered).toBe(true);
+  });
+
+  it('works with gpt-3.5-turbo model', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+    const capturedParams: { value?: unknown } = {};
+    const { ctx, create } = makeCtx(
+      {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ flagged: false, confidence: 0.3 }),
+            },
+          },
+        ],
+      },
+      capturedParams
+    );
+
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-3.5-turbo',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Stay on topic about education.',
+    };
+
+    const result = await topicalAlignment(ctx, 'Discussing teaching methods', config);
+
+    expect(create).toHaveBeenCalled();
+    const params = capturedParams.value as Record<string, unknown>;
+    expect(params.model).toBe('gpt-3.5-turbo');
+    expect(params.temperature).toBe(0.0);
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('does not trigger when confidence is below threshold', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
+    const { ctx } = makeCtx({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({ flagged: true, confidence: 0.5 }),
+          },
+        },
+      ],
+    });
+
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Stay on topic about finance.',
+    };
+
+    const result = await topicalAlignment(ctx, 'Maybe off topic', config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.flagged).toBe(true);
+    expect(result.info?.confidence).toBe(0.5);
+  });
+
+  it('handles execution failures gracefully', async () => {
+    vi.doUnmock('../../../checks/llm-base');
+    vi.doUnmock('../../../checks/topical-alignment');
+    
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const { topicalAlignmentCheck } = await import('../../../checks/topical-alignment');
+    const { topicalAlignment } = await import('../../../checks/topical-alignment');
     const ctx = {
       guardrailLlm: {
         chat: {
           completions: {
-            create: vi.fn().mockRejectedValue(new Error('timeout')),
+            create: vi.fn().mockRejectedValue(new Error('API timeout')),
           },
         },
+        baseURL: 'https://api.openai.com/v1',
       },
+    } as GuardrailLLMContext;
+
+    const config: TopicalAlignmentConfig = {
+      model: 'gpt-4',
+      confidence_threshold: 0.7,
+      system_prompt_details: 'Stay on topic about finance.',
     };
 
-    interface MockContext {
-      guardrailLlm: {
-        chat: {
-          completions: {
-            create: ReturnType<typeof vi.fn>;
-          };
-        };
-      };
-    }
-    
-    const result = await topicalAlignmentCheck(ctx as MockContext, 'Test', config);
+    const result = await topicalAlignment(ctx, 'Test text', config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect(result.info?.error).toContain('timeout');
+    expect(result.executionFailed).toBe(true);
     consoleSpy.mockRestore();
   });
 });

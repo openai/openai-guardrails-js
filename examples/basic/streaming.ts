@@ -28,7 +28,7 @@ const PIPELINE_CONFIG = {
       {
         name: 'Custom Prompt Check',
         config: {
-          model: 'gpt-4.1-nano',
+          model: 'gpt-4.1-mini',
           confidence_threshold: 0.7,
           system_prompt_details: 'Check if the text contains any math problems.',
         },
@@ -68,7 +68,7 @@ async function processInput(
     // including pre-flight, input, and output stages, plus the LLM call
     const stream = await guardrailsClient.guardrails.responses.create({
       input: userInput,
-      model: 'gpt-4.1-nano',
+      model: 'gpt-4.1-mini',
       previous_response_id: responseId,
       stream: true,
     });

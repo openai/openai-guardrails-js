@@ -11,7 +11,7 @@ npm run eval -- --config-path guardrails_config.json --dataset-path data.jsonl
 
 ### Benchmark Mode
 ```bash
-npm run eval -- --config-path guardrails_config.json --dataset-path data.jsonl --mode benchmark --models gpt-5 gpt-5-mini gpt-5-nano
+npm run eval -- --config-path guardrails_config.json --dataset-path data.jsonl --mode benchmark --models gpt-5 gpt-5-mini gpt-4.1-mini
 ```
 
 ## Dependencies
