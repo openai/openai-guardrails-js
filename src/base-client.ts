@@ -19,6 +19,8 @@ import {
   NormalizedConversationEntry,
 } from './utils/conversation';
 
+const ZERO_WIDTH_CHARACTERS = /(?:\u200B|\u200C|\u200D|\u2060|\uFEFF)/g;
+
 type UnknownFunction = (...args: unknown[]) => unknown;
 
 function toRecord(value: unknown): Record<string, unknown> | null {
@@ -191,6 +193,7 @@ export abstract class GuardrailsBaseClient {
     }
 
     const piiMappings: Record<string, string> = {};
+    let maskedTextOverride: string | undefined;
     for (const result of preflightResults) {
       if (result.info && 'detected_entities' in result.info) {
         const detected = result.info.detected_entities as Record<string, string[]>;
@@ -199,28 +202,51 @@ export abstract class GuardrailsBaseClient {
             piiMappings[entity] = `<${entityType}>`;
           }
         }
+        if (typeof result.info.checked_text === 'string' && !maskedTextOverride) {
+          maskedTextOverride = result.info.checked_text;
+        }
       }
     }
 
-    if (Object.keys(piiMappings).length === 0) {
+    if (!maskedTextOverride && Object.keys(piiMappings).length === 0) {
       return data;
     }
+
+    const normalizeForMasking = (text: string): string =>
+      text.normalize('NFKC').replace(ZERO_WIDTH_CHARACTERS, '');
+
+    const originalStringData = typeof data === 'string' ? data : undefined;
 
     const maskText = (text: string): string => {
       if (typeof text !== 'string') {
         return text as unknown as string;
       }
 
-      let maskedText = text;
+      const hasMappings = Object.keys(piiMappings).length > 0;
+      const normalizedOriginal = normalizeForMasking(text);
+      let maskedText = normalizedOriginal;
       const sortedPii = Object.entries(piiMappings).sort((a, b) => b[0].length - a[0].length);
 
-      for (const [originalPii, maskedToken] of sortedPii) {
-        if (maskedText.includes(originalPii)) {
-          maskedText = maskedText.split(originalPii).join(maskedToken);
+      if (hasMappings) {
+        for (const [originalPii, maskedToken] of sortedPii) {
+          const normalizedKey = normalizeForMasking(originalPii);
+          if (normalizedKey && maskedText.includes(normalizedKey)) {
+            maskedText = maskedText.split(normalizedKey).join(maskedToken);
+          }
         }
       }
 
-      return maskedText;
+      const replacementsApplied = hasMappings && maskedText !== normalizedOriginal;
+
+      if (replacementsApplied) {
+        return maskedText;
+      }
+
+      if (maskedTextOverride && originalStringData !== undefined && text === originalStringData) {
+        return maskedTextOverride;
+      }
+
+      return text;
     };
 
     if (typeof data === 'string') {
