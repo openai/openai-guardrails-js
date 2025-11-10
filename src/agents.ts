@@ -286,13 +286,15 @@ function extractTextFromValue(value: unknown, depth: number, filterByType: boole
     const isRecognizedTextType = typeValue ? TEXTUAL_CONTENT_TYPES.has(typeValue) : false;
 
     if (typeof record.text === 'string') {
-      if (!filterByType || isRecognizedTextType) {
+      if (!filterByType || isRecognizedTextType || typeValue === null) {
         return record.text.trim();
       }
     }
 
-    if (record.content !== undefined) {
-      const nested = extractTextFromValue(record.content, depth + 1, filterByType);
+    const contentValue = record.content;
+    // If a direct text field was skipped due to type filtering, fall back to nested content.
+    if (contentValue != null) {
+      const nested = extractTextFromValue(contentValue, depth + 1, filterByType);
       if (nested) {
         return nested;
       }
