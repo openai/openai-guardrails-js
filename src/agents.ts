@@ -257,7 +257,7 @@ const MAX_CONTENT_EXTRACTION_DEPTH = 10;
  *
  * @param value Arbitrary content value (string, array, or object) to inspect.
  * @param depth Current recursion depth, used to guard against circular structures.
- * @param filterByType When true, only content parts with recognised text types are returned.
+ * @param filterByType When true, only content parts with recognized text types are returned.
  * @returns The extracted text, or an empty string when no text is found.
  */
 function extractTextFromValue(value: unknown, depth: number, filterByType: boolean): string {
@@ -283,10 +283,10 @@ function extractTextFromValue(value: unknown, depth: number, filterByType: boole
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
     const typeValue = typeof record.type === 'string' ? record.type : null;
-    const isRecognisedTextType = typeValue ? TEXTUAL_CONTENT_TYPES.has(typeValue) : false;
+    const isRecognizedTextType = typeValue ? TEXTUAL_CONTENT_TYPES.has(typeValue) : false;
 
     if (typeof record.text === 'string') {
-      if (!filterByType || isRecognisedTextType) {
+      if (!filterByType || isRecognizedTextType) {
         return record.text.trim();
       }
     }
@@ -305,8 +305,8 @@ function extractTextFromValue(value: unknown, depth: number, filterByType: boole
 /**
  * Extract text from structured content parts (e.g., the `content` field on a message).
  *
- * Only recognised textual content-part types are considered to match the behaviour of
- * `ContentUtils.filterToTextOnly`, ensuring non-text modalities are ignored.
+ * Only textual content-part types enumerated in TEXTUAL_CONTENT_TYPES are considered so
+ * that non-text modalities (images, tools, etc.) remain ignored.
  */
 function extractTextFromContentParts(content: unknown, depth = 0): string {
   return extractTextFromValue(content, depth, true);
