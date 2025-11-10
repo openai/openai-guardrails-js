@@ -249,15 +249,30 @@ function ensureGuardrailContext(
   } as GuardrailLLMContext;
 }
 
-function extractTextFromContentParts(content: unknown): string {
-  if (typeof content === 'string') {
-    return content.trim();
+const TEXTUAL_CONTENT_TYPES = new Set(['input_text', 'text', 'output_text', 'summary_text']);
+const MAX_CONTENT_EXTRACTION_DEPTH = 10;
+
+/**
+ * Extract text from any nested content value with optional type filtering.
+ *
+ * @param value Arbitrary content value (string, array, or object) to inspect.
+ * @param depth Current recursion depth, used to guard against circular structures.
+ * @param filterByType When true, only content parts with recognised text types are returned.
+ * @returns The extracted text, or an empty string when no text is found.
+ */
+function extractTextFromValue(value: unknown, depth: number, filterByType: boolean): string {
+  if (depth > MAX_CONTENT_EXTRACTION_DEPTH) {
+    return '';
   }
 
-  if (Array.isArray(content)) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
     const parts: string[] = [];
-    for (const item of content) {
-      const text = extractTextFromMessageEntry(item);
+    for (const item of value) {
+      const text = extractTextFromValue(item, depth + 1, filterByType);
       if (text) {
         parts.push(text);
       }
@@ -265,13 +280,19 @@ function extractTextFromContentParts(content: unknown): string {
     return parts.join(' ').trim();
   }
 
-  if (content && typeof content === 'object') {
-    const record = content as Record<string, unknown>;
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const typeValue = typeof record.type === 'string' ? record.type : null;
+    const isRecognisedTextType = typeValue ? TEXTUAL_CONTENT_TYPES.has(typeValue) : false;
+
     if (typeof record.text === 'string') {
-      return record.text.trim();
+      if (!filterByType || isRecognisedTextType) {
+        return record.text.trim();
+      }
     }
+
     if (record.content !== undefined) {
-      const nested = extractTextFromContentParts(record.content);
+      const nested = extractTextFromValue(record.content, depth + 1, filterByType);
       if (nested) {
         return nested;
       }
@@ -281,7 +302,27 @@ function extractTextFromContentParts(content: unknown): string {
   return '';
 }
 
-function extractTextFromMessageEntry(entry: unknown): string {
+/**
+ * Extract text from structured content parts (e.g., the `content` field on a message).
+ *
+ * Only recognised textual content-part types are considered to match the behaviour of
+ * `ContentUtils.filterToTextOnly`, ensuring non-text modalities are ignored.
+ */
+function extractTextFromContentParts(content: unknown, depth = 0): string {
+  return extractTextFromValue(content, depth, true);
+}
+
+/**
+ * Extract text from a single message entry.
+ *
+ * Handles strings, arrays of content parts, or message-like objects that contain a
+ * `content` collection or a plain `text` field.
+ */
+function extractTextFromMessageEntry(entry: unknown, depth = 0): string {
+  if (depth > MAX_CONTENT_EXTRACTION_DEPTH) {
+    return '';
+  }
+
   if (entry == null) {
     return '';
   }
@@ -291,13 +332,14 @@ function extractTextFromMessageEntry(entry: unknown): string {
   }
 
   if (Array.isArray(entry)) {
-    return extractTextFromContentParts(entry);
+    return extractTextFromContentParts(entry, depth + 1);
   }
 
   if (typeof entry === 'object') {
     const record = entry as Record<string, unknown>;
+
     if (record.content !== undefined) {
-      const contentText = extractTextFromContentParts(record.content);
+      const contentText = extractTextFromContentParts(record.content, depth + 1);
       if (contentText) {
         return contentText;
       }
@@ -308,9 +350,15 @@ function extractTextFromMessageEntry(entry: unknown): string {
     }
   }
 
-  return '';
+  return extractTextFromValue(entry, depth + 1, false);
 }
 
+/**
+ * Extract the latest user-authored text from raw agent input.
+ *
+ * Accepts strings, message objects, or arrays of mixed items. Arrays are scanned
+ * from newest to oldest, returning the first user-role message with textual content.
+ */
 function extractTextFromAgentInput(input: unknown): string {
   if (typeof input === 'string') {
     return input.trim();
@@ -327,8 +375,8 @@ function extractTextFromAgentInput(input: unknown): string {
             return text;
           }
         }
-      } else {
-        const text = extractTextFromMessageEntry(candidate);
+      } else if (typeof candidate === 'string') {
+        const text = candidate.trim();
         if (text) {
           return text;
         }
