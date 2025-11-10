@@ -358,14 +358,98 @@ describe('GuardrailAgent', () => {
 
       // Test the guardrail function
       const guardrailFunction = agent.inputGuardrails[0];
-      const result = await guardrailFunction.execute('test input');
+    const result = await guardrailFunction.execute('test input');
 
-      expect(result).toHaveProperty('outputInfo');
-      expect(result).toHaveProperty('tripwireTriggered');
-      expect(typeof result.tripwireTriggered).toBe('boolean');
+    expect(result).toHaveProperty('outputInfo');
+    expect(result).toHaveProperty('tripwireTriggered');
+    expect(typeof result.tripwireTriggered).toBe('boolean');
+  });
+
+  it('passes the latest user message text to guardrails for conversation inputs', async () => {
+    process.env.OPENAI_API_KEY = 'test';
+    const config = {
+      version: 1,
+      input: {
+        version: 1,
+        guardrails: [{ name: 'Moderation', config: {} }],
+      },
+    };
+
+    const { instantiateGuardrails } = await import('../../runtime');
+    const runSpy = vi.fn().mockResolvedValue({
+      tripwireTriggered: false,
+      info: { guardrail_name: 'Moderation' },
     });
 
-    it('should handle guardrail execution errors based on raiseGuardrailErrors setting', async () => {
+    vi.mocked(instantiateGuardrails).mockImplementationOnce(() =>
+      Promise.resolve([
+        {
+          definition: {
+            name: 'Moderation',
+            description: 'Moderation guardrail',
+            mediaType: 'text/plain',
+            configSchema: z.object({}),
+            checkFn: vi.fn(),
+            metadata: {},
+            ctxRequirements: z.object({}),
+            schema: () => ({}),
+            instantiate: vi.fn(),
+          },
+          config: {},
+          run: runSpy,
+        } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T>
+          ? T extends readonly (infer U)[]
+            ? U
+            : never
+          : never,
+      ])
+    );
+
+    const agent = (await GuardrailAgent.create(
+      config,
+      'Conversation Agent',
+      'Handle multi-turn conversations'
+    )) as MockAgent;
+
+    const guardrail = agent.inputGuardrails[0] as unknown as {
+      execute: (args: { input: unknown; context?: unknown }) => Promise<{
+        outputInfo: Record<string, unknown>;
+        tripwireTriggered: boolean;
+      }>;
+    };
+
+    const conversation = [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: [{ type: 'input_text', text: 'First question?' }] },
+      { role: 'assistant', content: [{ type: 'output_text', text: 'An answer.' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'Latest user message' },
+          { type: 'input_text', text: 'with additional context.' },
+        ],
+      },
+    ];
+
+    const result = await guardrail.execute({ input: conversation, context: {} });
+
+    expect(runSpy).toHaveBeenCalledTimes(1);
+    const [ctxArgRaw, dataArg] = runSpy.mock.calls[0] as [unknown, string];
+    const ctxArg = ctxArgRaw as { getConversationHistory?: () => unknown[] };
+    expect(dataArg).toBe('Latest user message with additional context.');
+    expect(typeof ctxArg.getConversationHistory).toBe('function');
+
+    const history = ctxArg.getConversationHistory?.() as Array<{ content?: unknown }> | undefined;
+    expect(Array.isArray(history)).toBe(true);
+    expect(history && history[history.length - 1]?.content).toBe(
+      'Latest user message with additional context.'
+    );
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.outputInfo.input).toBe('Latest user message with additional context.');
+  });
+
+  it('should handle guardrail execution errors based on raiseGuardrailErrors setting', async () => {
       process.env.OPENAI_API_KEY = 'test';
       const config = {
         version: 1,

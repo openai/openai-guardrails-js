@@ -13,8 +13,7 @@ import type {
   InputGuardrailFunctionArgs,
   OutputGuardrailFunctionArgs,
 } from '@openai/agents-core';
-import { GuardrailLLMContext, GuardrailResult, TextOnlyContent, ContentPart } from './types';
-import { ContentUtils } from './utils/content';
+import { GuardrailLLMContext, GuardrailResult, TextOnlyContent } from './types';
 import {
   loadPipelineBundles,
   instantiateGuardrails,
@@ -250,6 +249,122 @@ function ensureGuardrailContext(
   } as GuardrailLLMContext;
 }
 
+function extractTextFromContentParts(content: unknown): string {
+  if (typeof content === 'string') {
+    return content.trim();
+  }
+
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const item of content) {
+      const text = extractTextFromMessageEntry(item);
+      if (text) {
+        parts.push(text);
+      }
+    }
+    return parts.join(' ').trim();
+  }
+
+  if (content && typeof content === 'object') {
+    const record = content as Record<string, unknown>;
+    if (typeof record.text === 'string') {
+      return record.text.trim();
+    }
+    if (record.content !== undefined) {
+      const nested = extractTextFromContentParts(record.content);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return '';
+}
+
+function extractTextFromMessageEntry(entry: unknown): string {
+  if (entry == null) {
+    return '';
+  }
+
+  if (typeof entry === 'string') {
+    return entry.trim();
+  }
+
+  if (Array.isArray(entry)) {
+    return extractTextFromContentParts(entry);
+  }
+
+  if (typeof entry === 'object') {
+    const record = entry as Record<string, unknown>;
+    if (record.content !== undefined) {
+      const contentText = extractTextFromContentParts(record.content);
+      if (contentText) {
+        return contentText;
+      }
+    }
+
+    if (typeof record.text === 'string') {
+      return record.text.trim();
+    }
+  }
+
+  return '';
+}
+
+function extractTextFromAgentInput(input: unknown): string {
+  if (typeof input === 'string') {
+    return input.trim();
+  }
+
+  if (Array.isArray(input)) {
+    for (let idx = input.length - 1; idx >= 0; idx -= 1) {
+      const candidate = input[idx];
+      if (candidate && typeof candidate === 'object') {
+        const record = candidate as Record<string, unknown>;
+        if (record.role === 'user') {
+          const text = extractTextFromMessageEntry(candidate);
+          if (text) {
+            return text;
+          }
+        }
+      } else {
+        const text = extractTextFromMessageEntry(candidate);
+        if (text) {
+          return text;
+        }
+      }
+    }
+    return '';
+  }
+
+  if (input && typeof input === 'object') {
+    const record = input as Record<string, unknown>;
+    if (record.role === 'user') {
+      const text = extractTextFromMessageEntry(record);
+      if (text) {
+        return text;
+      }
+    }
+
+    if (record.content !== undefined) {
+      const contentText = extractTextFromContentParts(record.content);
+      if (contentText) {
+        return contentText;
+      }
+    }
+
+    if (typeof record.text === 'string') {
+      return record.text.trim();
+    }
+  }
+
+  if (input == null) {
+    return '';
+  }
+
+  return String(input);
+}
+
 function extractLatestUserText(history: NormalizedConversationEntry[]): string {
   for (let i = history.length - 1; i >= 0; i -= 1) {
     const entry = history[i];
@@ -261,20 +376,9 @@ function extractLatestUserText(history: NormalizedConversationEntry[]): string {
 }
 
 function resolveInputText(input: unknown, history: NormalizedConversationEntry[]): string {
-  if (typeof input === 'string') {
-    return input;
-  }
-
-  if (input && typeof input === 'object' && 'content' in (input as Record<string, unknown>)) {
-    const content = (input as { content: string | ContentPart[] }).content;
-    const message = {
-      role: 'user',
-      content,
-    };
-    const extracted = ContentUtils.extractTextFromMessage(message);
-    if (extracted) {
-      return extracted;
-    }
+  const directText = extractTextFromAgentInput(input);
+  if (directText) {
+    return directText;
   }
 
   return extractLatestUserText(history);
