@@ -352,7 +352,7 @@ function extractTextFromMessageEntry(entry: unknown, depth = 0): string {
     }
   }
 
-  return extractTextFromValue(entry, depth + 1, false);
+  return extractTextFromValue(entry, depth + 1, false /* allow all types when falling back */);
 }
 
 /**
@@ -362,6 +362,10 @@ function extractTextFromMessageEntry(entry: unknown, depth = 0): string {
  * from newest to oldest, returning the first user-role message with textual content.
  */
 function extractTextFromAgentInput(input: unknown): string {
+  if (input == null) {
+    return '';
+  }
+
   if (typeof input === 'string') {
     return input.trim();
   }
@@ -406,10 +410,6 @@ function extractTextFromAgentInput(input: unknown): string {
     if (typeof record.text === 'string') {
       return record.text.trim();
     }
-  }
-
-  if (input == null) {
-    return '';
   }
 
   return String(input);
