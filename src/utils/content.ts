@@ -7,15 +7,15 @@
 
 import { Message, ContentPart, TextContentPart, TextOnlyMessageArray } from '../types';
 
+export const TEXT_CONTENT_TYPES = ['input_text', 'text', 'output_text', 'summary_text'] as const;
+const TEXT_CONTENT_TYPES_SET = new Set<string>(TEXT_CONTENT_TYPES);
+
 export class ContentUtils {
-  // Clear: what types are considered text
-  private static readonly TEXT_TYPES = ['input_text', 'text', 'output_text', 'summary_text'] as const;
-  
   /**
    * Check if a content part is text-based.
    */
   static isText(part: ContentPart): boolean {
-    return this.TEXT_TYPES.includes(part.type as typeof this.TEXT_TYPES[number]);
+    return typeof part.type === 'string' && TEXT_CONTENT_TYPES_SET.has(part.type);
   }
   
   /**

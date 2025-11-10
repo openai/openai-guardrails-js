@@ -14,6 +14,7 @@ import type {
   OutputGuardrailFunctionArgs,
 } from '@openai/agents-core';
 import { GuardrailLLMContext, GuardrailResult, TextOnlyContent } from './types';
+import { TEXT_CONTENT_TYPES } from './utils/content';
 import {
   loadPipelineBundles,
   instantiateGuardrails,
@@ -249,7 +250,7 @@ function ensureGuardrailContext(
   } as GuardrailLLMContext;
 }
 
-const TEXTUAL_CONTENT_TYPES = new Set(['input_text', 'text', 'output_text', 'summary_text']);
+const TEXTUAL_CONTENT_TYPES = new Set<string>(TEXT_CONTENT_TYPES);
 const MAX_CONTENT_EXTRACTION_DEPTH = 10;
 
 /**
@@ -400,7 +401,7 @@ function extractTextFromAgentInput(input: unknown): string {
       }
     }
 
-    if (record.content !== undefined) {
+    if (record.content != null) {
       const contentText = extractTextFromContentParts(record.content);
       if (contentText) {
         return contentText;
@@ -412,7 +413,15 @@ function extractTextFromAgentInput(input: unknown): string {
     }
   }
 
-  return String(input);
+  if (
+    typeof input === 'number' ||
+    typeof input === 'boolean' ||
+    typeof input === 'bigint'
+  ) {
+    return String(input);
+  }
+
+  return '';
 }
 
 function extractLatestUserText(history: NormalizedConversationEntry[]): string {
