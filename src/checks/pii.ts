@@ -205,6 +205,89 @@ interface PiiDetectionResult {
   spans: ReplacementSpan[];
 }
 
+const BIC_CONTEXT_PREFIX_PATTERN = [
+  '(?:[sS][wW][iI][fF][tT])',
+  '(?:[bB][iI][cC])',
+  '(?:[bB][aA][nN][kK][\\s-]?[cC][oO][dD][eE])',
+  '(?:[sS][wW][iI][fF][tT][\\s-]?[cC][oO][dD][eE])',
+  '(?:[bB][iI][cC][\\s-]?[cC][oO][dD][eE])',
+].join('|');
+
+const BIC_WITH_CONTEXT_REGEX = new RegExp(
+  `(?:${BIC_CONTEXT_PREFIX_PATTERN})[:\\s=]+([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\\b`,
+  'g'
+);
+
+const KNOWN_BIC_PREFIXES = [
+  'DEUT',
+  'CHAS',
+  'BARC',
+  'HSBC',
+  'BNPA',
+  'CITI',
+  'WELL',
+  'BOFA',
+  'JPMC',
+  'GSCC',
+  'MSNY',
+  'COBA',
+  'DRSD',
+  'BYLADEM',
+  'MALADE',
+  'HYVEDEMM',
+  'WFBI',
+  'USBC',
+  'LOYD',
+  'MIDL',
+  'NWBK',
+  'RBOS',
+  'CRLY',
+  'SOGEFRPP',
+  'AGRIFRPP',
+  'UBSW',
+  'CRESCHZZ',
+  'SANB',
+  'BBVA',
+  'UNCRITMM',
+  'BCITITMMXXX',
+  'INGB',
+  'ABNA',
+  'RABO',
+  'ROYA',
+  'TDOM',
+  'BNSC',
+  'ANZB',
+  'NATA',
+  'WPAC',
+  'CTBA',
+  'BKCHJPJT',
+  'MHCBJPJT',
+  'BOTKJPJT',
+  'ICBKCNBJ',
+  'BKCHCNBJ',
+  'ABOCCNBJ',
+  'PCBCCNBJ',
+  'HSBCHKHH',
+  'SCBLHKHH',
+  'DBSSSGSG',
+  'OCBCSGSG',
+  'UOVBSGSG',
+  'CZNB',
+  'SHBK',
+  'KOEX',
+  'HVBK',
+  'NACF',
+  'IBKO',
+  'KODB',
+  'HNBN',
+  'CITIKRSX',
+];
+
+const KNOWN_BIC_REGEX = new RegExp(
+  `\\b(?:${KNOWN_BIC_PREFIXES.join('|')})[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\\b`,
+  'g'
+);
+
 /**
  * Default regex patterns for PII entity types.
  */
@@ -245,7 +328,10 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
       group: 1,
     },
   ],
-  [PIIEntity.BIC_SWIFT]: [{ regex: /\b[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b/g }],
+  [PIIEntity.BIC_SWIFT]: [
+    { regex: BIC_WITH_CONTEXT_REGEX, group: 1 },
+    { regex: KNOWN_BIC_REGEX },
+  ],
 
   // USA
   [PIIEntity.US_BANK_NUMBER]: [{ regex: /\b\d{8,17}\b/g }],

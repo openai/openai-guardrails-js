@@ -224,17 +224,52 @@ describe('pii guardrail', () => {
     expect(result.info?.checked_text).toBe('cvv=<CVV>');
   });
 
-  it('detects BIC/SWIFT codes', async () => {
+  it('detects BIC/SWIFT codes with explicit prefixes', async () => {
     const config = PIIConfig.parse({
       entities: [PIIEntity.BIC_SWIFT],
       block: false,
     });
-    const text = 'Transfer to BIC DEXXDEXX tomorrow.';
+    const text = 'Transfer to BIC DEUTDEFF500 tomorrow.';
 
     const result = await pii({}, text, config);
 
-    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual(['DEXXDEXX']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual([
+      'DEUTDEFF500',
+    ]);
     expect(result.info?.checked_text).toBe('Transfer to BIC <BIC_SWIFT> tomorrow.');
+  });
+
+  it('detects BIC/SWIFT codes from known bank prefixes', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.BIC_SWIFT],
+      block: false,
+    });
+    const text = 'Send funds to CHASUS33 by Friday.';
+
+    const result = await pii({}, text, config);
+
+    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual(['CHASUS33']);
+    expect(result.info?.checked_text).toBe('Send funds to <BIC_SWIFT> by Friday.');
+  });
+
+  it('does not flag common words as BIC/SWIFT codes', async () => {
+    const config = PIIConfig.parse({
+      entities: [PIIEntity.BIC_SWIFT],
+      block: false,
+    });
+    const texts = [
+      'The CUSTOMER ordered a product.',
+      'We will REGISTER your account.',
+      'Please CONSIDER this option.',
+      'The DOCUMENT is ready.',
+      'This is ABSTRACT art.',
+    ];
+
+    for (const text of texts) {
+      const result = await pii({}, text, config);
+      expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toBeUndefined();
+      expect(result.info?.pii_detected).toBe(false);
+    }
   });
 
   it('detects precise street addresses as location', async () => {
