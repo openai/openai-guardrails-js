@@ -80,6 +80,12 @@ describe('keywords guardrail', () => {
 		const result = await keywordsCheck({}, '你好12345', KeywordsConfig.parse({ keywords: ['你好123'] }));
 		expect(result.tripwireTriggered).toEqual(false);
 	});
+
+  it('should apply word boundaries to all keywords in a multi-keyword pattern', async () => {
+		const result = await keywordsCheck({}, 'testing hello world', KeywordsConfig.parse({ keywords: ['test', 'hello', 'world'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+		expect(result.info.matchedKeywords).toEqual(['hello', 'world']);
+	});
 });
 
 describe('urls guardrail', () => {
