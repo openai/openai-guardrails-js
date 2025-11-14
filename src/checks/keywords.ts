@@ -57,6 +57,7 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   const escapedKeywords = sanitizedKeywords.map((k: string) =>
     k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   );
+
   // \p{L}|\p{N}|_ - any unicode letter, number, or underscore. Alternative to \b
 	// (?<!\p{L}) - not preceded by a letter
 	// (?!\p{L}) - not followed by a letter
