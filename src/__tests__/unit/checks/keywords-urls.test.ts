@@ -22,16 +22,64 @@ describe('keywords guardrail', () => {
     expect(result.info?.totalKeywords).toBe(1);
   });
 
-  it('ignores text without the configured keywords', () => {
-    const result = keywordsCheck(
+  it('ignores text without the configured keywords', async () => {
+    const result = await keywordsCheck(
       {},
       'All clear content',
       KeywordsConfig.parse({ keywords: ['secret'] })
-    ) as GuardrailResult;
+    );
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.matchedKeywords).toEqual([]);
   });
+
+  it('should return the correct result', async () => {
+		const result = await keywordsCheck({}, 'Hello, world!', KeywordsConfig.parse({ keywords: ['hello', 'world'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+	});
+
+	it('should not match partial words', async () => {
+		const result = await keywordsCheck({}, 'Hello, world!', KeywordsConfig.parse({ keywords: ['orld'] }));
+		expect(result.tripwireTriggered).toEqual(false);
+	});
+
+	it('should match numbers', async () => {
+		const result = await keywordsCheck({}, 'Hello, world123', KeywordsConfig.parse({ keywords: ['world123'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+		expect(result.info.matchedKeywords).toEqual(['world123']);
+	});
+
+	it('should not match partial numbers', async () => {
+		const result = await keywordsCheck({}, 'Hello, world12345', KeywordsConfig.parse({ keywords: ['world123'] }));
+		expect(result.tripwireTriggered).toEqual(false);
+	});
+
+	it('should match underscore', async () => {
+		const result = await keywordsCheck({}, 'Hello, w_o_r_l_d', KeywordsConfig.parse({ keywords: ['w_o_r_l_d'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+		expect(result.info.matchedKeywords).toEqual(['w_o_r_l_d']);
+	});
+
+	it('should not match in between underscore', async () => {
+		const result = await keywordsCheck({}, 'Hello, test_world_test', KeywordsConfig.parse({ keywords: ['world'] }));
+		expect(result.tripwireTriggered).toEqual(false);
+	});
+
+	it('should work with chinese characters', async () => {
+		const result = await keywordsCheck({}, '你好', KeywordsConfig.parse({ keywords: ['你好'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+	});
+
+	it('should work with chinese characters with numbers', async () => {
+		const result = await keywordsCheck({}, '你好123', KeywordsConfig.parse({ keywords: ['你好123'] }));
+		expect(result.tripwireTriggered).toEqual(true);
+		expect(result.info.matchedKeywords).toEqual(['你好123']);
+	});
+
+	it('should not match partial chinese characters with numbers', async () => {
+		const result = await keywordsCheck({}, '你好12345', KeywordsConfig.parse({ keywords: ['你好123'] }));
+		expect(result.tripwireTriggered).toEqual(false);
+	});
 });
 
 describe('urls guardrail', () => {
