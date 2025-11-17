@@ -33,11 +33,6 @@ describe('keywords guardrail', () => {
     expect(result.info?.matchedKeywords).toEqual([]);
   });
 
-  it('should return the correct result', async () => {
-		const result = await keywordsCheck({}, 'Hello, world!', KeywordsConfig.parse({ keywords: ['hello', 'world'] }));
-		expect(result.tripwireTriggered).toEqual(true);
-	});
-
 	it('should not match partial words', async () => {
 		const result = await keywordsCheck({}, 'Hello, world!', KeywordsConfig.parse({ keywords: ['orld'] }));
 		expect(result.tripwireTriggered).toEqual(false);

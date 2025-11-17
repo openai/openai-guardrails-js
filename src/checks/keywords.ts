@@ -59,10 +59,10 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   );
 
   // \p{L}|\p{N}|_ - any unicode letter, number, or underscore. Alternative to \b
-	// (?<!\p{L}) - not preceded by a letter
-	// (?!\p{L}) - not followed by a letter
-	const patternText = `(?<!\\p{L}|\\p{N}|_)(?:${escapedKeywords.join('|')})(?!\\p{L}|\\p{N}|_)`;
-	const pattern = new RegExp(patternText, 'giu'); // case-insensitive, global, unicode
+  // (?<!\\p{L}|\\p{N}|_) - not preceded by a letter
+  // (?!\\p{L}|\\p{N}|_) - not followed by a letter
+  const patternText = `(?<!\\p{L}|\\p{N}|_)(?:${escapedKeywords.join('|')})(?!\\p{L}|\\p{N}|_)`;
+  const pattern = new RegExp(patternText, 'giu'); // case-insensitive, global, unicode
 
   const matches: string[] = [];
   let match;
