@@ -7,7 +7,7 @@
  * guardrail check functions leveraging LLMs.
  */
 
-import { z } from 'zod';
+import { z, ZodTypeAny } from 'zod';
 import { OpenAI } from 'openai';
 import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
 import { defaultSpecRegistry } from '../registry';
@@ -100,24 +100,116 @@ export function createErrorResult(
  * @param systemPrompt - The instructions describing analysis criteria.
  * @returns Formatted prompt string for LLM input.
  */
-export function buildFullPrompt(systemPrompt: string): string {
-  // Check if the system prompt already contains JSON schema instructions
-  if (
-    systemPrompt.includes('JSON') ||
-    systemPrompt.includes('json') ||
-    systemPrompt.includes('{')
-  ) {
+function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
+  if ('unwrap' in schema && typeof schema.unwrap === 'function') {
+    return unwrapSchema(schema.unwrap());
+  }
+
+  const def = (schema as { _def?: Record<string, unknown> })._def as
+    | {
+        innerType?: ZodTypeAny;
+        schema?: ZodTypeAny;
+        type?: ZodTypeAny;
+      }
+    | undefined;
+
+  if (!def) {
+    return schema;
+  }
+
+  if (def.innerType) {
+    return unwrapSchema(def.innerType);
+  }
+
+  if (def.schema) {
+    return unwrapSchema(def.schema as ZodTypeAny);
+  }
+
+  if (def.type) {
+    return unwrapSchema(def.type as ZodTypeAny);
+  }
+
+  return schema;
+}
+
+function describeSchemaType(schema: ZodTypeAny): string {
+  const base = unwrapSchema(schema);
+
+  if (base instanceof z.ZodBoolean) {
+    return 'boolean';
+  }
+
+  if (base instanceof z.ZodNumber) {
+    return 'float';
+  }
+
+  if (base instanceof z.ZodString) {
+    return 'string';
+  }
+
+  if (base instanceof z.ZodArray) {
+    return 'array';
+  }
+
+  if (base instanceof z.ZodObject) {
+    return 'object';
+  }
+
+  return 'value';
+}
+
+function formatFieldInstruction(fieldName: string, schema: ZodTypeAny): string {
+  if (fieldName === 'flagged') {
+    return '- "flagged": boolean (true if detected and false otherwise)';
+  }
+
+  if (fieldName === 'confidence') {
+    return '- "confidence": float (0.0 to 1.0)';
+  }
+
+  if (fieldName === 'reason') {
+    return '- "reason": string explaining the rationale for the decision';
+  }
+
+  const valueType = describeSchemaType(schema);
+  return `- "${fieldName}": ${valueType}`;
+}
+
+function buildFieldInstructionBlock(outputModel?: ZodTypeAny): string | null {
+  if (!outputModel || !(outputModel instanceof z.ZodObject)) {
+    return null;
+  }
+
+  const shape = outputModel.shape;
+  const instructions = Object.entries(shape).map(([key, schema]) =>
+    formatFieldInstruction(key, schema as ZodTypeAny)
+  );
+
+  return instructions.join('\n');
+}
+
+export function buildFullPrompt(systemPrompt: string, outputModel?: ZodTypeAny): string {
+  // Check if the system prompt already contains JSON output format instructions
+  // Look for phrases that indicate output formatting requirements, not just mentions of JSON
+  const hasJsonOutputInstructions = 
+    /respond\s+with\s+(a\s+)?json/i.test(systemPrompt) ||
+    /output\s+(a\s+)?json/i.test(systemPrompt) ||
+    /return\s+(a\s+)?json/i.test(systemPrompt) ||
+    /format.*json/i.test(systemPrompt);
+  
+  if (hasJsonOutputInstructions) {
     // If the system prompt already has detailed JSON instructions, use it as-is
     return systemPrompt;
   }
+
+  const fieldInstructions = buildFieldInstructionBlock(outputModel);
 
   // Default template for simple cases - always include "json" for OpenAI's response_format requirement
   const template = `
 ${systemPrompt}
 
 Respond with a json object containing:
-- "flagged": boolean (true if detected and false otherwise)
-- "confidence": float (0.0 to 1.0)
+${fieldInstructions ?? '- "flagged": boolean (true if detected and false otherwise)\n- "confidence": float (0.0 to 1.0)'}
 
 Only respond with the json object, nothing else.
 
@@ -177,14 +269,14 @@ function stripJsonCodeFence(text: string): string {
  * @param outputModel - Model for parsing and validating the LLM's response.
  * @returns Structured output containing the detection decision and confidence.
  */
-export async function runLLM(
+export async function runLLM<TOutput extends ZodTypeAny>(
   text: string,
   systemPrompt: string,
   client: OpenAI,
   model: string,
-  outputModel: typeof LLMOutput
-): Promise<LLMOutput> {
-  const fullPrompt = buildFullPrompt(systemPrompt);
+  outputModel: TOutput
+): Promise<z.infer<TOutput> | LLMErrorOutput> {
+  const fullPrompt = buildFullPrompt(systemPrompt, outputModel);
 
   try {
     // Handle temperature based on model capabilities
@@ -216,10 +308,13 @@ export async function runLLM(
 
     const result = response.choices[0]?.message?.content;
     if (!result) {
-      return {
+      return LLMErrorOutput.parse({
         flagged: false,
         confidence: 0.0,
-      };
+        info: {
+          error_message: 'LLM returned no content',
+        },
+      });
     }
 
     const cleanedResult = stripJsonCodeFence(result);
@@ -230,63 +325,69 @@ export async function runLLM(
     // Check if this is a content filter error - Azure OpenAI
     if (error && typeof error === 'string' && error.includes('content_filter')) {
       console.warn('Content filter triggered by provider:', error);
-      return {
+      return LLMErrorOutput.parse({
         flagged: true,
         confidence: 1.0,
         info: {
           third_party_filter: true,
           error_message: String(error),
         },
-      } as LLMErrorOutput;
+      });
     }
 
     // Fail-closed on JSON parsing errors (malformed or non-JSON responses)
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
-      console.warn(
-        'LLM returned non-JSON or malformed JSON. Failing closed (flagged=true).',
-        error
-      );
-      return {
-        flagged: true,
-        confidence: 1.0,
-      } as LLMOutput;
+      console.warn('LLM returned non-JSON or malformed JSON.', error);
+      return LLMErrorOutput.parse({
+        flagged: false,
+        confidence: 0.0,
+        info: {
+          error_message: 'LLM returned non-JSON or malformed JSON.',
+        },
+      });
     }
 
     // Fail-closed on schema validation errors (e.g., wrong types like confidence as string)
     if (error instanceof z.ZodError) {
-      console.warn('LLM response validation failed. Failing closed (flagged=true).', error);
-      return {
-        flagged: true,
-        confidence: 1.0,
-      } as LLMOutput;
+      console.warn('LLM response validation failed.', error);
+      return LLMErrorOutput.parse({
+        flagged: false,
+        confidence: 0.0,
+        info: {
+          error_message: 'LLM response validation failed.',
+          zod_issues: error.issues ?? [],
+        },
+      });
     }
 
     // Always return error information for other LLM failures
-    return {
+    return LLMErrorOutput.parse({
       flagged: false,
       confidence: 0.0,
       info: {
         error_message: String(error),
       },
-    } as LLMErrorOutput;
+    });
   }
 }
 
-/**
- * Factory for constructing and registering an LLM-based guardrail check_fn.
- *
- * This helper registers the guardrail with the default registry and returns a
- * check_fn suitable for use in guardrail pipelines. The returned function will
- * use the configured LLM to analyze text, validate the result, and trigger if
- * confidence exceeds the provided threshold.
- *
- * @param name - Name under which to register the guardrail.
- * @param description - Short explanation of the guardrail's logic.
- * @param systemPrompt - Prompt passed to the LLM to control analysis.
- * @param outputModel - Schema for parsing the LLM output.
- * @param configModel - Configuration schema for the check_fn.
- * @returns Async check function to be registered as a guardrail.
- */
+function isLLMErrorOutput(value: unknown): value is LLMErrorOutput {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (!('info' in value)) {
+    return false;
+  }
+
+  const info = (value as { info?: unknown }).info;
+  if (!info || typeof info !== 'object') {
+    return false;
+  }
+
+  return 'error_message' in info;
+}
+
 export function createLLMCheckFn(
   name: string,
   description: string,
@@ -317,24 +418,18 @@ export function createLLMCheckFn(
       outputModel
     );
 
-    // Check if this is an error result (LLMErrorOutput with error_message)
-    if ('info' in analysis && analysis.info) {
-      const errorInfo = analysis.info as Record<string, unknown>;
-      if (errorInfo.error_message) {
-        // This is an execution failure (LLMErrorOutput)
-        return {
-          tripwireTriggered: false, // Don't trigger tripwire on execution errors
-          executionFailed: true,
-          originalException: new Error(String(errorInfo.error_message || 'LLM execution failed')),
-          info: {
-            guardrail_name: name,
-            ...analysis,
-          },
-        };
-      }
+    if (isLLMErrorOutput(analysis)) {
+      return {
+        tripwireTriggered: false,
+        executionFailed: true,
+        originalException: new Error(String(analysis.info?.error_message || 'LLM execution failed')),
+        info: {
+          guardrail_name: name,
+          ...analysis,
+        },
+      };
     }
 
-    // Compare severity levels
     const isTrigger = analysis.flagged && analysis.confidence >= config.confidence_threshold;
     return {
       tripwireTriggered: isTrigger,
@@ -346,7 +441,6 @@ export function createLLMCheckFn(
     };
   }
 
-  // Auto-register this guardrail with the default registry
   defaultSpecRegistry.register(
     name,
     guardrailFunc,

@@ -256,10 +256,14 @@ describe('GuardrailsBaseClient helpers', () => {
     });
 
     it('creates a conversation-aware context for prompt injection detection guardrails', async () => {
-      const guardrail = createGuardrail('Prompt Injection Detection', async () => ({
-        tripwireTriggered: false,
-        info: { observation: 'ok' },
-      }), { requiresConversationHistory: true });
+      const guardrail = createGuardrail(
+        'Prompt Injection Detection',
+        async () => ({
+          tripwireTriggered: false,
+          info: { observation: 'ok' },
+        }),
+        { usesConversationHistory: true }
+      );
       client.setGuardrails({
         pre_flight: [guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
         input: [],

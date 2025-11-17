@@ -135,7 +135,7 @@ describe('LLM Base', () => {
       expect(result.info.confidence).toBe(0.8);
     });
 
-    it('should fail closed on schema validation error and trigger tripwire', async () => {
+    it('should fail open on schema validation error and not trigger tripwire', async () => {
       const guardrail = createLLMCheckFn(
         'Schema Fail Closed Guardrail',
         'Ensures schema violations are blocked',
@@ -150,7 +150,7 @@ describe('LLM Base', () => {
                 choices: [
                   {
                     message: {
-                      // confidence is string -> Zod should fail; guardrail should fail-closed
+                      // confidence is string -> Zod should fail; guardrail should fail-open
                       content: JSON.stringify({ flagged: true, confidence: '1.0' }),
                     },
                   },
@@ -166,12 +166,14 @@ describe('LLM Base', () => {
         confidence_threshold: 0.7,
       });
 
-      expect(result.tripwireTriggered).toBe(true);
-      expect(result.info.flagged).toBe(true);
-      expect(result.info.confidence).toBe(1.0);
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.executionFailed).toBe(true);
+      expect(result.info.flagged).toBe(false);
+      expect(result.info.confidence).toBe(0.0);
+      expect(result.info.info.error_message).toBe('LLM response validation failed.');
     });
 
-    it('should fail closed on malformed JSON and trigger tripwire', async () => {
+    it('should fail open on malformed JSON and not trigger tripwire', async () => {
       const guardrail = createLLMCheckFn(
         'Malformed JSON Guardrail',
         'Ensures malformed JSON is blocked',
@@ -202,9 +204,11 @@ describe('LLM Base', () => {
         confidence_threshold: 0.7,
       });
 
-      expect(result.tripwireTriggered).toBe(true);
-      expect(result.info.flagged).toBe(true);
-      expect(result.info.confidence).toBe(1.0);
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.executionFailed).toBe(true);
+      expect(result.info.flagged).toBe(false);
+      expect(result.info.confidence).toBe(0.0);
+      expect(result.info.info.error_message).toBe('LLM returned non-JSON or malformed JSON.');
     });
   });
 });

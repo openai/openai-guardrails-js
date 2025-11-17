@@ -21,6 +21,7 @@ export class GuardrailEval {
   private datasetPath: string;
   private batchSize: number;
   private outputDir: string;
+  private multiTurn: boolean;
 
   /**
    * Initialize the evaluator.
@@ -34,12 +35,14 @@ export class GuardrailEval {
     configPath: string,
     datasetPath: string,
     batchSize: number = 32,
-    outputDir: string = 'results'
+    outputDir: string = 'results',
+    multiTurn: boolean = false
   ) {
     this.configPath = configPath;
     this.datasetPath = datasetPath;
     this.batchSize = batchSize;
     this.outputDir = outputDir;
+    this.multiTurn = multiTurn;
   }
 
   /**
@@ -67,7 +70,7 @@ export class GuardrailEval {
       apiKey: process.env.OPENAI_API_KEY,
     });
     const context: Context = { guardrailLlm: openaiClient };
-    const engine = new AsyncRunEngine(guardrails);
+    const engine = new AsyncRunEngine(guardrails, this.multiTurn);
     const calculator = new GuardrailMetricsCalculator();
     const reporter = new JsonResultsReporter();
 
@@ -92,12 +95,14 @@ export async function runEvaluationCLI(args: {
   datasetPath: string;
   batchSize?: number;
   outputDir?: string;
+  multiTurn?: boolean;
 }): Promise<void> {
   const evaluator = new GuardrailEval(
     args.configPath,
     args.datasetPath,
     args.batchSize || 32,
-    args.outputDir || 'results'
+    args.outputDir || 'results',
+    Boolean(args.multiTurn)
   );
 
   await evaluator.run();

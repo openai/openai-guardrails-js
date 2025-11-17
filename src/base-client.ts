@@ -393,7 +393,7 @@ export abstract class GuardrailsBaseClient {
       }
 
       const needsConversationHistory = compatibleGuardrails.some(
-        (guardrail) => guardrail.definition.metadata?.requiresConversationHistory
+        (guardrail) => guardrail.definition.metadata?.usesConversationHistory
       );
 
       let ctx = this.context;

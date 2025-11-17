@@ -20,8 +20,8 @@ import { ConfiguredGuardrail } from './runtime';
 export interface GuardrailSpecMetadata {
   /** How the guardrail is implemented (regex/LLM/etc.) */
   engine?: string;
-  /** Whether this guardrail requires conversation history to function properly */
-  requiresConversationHistory?: boolean;
+  /** Whether this guardrail analyzes conversation history in addition to current input */
+  usesConversationHistory?: boolean;
   /** Additional metadata fields */
   [key: string]: unknown;
 }

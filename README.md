@@ -124,7 +124,8 @@ const eval = new GuardrailEval(
   'configs/my_guardrails.json',
   'data/demo_data.jsonl',
   32, // batch size
-  'results' // output directory
+  'results', // output directory
+  false // multi-turn mode (set to true to evaluate conversation-aware guardrails incrementally)
 );
 
 await eval.run('Evaluating my dataset');

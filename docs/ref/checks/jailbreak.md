@@ -2,6 +2,8 @@
 
 Identifies attempts to bypass AI safety measures such as prompt injection, role-playing requests, or social engineering attempts. Analyzes text for jailbreak attempts using LLM-based detection, identifies various attack patterns, and provides confidence scores for detected attempts.
 
+**Multi-turn Support**: This guardrail is conversation-aware and automatically analyzes recent conversation history to detect multi-turn escalation patterns where adversarial attempts build across multiple turns.
+
 ## Jailbreak Definition
 
 Detects attempts to bypass safety or policy constraints via manipulation (prompt injection, role‑play as an unfiltered agent, obfuscation, or overriding system instructions). Focuses on adversarial intent to elicit restricted outputs, not on general harmful content itself.
@@ -56,13 +58,27 @@ Returns a `GuardrailResult` with the following `info` dictionary:
     "guardrail_name": "Jailbreak",
     "flagged": true,
     "confidence": 0.85,
-    "threshold": 0.7
+    "threshold": 0.7,
+    "reason": "Multi-turn escalation: Role-playing followed by instruction override",
+    "used_conversation_history": true,
+    "checked_text": "{\"conversation\": [...], \"latest_input\": \"...\"}"
 }
 ```
 
 - **`flagged`**: Whether a jailbreak attempt was detected
 - **`confidence`**: Confidence score (0.0 to 1.0) for the detection
 - **`threshold`**: The confidence threshold that was configured
+- **`reason`**: Natural language rationale describing why the request was (or was not) flagged
+- **`used_conversation_history`**: Indicates whether prior conversation turns were included
+- **`checked_text`**: JSON payload containing the conversation slice and latest input analyzed
+
+### Conversation History
+
+When conversation history is available, the guardrail automatically:
+
+1. Analyzes up to the **last 10 turns** (configurable via `MAX_CONTEXT_TURNS`)
+2. Detects **multi-turn escalation** where adversarial behavior builds gradually
+3. Surfaces the analyzed payload in `checked_text` for auditing and debugging
 
 ## Related checks
 

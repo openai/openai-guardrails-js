@@ -35,6 +35,7 @@ interface CliArgs {
   datasetPath?: string;
   batchSize?: number;
   outputDir?: string;
+  multiTurn?: boolean;
   help?: boolean;
 }
 
@@ -69,6 +70,8 @@ function parseArgs(argv: string[]): CliArgs {
       args.batchSize = parseInt(argv[++i], 10);
     } else if (arg === '--output-dir') {
       args.outputDir = argv[++i];
+    } else if (arg === '--multi-turn') {
+      args.multiTurn = true;
     } else if (!args.configFile && !arg.startsWith('-')) {
       args.configFile = arg;
     }
@@ -122,6 +125,9 @@ function showHelp(): void {
   console.log(
     '  --output-dir <dir>                            Directory to save results (default: results/)'
   );
+  console.log(
+    '  --multi-turn                                  Evaluate conversation-aware guardrails turn-by-turn (default: single-pass)'
+  );
   console.log('');
   console.log('Examples:');
   console.log('  guardrails validate config.json');
@@ -154,6 +160,7 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
       datasetPath: args.datasetPath,
       batchSize: args.batchSize || 32,
       outputDir: args.outputDir || 'results',
+      multiTurn: args.multiTurn,
     });
 
     console.log('Evaluation completed successfully!');

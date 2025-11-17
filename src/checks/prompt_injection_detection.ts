@@ -458,5 +458,5 @@ defaultSpecRegistry.register(
   'text/plain',
   PromptInjectionDetectionConfigRequired,
   undefined,
-  { engine: 'LLM', requiresConversationHistory: true }
+  { engine: 'LLM', usesConversationHistory: true }
 );

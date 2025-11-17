@@ -14,12 +14,14 @@ import { parseConversationInput, normalizeConversation, NormalizedConversationEn
  * Runs guardrail evaluations asynchronously.
  */
 export class AsyncRunEngine implements RunEngine {
-  private guardrailNames: string[];
-  private guardrails: ConfiguredGuardrail[];
+  private readonly guardrailNames: string[];
+  private readonly guardrails: ConfiguredGuardrail[];
+  private readonly multiTurn: boolean;
 
-  constructor(guardrails: ConfiguredGuardrail[]) {
+  constructor(guardrails: ConfiguredGuardrail[], multiTurn: boolean = false) {
     this.guardrailNames = guardrails.map((g) => g.definition.name);
     this.guardrails = guardrails;
+    this.multiTurn = multiTurn;
   }
 
   /**
@@ -127,17 +129,16 @@ export class AsyncRunEngine implements RunEngine {
     guardrail: ConfiguredGuardrail,
     sampleData: string
   ): Promise<GuardrailResult> {
-    if (this.isPromptInjectionGuardrail(guardrail)) {
-      return await this.runPromptInjectionIncremental(context, guardrail, sampleData);
+    const usesConversationHistory = this.guardrailUsesConversationHistory(guardrail);
+    const shouldRunIncremental =
+      this.isPromptInjectionGuardrail(guardrail) || (usesConversationHistory && this.multiTurn);
+
+    if (shouldRunIncremental) {
+      return await this.runIncrementalConversationGuardrail(context, guardrail, sampleData);
     }
 
-    if (this.guardrailRequiresConversationHistory(guardrail)) {
-      const conversation = normalizeConversation(parseConversationInput(sampleData));
-      const guardrailContext = this.createConversationContext(context, conversation);
-      return await guardrail.run(
-        guardrailContext as GuardrailLLMContextWithHistory,
-        sampleData
-      );
+    if (usesConversationHistory) {
+      return await this.runConversationGuardrailSinglePass(context, guardrail, sampleData);
     }
 
     return await guardrail.run(context as GuardrailLLMContext, sampleData);
@@ -151,11 +152,24 @@ export class AsyncRunEngine implements RunEngine {
     return normalized === 'prompt injection detection';
   }
 
-  private guardrailRequiresConversationHistory(guardrail: ConfiguredGuardrail): boolean {
-    return Boolean(guardrail.definition.metadata?.requiresConversationHistory);
+  private guardrailUsesConversationHistory(guardrail: ConfiguredGuardrail): boolean {
+    return Boolean(guardrail.definition.metadata?.usesConversationHistory);
   }
 
-  private async runPromptInjectionIncremental(
+  private async runConversationGuardrailSinglePass(
+    context: Context,
+    guardrail: ConfiguredGuardrail,
+    sampleData: string
+  ): Promise<GuardrailResult> {
+    const conversation = normalizeConversation(parseConversationInput(sampleData));
+    const guardrailContext = this.createConversationContext(context, conversation);
+    return await guardrail.run(
+      guardrailContext as GuardrailLLMContextWithHistory,
+      sampleData
+    );
+  }
+
+  private async runIncrementalConversationGuardrail(
     context: Context,
     guardrail: ConfiguredGuardrail,
     sampleData: string
@@ -164,25 +178,31 @@ export class AsyncRunEngine implements RunEngine {
 
     if (conversation.length === 0) {
       const guardrailContext = this.createConversationContext(context, []);
-      return await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
+      const payload = this.isPromptInjectionGuardrail(guardrail)
+        ? sampleData
+        : sampleData;
+      return await guardrail.run(
+        guardrailContext as GuardrailLLMContextWithHistory,
+        payload
+      );
     }
 
     let finalResult: GuardrailResult | null = null;
 
     for (let turnIndex = 0; turnIndex < conversation.length; turnIndex += 1) {
       const historySlice = conversation.slice(0, turnIndex + 1);
-      const guardrailContext = this.createConversationContext(
-        context,
-        historySlice
-      );
+      const guardrailContext = this.createConversationContext(context, historySlice);
       const serializedHistory = safeStringify(historySlice, sampleData);
+      const latestMessage = historySlice[historySlice.length - 1];
 
-      const result = await guardrail.run(
-        guardrailContext as GuardrailLLMContextWithHistory,
-        serializedHistory
-      );
+      const payload = this.isPromptInjectionGuardrail(guardrail)
+        ? serializedHistory
+        : this.extractLatestInput(latestMessage, serializedHistory);
+
+      const result = await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, payload);
 
       finalResult = result;
+      this.annotateIncrementalResult(result, turnIndex, latestMessage);
 
       if (result.tripwireTriggered) {
         break;
@@ -203,6 +223,53 @@ export class AsyncRunEngine implements RunEngine {
     }
 
     return finalResult;
+  }
+
+  private extractLatestInput(
+    message: NormalizedConversationEntry | undefined,
+    fallback: string
+  ): string {
+    if (!message) {
+      return fallback;
+    }
+
+    const content = typeof message.content === 'string' ? message.content : null;
+    if (content && content.trim().length > 0) {
+      return content.trim();
+    }
+
+    const args = typeof message.arguments === 'string' ? message.arguments : null;
+    if (args && args.trim().length > 0) {
+      return args.trim();
+    }
+
+    const output = typeof message.output === 'string' ? message.output : null;
+    if (output && output.trim().length > 0) {
+      return output.trim();
+    }
+
+    return fallback;
+  }
+
+  private annotateIncrementalResult(
+    result: GuardrailResult,
+    turnIndex: number,
+    message: NormalizedConversationEntry | undefined
+  ): void {
+    if (!result.info) {
+      result.info = {};
+    }
+
+    result.info.turn_index = turnIndex;
+
+    if (message && typeof message === 'object') {
+      if (message.role && result.info.trigger_role === undefined) {
+        result.info.trigger_role = message.role;
+      }
+      if (result.info.trigger_message === undefined) {
+        result.info.trigger_message = message;
+      }
+    }
   }
 
   private createConversationContext(
