@@ -345,7 +345,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
       });
     }
 
-    // Fail-closed on schema validation errors (e.g., wrong types like confidence as string)
+    // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     if (error instanceof z.ZodError) {
       console.warn('LLM response validation failed.', error);
       return LLMErrorOutput.parse({
