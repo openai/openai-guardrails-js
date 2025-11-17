@@ -68,12 +68,12 @@ export type LLMErrorOutput = z.infer<typeof LLMErrorOutput>;
  *
  * This helper provides a consistent way to handle errors across all LLM-based checks,
  * ensuring uniform error reporting and preventing tripwire triggers on execution failures.
+ * Sets executionFailed=true to enable raiseGuardrailErrors handling.
  *
  * @param guardrailName - Name of the guardrail that encountered the error.
  * @param analysis - LLMErrorOutput containing error information.
- * @param checkedText - The original text that was being checked.
  * @param additionalInfo - Optional additional information to include in the result.
- * @returns GuardrailResult with tripwireTriggered=false and error information.
+ * @returns GuardrailResult with tripwireTriggered=false, executionFailed=true, and error information.
  */
 export function createErrorResult(
   guardrailName: string,
@@ -82,6 +82,8 @@ export function createErrorResult(
 ): GuardrailResult {
   return {
     tripwireTriggered: false,
+    executionFailed: true,
+    originalException: new Error(String(analysis.info?.error_message || 'LLM execution failed')),
     info: {
       guardrail_name: guardrailName,
       flagged: analysis.flagged,
@@ -191,11 +193,7 @@ function buildFieldInstructionBlock(outputModel?: ZodTypeAny): string | null {
 export function buildFullPrompt(systemPrompt: string, outputModel?: ZodTypeAny): string {
   // Check if the system prompt already contains JSON output format instructions
   // Look for phrases that indicate output formatting requirements, not just mentions of JSON
-  const hasJsonOutputInstructions = 
-    /respond\s+with\s+(a\s+)?json/i.test(systemPrompt) ||
-    /output\s+(a\s+)?json/i.test(systemPrompt) ||
-    /return\s+(a\s+)?json/i.test(systemPrompt) ||
-    /format.*json/i.test(systemPrompt);
+  const hasJsonOutputInstructions = /(?:respond|output|return)\s+(?:with\s+)?(?:a\s+)?json|format.*json/i.test(systemPrompt);
   
   if (hasJsonOutputInstructions) {
     // If the system prompt already has detailed JSON instructions, use it as-is

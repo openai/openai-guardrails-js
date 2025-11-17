@@ -178,12 +178,9 @@ export class AsyncRunEngine implements RunEngine {
 
     if (conversation.length === 0) {
       const guardrailContext = this.createConversationContext(context, []);
-      const payload = this.isPromptInjectionGuardrail(guardrail)
-        ? sampleData
-        : sampleData;
       return await guardrail.run(
         guardrailContext as GuardrailLLMContextWithHistory,
-        payload
+        sampleData
       );
     }
 
