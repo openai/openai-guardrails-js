@@ -333,7 +333,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
       });
     }
 
-    // Fail-closed on JSON parsing errors (malformed or non-JSON responses)
+    // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
       console.warn('LLM returned non-JSON or malformed JSON.', error);
       return LLMErrorOutput.parse({
