@@ -7,7 +7,6 @@
 import { Context, Sample } from './types';
 import { AsyncRunEngine } from './async-engine';
 import { instantiateGuardrails, GuardrailBundle } from '../../runtime';
-import cliProgress from 'cli-progress';
 
 /**
  * Tests end-to-end guardrail latency for different models.
@@ -80,29 +79,15 @@ export class LatencyTester {
     const ttcTimes: number[] = [];
     const barDesc = desc || 'Latency';
 
-    const progressBar = new cliProgress.SingleBar(
-      {
-        format: `${barDesc} |{bar}| {percentage}% | {value}/{total} samples | ETA: {eta}s | {duration}s`,
-        barCompleteChar: '\u2588',
-        barIncompleteChar: '\u2591',
-        hideCursor: true,
-      },
-      cliProgress.Presets.shades_classic
-    );
+    console.log(`${barDesc}: ${num} samples`);
 
-    progressBar.start(num, 0);
-
-    try {
-      for (let i = 0; i < num; i += 1) {
-        const sample = samples[i];
-        const start = performance.now() / 1000; // Convert to seconds
-        await engine.run(context, [sample], 1, undefined);
-        const ttc = performance.now() / 1000 - start;
-        ttcTimes.push(ttc);
-        progressBar.update(i + 1);
-      }
-    } finally {
-      progressBar.stop();
+    for (let i = 0; i < num; i += 1) {
+      const sample = samples[i];
+      const start = performance.now() / 1000; // Convert to seconds
+      await engine.run(context, [sample], 1, undefined);
+      const ttc = performance.now() / 1000 - start;
+      ttcTimes.push(ttc);
+      console.log(`${barDesc}: Processed ${i + 1}/${num} samples`);
     }
 
     const ttcStats = this.calculateLatencyStats(ttcTimes);
