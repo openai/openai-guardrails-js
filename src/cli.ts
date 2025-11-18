@@ -36,6 +36,8 @@ interface CliArgs {
   batchSize?: number;
   outputDir?: string;
   multiTurn?: boolean;
+  maxParallelModels?: number | null;
+  benchmarkChunkSize?: number | null;
   help?: boolean;
 }
 
@@ -72,6 +74,20 @@ function parseArgs(argv: string[]): CliArgs {
       args.outputDir = argv[++i];
     } else if (arg === '--multi-turn') {
       args.multiTurn = true;
+    } else if (arg === '--max-parallel-models') {
+      const value = parseInt(argv[++i], 10);
+      if (isNaN(value) || value <= 0) {
+        console.error(`❌ Error: max-parallel-models must be positive, got: ${argv[i]}`);
+        process.exit(1);
+      }
+      args.maxParallelModels = value;
+    } else if (arg === '--benchmark-chunk-size') {
+      const value = parseInt(argv[++i], 10);
+      if (isNaN(value) || value <= 0) {
+        console.error(`❌ Error: benchmark-chunk-size must be positive, got: ${argv[i]}`);
+        process.exit(1);
+      }
+      args.benchmarkChunkSize = value;
     } else if (!args.configFile && !arg.startsWith('-')) {
       args.configFile = arg;
     }
@@ -128,6 +144,12 @@ function showHelp(): void {
   console.log(
     '  --multi-turn                                  Evaluate conversation-aware guardrails turn-by-turn (default: single-pass)'
   );
+  console.log(
+    '  --max-parallel-models <number>                Maximum number of models to benchmark concurrently (default: min(models, cpu_count))'
+  );
+  console.log(
+    '  --benchmark-chunk-size <number>                Optional number of samples per chunk when benchmarking to limit long-running runs'
+  );
   console.log('');
   console.log('Examples:');
   console.log('  guardrails validate config.json');
@@ -154,6 +176,16 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
     process.exit(1);
   }
 
+  if (args.maxParallelModels !== undefined && args.maxParallelModels !== null && args.maxParallelModels <= 0) {
+    console.error(`❌ Error: max-parallel-models must be positive, got: ${args.maxParallelModels}`);
+    process.exit(1);
+  }
+
+  if (args.benchmarkChunkSize !== undefined && args.benchmarkChunkSize !== null && args.benchmarkChunkSize <= 0) {
+    console.error(`❌ Error: benchmark-chunk-size must be positive, got: ${args.benchmarkChunkSize}`);
+    process.exit(1);
+  }
+
   try {
     await runEvaluationCLI({
       configPath: args.configPath,
@@ -161,6 +193,8 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
       batchSize: args.batchSize || 32,
       outputDir: args.outputDir || 'results',
       multiTurn: args.multiTurn,
+      maxParallelModels: args.maxParallelModels,
+      benchmarkChunkSize: args.benchmarkChunkSize,
     });
 
     console.log('Evaluation completed successfully!');
