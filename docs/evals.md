@@ -35,6 +35,8 @@ The evals tool is included with the TypeScript package. No additional dependenci
 | `--azure-api-version` | ❌ | Azure OpenAI API version (default: 2025-01-01-preview) |
 | `--models` | ❌ | Models for benchmark mode (benchmark only) |
 | `--latency-iterations` | ❌ | Latency test samples (default: 25) (benchmark only) |
+| `--max-parallel-models` | ❌ | Maximum concurrent models in benchmark mode (default: CPU count) (benchmark only) |
+| `--benchmark-chunk-size` | ❌ | Sample chunk size per model for memory-efficient benchmarking (benchmark only) |
 
 ## Configuration
 
@@ -154,6 +156,8 @@ npm run eval -- --config-path config.json --dataset-path data.jsonl --base-url h
 - **Multi-stage evaluation**: pre_flight, input, output stages
 - **Automatic stage detection**: Evaluates all stages found in configuration
 - **Batch processing**: Configurable parallel processing
+- **Parallel benchmarking**: Run multiple models concurrently with CPU-aware defaults
+- **Memory-efficient chunking**: Process large datasets in smaller chunks during benchmarking
 - **Benchmark mode**: Model performance comparison with ROC AUC, precision at recall thresholds
 - **Latency testing**: End-to-end guardrail performance measurement
 - **Visualization**: Automatic chart and graph generation
