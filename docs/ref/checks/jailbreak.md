@@ -101,25 +101,25 @@ This benchmark evaluates model performance on a diverse set of prompts:
 
 #### ROC Curve
 
-![ROC Curve](../../benchmarking/jailbreak_roc_curve.png)
+![ROC Curve](../../benchmarking/Jailbreak_roc_curves.png)
 
 #### Metrics Table
 
 | Model         | ROC AUC | Prec@R=0.80 | Prec@R=0.90 | Prec@R=0.95 | Recall@FPR=0.01 |
 |--------------|---------|-------------|-------------|-------------|-----------------|
-| gpt-5         | 0.979   | 0.973       | 0.970       | 0.970       | 0.733           |
-| gpt-5-mini    | 0.954   | 0.990       | 0.900       | 0.900       | 0.768           |
-| gpt-4.1       | 0.990   | 1.000       | 1.000       | 0.984       | 0.946           |
-| gpt-4.1-mini (default) | 0.982   | 0.992       | 0.992       | 0.954       | 0.444           |
+| gpt-5         | 0.994   | 0.993       | 0.993       | 0.993       | 0.997           |
+| gpt-5-mini    | 0.813   | 0.832       | 0.832       | 0.832       | 0.000           |
+| gpt-4.1       | 0.999   | 0.999       | 0.999       | 0.999       | 1.000           |
+| gpt-4.1-mini (default) | 0.928   | 0.968       | 0.968       | 0.500       | 0.000           |
 
 #### Latency Performance
 
 | Model         | TTC P50 (ms) | TTC P95 (ms) |
 |--------------|--------------|--------------|
-| gpt-5         | 4,569        | 7,256        |
-| gpt-5-mini    | 5,019        | 9,212        |
-| gpt-4.1       | 841          | 1,861        |
-| gpt-4.1-mini  | 749          | 1,291        |
+| gpt-5         | 7,369.9      | 12,218.1     |
+| gpt-5-mini    | 7,054.6      | 11,578.6     |
+| gpt-4.1       | 2,998.1      | 4,203.8      |
+| gpt-4.1-mini  | 1,537.8      | 2,089.3      |
 
 **Notes:**
 
