@@ -378,6 +378,14 @@ export class GuardrailEval {
   private _createContext(): Context {
     // Azure OpenAI
     if (this.azureEndpoint) {
+      // Validate API key availability
+      const apiKey = this.apiKey || process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          'API key is required for Azure OpenAI. Please provide --api-key or set OPENAI_API_KEY environment variable.'
+        );
+      }
+
       const azureKwargs: Record<string, string> = {
         azureEndpoint: this.azureEndpoint,
         apiVersion: this.azureApiVersion,
@@ -388,8 +396,8 @@ export class GuardrailEval {
 
       // Note: Azure OpenAI client creation would need AzureOpenAI import
       // For now, fall back to regular OpenAI with base URL
-      const openaiClient = new OpenAI({
-        apiKey: this.apiKey || process.env.OPENAI_API_KEY,
+    const openaiClient = new OpenAI({
+        apiKey: apiKey,
         baseURL: `https://${this.azureEndpoint.replace(/^https?:\/\//, '')}/openai/deployments`,
       });
       console.info(`event="client_created" type="azure" endpoint="${this.azureEndpoint}"`);
@@ -651,7 +659,7 @@ export class GuardrailEval {
       const modelContext = this._createContext();
 
       const guardrails = await instantiateGuardrails(stageBundle);
-      const engine = new AsyncRunEngine(guardrails, this.multiTurn);
+    const engine = new AsyncRunEngine(guardrails, this.multiTurn);
       const chunkTotal = this.benchmarkChunkSize && samples.length > 0
         ? Math.max(1, Math.ceil(samples.length / this.benchmarkChunkSize))
         : 1;
