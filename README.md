@@ -4,6 +4,8 @@ This is the TypeScript version of OpenAI Guardrails, a package for adding config
 
 Most users can simply follow the guided configuration and installation instructions at [guardrails.openai.com](https://guardrails.openai.com/).
 
+[![OpenAI Guardrails configuration screenshot](docs/assets/images/guardrails-js-config-screenshot-100pct-q70.webp)](https://guardrails.openai.com)
+
 ## Installation
 
 ### Usage
