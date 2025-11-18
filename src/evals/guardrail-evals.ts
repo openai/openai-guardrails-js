@@ -656,8 +656,6 @@ export class GuardrailEval {
     basicCalculator: GuardrailMetricsCalculator
   ): Promise<{ results: SampleResult[]; metrics: Record<string, number> } | null> {
     try {
-      const modelContext = this._createContext();
-
       const guardrails = await instantiateGuardrails(stageBundle);
     const engine = new AsyncRunEngine(guardrails, this.multiTurn);
       const chunkTotal = this.benchmarkChunkSize && samples.length > 0
@@ -671,7 +669,7 @@ export class GuardrailEval {
           chunkTotal === 1
             ? `Benchmarking ${model}`
             : `Benchmarking ${model} (${chunkIndex}/${chunkTotal})`;
-        const chunkResults = await engine.run(modelContext, chunk, this.batchSize, chunkDesc);
+        const chunkResults = await engine.run(context, chunk, this.batchSize, chunkDesc);
         modelResults.push(...chunkResults);
         chunkIndex += 1;
       }
