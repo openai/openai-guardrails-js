@@ -149,6 +149,29 @@ describe('keywords guardrail', () => {
     expect(result.info?.matchedKeywords).toEqual(['#foo']);
   });
 
+  it('ignores keywords that become empty after sanitization', () => {
+    const result = keywordsCheck(
+      {},
+      'Totally benign text',
+      KeywordsConfig.parse({ keywords: ['!!!'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.matchedKeywords).toEqual([]);
+    expect(result.info?.sanitizedKeywords).toEqual(['']);
+  });
+
+  it('still matches other keywords when some sanitize to empty strings', () => {
+    const result = keywordsCheck(
+      {},
+      'Please keep this secret!',
+      KeywordsConfig.parse({ keywords: ['...', 'secret!!!'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['secret']);
+  });
+
   it('matches keywords ending with special characters', () => {
     const result = keywordsCheck(
       {},

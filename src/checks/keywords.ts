@@ -40,6 +40,13 @@ export type KeywordsContext = z.infer<typeof KeywordsContext>;
  * @param config Configuration specifying keywords and behavior
  * @returns GuardrailResult indicating if tripwire was triggered
  */
+const unicodeWordCharRegex = /[\p{L}\p{N}]/u;
+const isWordChar = (char: string | undefined): boolean => {
+  if (!char) return false;
+  if (char === '_') return true;
+  return unicodeWordCharRegex.test(char);
+};
+
 export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   ctx,
   text,
@@ -52,28 +59,36 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   // Sanitize keywords by stripping trailing punctuation
   const sanitizedKeywords = keywords.map((k: string) => k.replace(/[.,!?;:]+$/, ''));
 
-  // Escape special regex characters so keywords are treated literally
-  const escapedKeywords = sanitizedKeywords.map((k: string) =>
-    k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  );
+  const keywordEntries = sanitizedKeywords
+    .map((sanitized) => ({
+      sanitized,
+      escaped: sanitized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    }))
+    .filter(({ sanitized }) => sanitized.length > 0);
 
-  const isWordChar = (char: string | undefined) => {
-    if (!char) return false;
-    if (char === '_') return true;
-    return /[\p{L}\p{N}]/u.test(char);
-  };
+  if (keywordEntries.length === 0) {
+    return {
+      tripwireTriggered: false,
+      info: {
+        matchedKeywords: [],
+        originalKeywords: keywords,
+        sanitizedKeywords,
+        totalKeywords: keywords.length,
+        textLength: text.length,
+      },
+    };
+  }
 
   // Apply unicode-aware word boundaries per keyword so tokens that start/end with punctuation still match.
-  const keywordPatterns = escapedKeywords.map((keyword, index) => {
-    const originalKeyword = sanitizedKeywords[index];
-    const keywordChars = Array.from(originalKeyword);
+  const keywordPatterns = keywordEntries.map(({ sanitized, escaped }) => {
+    const keywordChars = Array.from(sanitized);
     const firstChar = keywordChars[0];
     const lastChar = keywordChars[keywordChars.length - 1];
     const needsLeftBoundary = isWordChar(firstChar);
     const needsRightBoundary = isWordChar(lastChar);
     const leftBoundary = needsLeftBoundary ? '(?<![\\p{L}\\p{N}_])' : '';
     const rightBoundary = needsRightBoundary ? '(?![\\p{L}\\p{N}_])' : '';
-    return `${leftBoundary}${keyword}${rightBoundary}`;
+    return `${leftBoundary}${escaped}${rightBoundary}`;
   });
 
   const patternText = `(?:${keywordPatterns.join('|')})`;
