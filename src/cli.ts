@@ -38,6 +38,14 @@ interface CliArgs {
   multiTurn?: boolean;
   maxParallelModels?: number | null;
   benchmarkChunkSize?: number | null;
+  mode?: 'evaluate' | 'benchmark';
+  stages?: string[];
+  models?: string[];
+  latencyIterations?: number;
+  apiKey?: string | null;
+  baseUrl?: string | null;
+  azureEndpoint?: string | null;
+  azureApiVersion?: string;
   help?: boolean;
 }
 
@@ -88,6 +96,38 @@ function parseArgs(argv: string[]): CliArgs {
         process.exit(1);
       }
       args.benchmarkChunkSize = value;
+    } else if (arg === '--mode') {
+      const mode = argv[++i];
+      if (mode !== 'evaluate' && mode !== 'benchmark') {
+        console.error(`❌ Error: Invalid mode: ${mode}. Must be 'evaluate' or 'benchmark'`);
+        process.exit(1);
+      }
+      args.mode = mode as 'evaluate' | 'benchmark';
+    } else if (arg === '--stages') {
+      args.stages = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+        args.stages.push(argv[++i]);
+      }
+    } else if (arg === '--models') {
+      args.models = [];
+      while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+        args.models.push(argv[++i]);
+      }
+    } else if (arg === '--latency-iterations') {
+      const value = parseInt(argv[++i], 10);
+      if (isNaN(value) || value <= 0) {
+        console.error(`❌ Error: latency-iterations must be positive, got: ${argv[i]}`);
+        process.exit(1);
+      }
+      args.latencyIterations = value;
+    } else if (arg === '--api-key') {
+      args.apiKey = argv[++i];
+    } else if (arg === '--base-url') {
+      args.baseUrl = argv[++i];
+    } else if (arg === '--azure-endpoint') {
+      args.azureEndpoint = argv[++i];
+    } else if (arg === '--azure-api-version') {
+      args.azureApiVersion = argv[++i];
     } else if (!args.configFile && !arg.startsWith('-')) {
       args.configFile = arg;
     }
@@ -136,6 +176,12 @@ function showHelp(): void {
     '  --dataset-path <path>                         Path to evaluation dataset (required)'
   );
   console.log(
+    '  --mode <mode>                                 Evaluation mode: "evaluate" or "benchmark" (default: evaluate)'
+  );
+  console.log(
+    '  --stages <stage>...                            Pipeline stages to evaluate: pre_flight, input, output'
+  );
+  console.log(
     '  --batch-size <number>                         Number of samples to process in parallel (default: 32)'
   );
   console.log(
@@ -144,11 +190,31 @@ function showHelp(): void {
   console.log(
     '  --multi-turn                                  Evaluate conversation-aware guardrails turn-by-turn (default: single-pass)'
   );
+  console.log('Benchmark Options:');
+  console.log(
+    '  --models <model>...                            Models to test in benchmark mode (default: gpt-5, gpt-5-mini, gpt-4.1, gpt-4.1-mini)'
+  );
+  console.log(
+    '  --latency-iterations <number>                 Number of iterations for latency testing (default: 25)'
+  );
   console.log(
     '  --max-parallel-models <number>                Maximum number of models to benchmark concurrently (default: min(models, cpu_count))'
   );
   console.log(
     '  --benchmark-chunk-size <number>                Optional number of samples per chunk when benchmarking to limit long-running runs'
+  );
+  console.log('API Configuration:');
+  console.log(
+    '  --api-key <key>                               API key for OpenAI, Azure OpenAI, or OpenAI-compatible API'
+  );
+  console.log(
+    '  --base-url <url>                              Base URL for OpenAI-compatible API (e.g., http://localhost:11434/v1)'
+  );
+  console.log(
+    '  --azure-endpoint <endpoint>                   Azure OpenAI endpoint (e.g., https://your-resource.openai.azure.com)'
+  );
+  console.log(
+    '  --azure-api-version <version>                 Azure OpenAI API version (default: 2025-01-01-preview)'
   );
   console.log('');
   console.log('Examples:');
@@ -157,6 +223,12 @@ function showHelp(): void {
   console.log('  guardrails eval --config-path config.json --dataset-path dataset.jsonl');
   console.log(
     '  guardrails eval --config-path config.json --dataset-path dataset.jsonl --batch-size 16 --output-dir my-results'
+  );
+  console.log(
+    '  guardrails eval --config-path config.json --dataset-path dataset.jsonl --mode benchmark --models gpt-5 gpt-5-mini'
+  );
+  console.log(
+    '  guardrails eval --config-path config.json --dataset-path dataset.jsonl --mode benchmark --azure-endpoint https://your-resource.openai.azure.com --api-key your-key'
   );
   console.log('  guardrails validate-dataset dataset.jsonl');
 }
@@ -186,12 +258,48 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
     process.exit(1);
   }
 
+  if (args.latencyIterations !== undefined && args.latencyIterations <= 0) {
+    console.error(`❌ Error: latency-iterations must be positive, got: ${args.latencyIterations}`);
+    process.exit(1);
+  }
+
+  if (args.stages) {
+    const validStages = new Set(['pre_flight', 'input', 'output']);
+    const invalidStages = args.stages.filter((s) => !validStages.has(s));
+    if (invalidStages.length > 0) {
+      console.error(`❌ Error: Invalid stages: ${invalidStages.join(', ')}. Valid stages are: ${Array.from(validStages).join(', ')}`);
+      process.exit(1);
+    }
+  }
+
+  if (args.mode === 'benchmark' && args.stages && args.stages.length > 1) {
+    console.warn('⚠️  Warning: Benchmark mode only uses the first specified stage. Additional stages will be ignored.');
+  }
+
+  if (args.azureEndpoint && args.baseUrl) {
+    console.error('❌ Error: Cannot specify both --azure-endpoint and --base-url. Choose one provider.');
+    process.exit(1);
+  }
+
+  if (args.azureEndpoint && !args.apiKey) {
+    console.error('❌ Error: --api-key is required when using --azure-endpoint');
+    process.exit(1);
+  }
+
   try {
     await runEvaluationCLI({
       configPath: args.configPath,
       datasetPath: args.datasetPath,
+      stages: args.stages || null,
       batchSize: args.batchSize || 32,
       outputDir: args.outputDir || 'results',
+      apiKey: args.apiKey || null,
+      baseUrl: args.baseUrl || null,
+      azureEndpoint: args.azureEndpoint || null,
+      azureApiVersion: args.azureApiVersion || '2025-01-01-preview',
+      mode: args.mode || 'evaluate',
+      models: args.models || null,
+      latencyIterations: args.latencyIterations,
       multiTurn: args.multiTurn,
       maxParallelModels: args.maxParallelModels,
       benchmarkChunkSize: args.benchmarkChunkSize,

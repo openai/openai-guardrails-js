@@ -11,3 +11,7 @@ export * from './validate-dataset';
 export * from './async-engine';
 export * from './calculator';
 export * from './json-reporter';
+export * from './benchmark-calculator';
+export * from './benchmark-reporter';
+export * from './latency-tester';
+export * from './visualizer';

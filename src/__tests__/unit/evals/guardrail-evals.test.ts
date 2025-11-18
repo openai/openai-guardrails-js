@@ -47,11 +47,11 @@ describe('GuardrailEval._determineParallelModelLimit', () => {
 
   it('should honor user-provided parallelism constraints', () => {
     expect(GuardrailEval._determineParallelModelLimit(5, 3)).toBe(3);
-    expect(() => GuardrailEval._determineParallelModelLimit(5, 0)).toThrow('max_parallel_models must be positive');
+    expect(() => GuardrailEval._determineParallelModelLimit(5, 0)).toThrow('maxParallelModels must be positive');
   });
 
   it('should throw error for invalid model count', () => {
-    expect(() => GuardrailEval._determineParallelModelLimit(0, null)).toThrow('model_count must be positive');
+    expect(() => GuardrailEval._determineParallelModelLimit(0, null)).toThrow('modelCount must be positive');
   });
 });
 
@@ -74,7 +74,7 @@ describe('GuardrailEval._chunkSamples', () => {
 
   it('should reject invalid chunk sizes', () => {
     const samples = buildSamples(2);
-    expect(() => Array.from(GuardrailEval._chunkSamples(samples, 0))).toThrow('chunk_size must be positive when provided');
+    expect(() => Array.from(GuardrailEval._chunkSamples(samples, 0))).toThrow('chunkSize must be positive when provided');
   });
 
   it('should return single chunk when chunk size is larger than samples', () => {

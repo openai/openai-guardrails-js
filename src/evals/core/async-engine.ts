@@ -46,9 +46,9 @@ export class AsyncRunEngine implements RunEngine {
     }
 
     const results: SampleResult[] = [];
-    let processed = 0;
+    const totalSamples = samples.length;
 
-    console.log(`${desc}: ${samples.length} samples, batch size: ${batchSize}`);
+    console.log(`${desc}: ${totalSamples} samples, batch size: ${batchSize}`);
 
     for (let i = 0; i < samples.length; i += batchSize) {
       const batch = samples.slice(i, i + batchSize);
@@ -56,8 +56,7 @@ export class AsyncRunEngine implements RunEngine {
         batch.map((sample) => this.evaluateSample(context, sample))
       );
       results.push(...batchResults);
-      processed += batch.length;
-      console.log(`Processed ${processed}/${samples.length} samples`);
+      console.log(`Processed ${results.length}/${totalSamples} samples`);
     }
 
     return results;
