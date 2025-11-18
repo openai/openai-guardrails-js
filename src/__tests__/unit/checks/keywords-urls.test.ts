@@ -32,6 +32,209 @@ describe('keywords guardrail', () => {
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.matchedKeywords).toEqual([]);
   });
+
+  it('does not match partial words', () => {
+    const result = keywordsCheck(
+      {},
+      'Hello, world!',
+      KeywordsConfig.parse({ keywords: ['orld'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('matches numbers', () => {
+    const result = keywordsCheck(
+      {},
+      'Hello, world123',
+      KeywordsConfig.parse({ keywords: ['world123'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['world123']);
+  });
+
+  it('does not match partial numbers', () => {
+    const result = keywordsCheck(
+      {},
+      'Hello, world12345',
+      KeywordsConfig.parse({ keywords: ['world123'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('matches underscores', () => {
+    const result = keywordsCheck(
+      {},
+      'Hello, w_o_r_l_d',
+      KeywordsConfig.parse({ keywords: ['w_o_r_l_d'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['w_o_r_l_d']);
+  });
+
+  it('does not match when underscores appear inside other words', () => {
+    const result = keywordsCheck(
+      {},
+      'Hello, test_world_test',
+      KeywordsConfig.parse({ keywords: ['world'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('matches chinese characters', () => {
+    const result = keywordsCheck(
+      {},
+      '你好',
+      KeywordsConfig.parse({ keywords: ['你好'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+  });
+
+  it('matches chinese characters with numbers', () => {
+    const result = keywordsCheck(
+      {},
+      '你好123',
+      KeywordsConfig.parse({ keywords: ['你好123'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['你好123']);
+  });
+
+  it('does not match partial chinese characters with numbers', () => {
+    const result = keywordsCheck(
+      {},
+      '你好12345',
+      KeywordsConfig.parse({ keywords: ['你好123'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('applies word boundaries across multi-keyword patterns', () => {
+    const result = keywordsCheck(
+      {},
+      'testing hello world',
+      KeywordsConfig.parse({ keywords: ['test', 'hello', 'world'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['hello', 'world']);
+  });
+
+  it('matches keywords that start with special characters embedded in text', () => {
+    const result = keywordsCheck(
+      {},
+      'Reach me via example@foo.com later',
+      KeywordsConfig.parse({ keywords: ['@foo'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['@foo']);
+  });
+
+  it('matches keywords that start with # even when preceded by letters', () => {
+    const result = keywordsCheck(
+      {},
+      'Use example#foo for the ID',
+      KeywordsConfig.parse({ keywords: ['#foo'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['#foo']);
+  });
+
+  it('matches keywords ending with special characters', () => {
+    const result = keywordsCheck(
+      {},
+      'Use foo@ in the config',
+      KeywordsConfig.parse({ keywords: ['foo@'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['foo@']);
+  });
+
+  it('matches keywords ending with punctuation when followed by word characters', () => {
+    const result = keywordsCheck(
+      {},
+      'Check foo@example',
+      KeywordsConfig.parse({ keywords: ['foo@'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['foo@']);
+  });
+
+  it('matches mixed script keywords', () => {
+    const result = keywordsCheck(
+      {},
+      'Welcome to hello你好world section',
+      KeywordsConfig.parse({ keywords: ['hello你好world'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['hello你好world']);
+  });
+
+  it('does not match partial mixed script keywords', () => {
+    const result = keywordsCheck(
+      {},
+      'This is hello你好worldextra',
+      KeywordsConfig.parse({ keywords: ['hello你好world'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it('matches Arabic characters', () => {
+    const result = keywordsCheck(
+      {},
+      'مرحبا بك',
+      KeywordsConfig.parse({ keywords: ['مرحبا'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['مرحبا']);
+  });
+
+  it('matches Cyrillic characters', () => {
+    const result = keywordsCheck(
+      {},
+      'Привет мир',
+      KeywordsConfig.parse({ keywords: ['Привет'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['Привет']);
+  });
+
+  it('matches keywords with only punctuation', () => {
+    const result = keywordsCheck(
+      {},
+      'Use the @@ symbol',
+      KeywordsConfig.parse({ keywords: ['@@'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['@@']);
+  });
+
+  it('matches mixed punctuation and alphanumeric keywords', () => {
+    const result = keywordsCheck(
+      {},
+      'Contact via @user123@',
+      KeywordsConfig.parse({ keywords: ['@user123@'] })
+    ) as GuardrailResult;
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.matchedKeywords).toEqual(['@user123@']);
+  });
 });
 
 describe('urls guardrail', () => {

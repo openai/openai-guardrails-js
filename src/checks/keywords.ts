@@ -52,13 +52,32 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   // Sanitize keywords by stripping trailing punctuation
   const sanitizedKeywords = keywords.map((k: string) => k.replace(/[.,!?;:]+$/, ''));
 
-  // Create regex pattern with word boundaries
-  // Escape special regex characters and join with word boundaries
+  // Escape special regex characters so keywords are treated literally
   const escapedKeywords = sanitizedKeywords.map((k: string) =>
     k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   );
-  const patternText = `\\b(?:${escapedKeywords.join('|')})\\b`;
-  const pattern = new RegExp(patternText, 'gi'); // case-insensitive, global
+
+  const isWordChar = (char: string | undefined) => {
+    if (!char) return false;
+    if (char === '_') return true;
+    return /[\p{L}\p{N}]/u.test(char);
+  };
+
+  // Apply unicode-aware word boundaries per keyword so tokens that start/end with punctuation still match.
+  const keywordPatterns = escapedKeywords.map((keyword, index) => {
+    const originalKeyword = sanitizedKeywords[index];
+    const keywordChars = Array.from(originalKeyword);
+    const firstChar = keywordChars[0];
+    const lastChar = keywordChars[keywordChars.length - 1];
+    const needsLeftBoundary = isWordChar(firstChar);
+    const needsRightBoundary = isWordChar(lastChar);
+    const leftBoundary = needsLeftBoundary ? '(?<![\\p{L}\\p{N}_])' : '';
+    const rightBoundary = needsRightBoundary ? '(?![\\p{L}\\p{N}_])' : '';
+    return `${leftBoundary}${keyword}${rightBoundary}`;
+  });
+
+  const patternText = `(?:${keywordPatterns.join('|')})`;
+  const pattern = new RegExp(patternText, 'giu'); // case-insensitive, global, unicode aware
 
   const matches: string[] = [];
   let match;
