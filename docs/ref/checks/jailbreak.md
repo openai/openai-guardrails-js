@@ -119,10 +119,10 @@ For benchmarking, we randomly sampled 4,000 conversations from this pool using a
 
 | Model         | TTC P50 (ms) | TTC P95 (ms) |
 |--------------|--------------|--------------|
-| gpt-5         | 7,369.9      | 12,218.1     |
-| gpt-5-mini    | 7,054.6      | 11,578.6     |
-| gpt-4.1       | 2,998.1      | 4,203.8      |
-| gpt-4.1-mini  | 1,537.8      | 2,089.3      |
+| gpt-5         | 7,370        | 12,218       |
+| gpt-5-mini    | 7,055        | 11,579       |
+| gpt-4.1       | 2,998        | 4,204        |
+| gpt-4.1-mini  | 1,538        | 2,089        |
 
 **Notes:**
 
