@@ -40,12 +40,14 @@ export type KeywordsContext = z.infer<typeof KeywordsContext>;
  * @param config Configuration specifying keywords and behavior
  * @returns GuardrailResult indicating if tripwire was triggered
  */
-const unicodeWordCharRegex = /[\p{L}\p{N}]/u;
-const isWordChar = (char: string | undefined): boolean => {
-  if (!char) return false;
-  if (char === '_') return true;
-  return unicodeWordCharRegex.test(char);
-};
+const WORD_CHAR_CLASS = '[\\p{L}\\p{N}_]';
+const isWordChar = (() => {
+  const wordCharRegex = new RegExp(WORD_CHAR_CLASS, 'u');
+  return (char: string | undefined): boolean => {
+    if (!char) return false;
+    return wordCharRegex.test(char);
+  };
+})();
 
 export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   ctx,
@@ -86,8 +88,8 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
     const lastChar = keywordChars[keywordChars.length - 1];
     const needsLeftBoundary = isWordChar(firstChar);
     const needsRightBoundary = isWordChar(lastChar);
-    const leftBoundary = needsLeftBoundary ? '(?<![\\p{L}\\p{N}_])' : '';
-    const rightBoundary = needsRightBoundary ? '(?![\\p{L}\\p{N}_])' : '';
+    const leftBoundary = needsLeftBoundary ? `(?<!${WORD_CHAR_CLASS})` : '';
+    const rightBoundary = needsRightBoundary ? `(?!${WORD_CHAR_CLASS})` : '';
     return `${leftBoundary}${escaped}${rightBoundary}`;
   });
 
