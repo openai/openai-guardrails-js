@@ -201,9 +201,10 @@ export class AsyncRunEngine implements RunEngine {
       return sampleData;
     }
 
+    // Extract from the latest user message only (not tool/function messages without roles)
     for (let idx = conversation.length - 1; idx >= 0; idx -= 1) {
       const entry = conversation[idx];
-      if (!entry.role || entry.role === 'user') {
+      if (entry.role === 'user') {
         const extracted = this.extractLatestInput(entry, sampleData);
         if (extracted.trim().length > 0) {
           return extracted;
@@ -211,9 +212,8 @@ export class AsyncRunEngine implements RunEngine {
       }
     }
 
-    const fallback = conversation[conversation.length - 1];
-    const extractedFallback = this.extractLatestInput(fallback, sampleData);
-    return extractedFallback.trim().length > 0 ? extractedFallback : sampleData;
+    // Fallback: if no user message found, return full sample data
+    return sampleData;
   }
 
   private guardrailUsesConversationHistory(guardrail: ConfiguredGuardrail): boolean {
