@@ -34,7 +34,10 @@ export type ConversationMessage = NormalizedConversationEntry;
  * prompt injection detection checks that need to track incremental conversation state.
  */
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
-  /** Get the full conversation history */
+  /** Conversation history as a direct property for convenient access */
+  conversationHistory: NormalizedConversationEntry[];
+  
+  /** Get the full conversation history (method accessor for compatibility) */
   getConversationHistory(): NormalizedConversationEntry[];
 }
 

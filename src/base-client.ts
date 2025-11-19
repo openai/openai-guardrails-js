@@ -6,7 +6,14 @@
  */
 
 import { OpenAI, AzureOpenAI } from 'openai';
-import { GuardrailResult, GuardrailLLMContext, Message, ContentPart, TextContentPart } from './types';
+import {
+  GuardrailResult,
+  GuardrailLLMContext,
+  GuardrailLLMContextWithHistory,
+  Message,
+  ContentPart,
+  TextContentPart,
+} from './types';
 import { ContentUtils } from './utils/content';
 import {
   GuardrailBundle,
@@ -476,12 +483,20 @@ export abstract class GuardrailsBaseClient {
   protected createContextWithConversation(
     conversationHistory: NormalizedConversationEntry[]
   ): GuardrailLLMContext {
-    return {
-      guardrailLlm: this.context.guardrailLlm,
-      getConversationHistory: () => conversationHistory,
-    } as GuardrailLLMContext & {
-      getConversationHistory(): NormalizedConversationEntry[];
+    const baseContext = this.context;
+    const historySnapshot = conversationHistory.map((entry) => ({ ...entry }));
+    const getHistory = (): NormalizedConversationEntry[] =>
+      historySnapshot.map((entry) => ({ ...entry }));
+
+    // Expose conversation_history as both a property and a method for compatibility
+    const contextWithHistory: GuardrailLLMContext & GuardrailLLMContextWithHistory = {
+      ...baseContext,
+      guardrailLlm: baseContext.guardrailLlm,
+      conversationHistory: historySnapshot,
+      getConversationHistory: getHistory,
     };
+
+    return contextWithHistory;
   }
 
   protected appendLlmResponseToConversation(

@@ -390,7 +390,7 @@ describe('GuardrailAgent', () => {
               mediaType: 'text/plain',
               configSchema: z.object({}),
               checkFn: vi.fn(),
-              metadata: {},
+              metadata: { usesConversationHistory: true }, // Mark as conversation-aware to trigger context creation
               ctxRequirements: z.object({}),
               schema: () => ({}),
               instantiate: vi.fn(),
@@ -435,7 +435,9 @@ describe('GuardrailAgent', () => {
 
       expect(runSpy).toHaveBeenCalledTimes(1);
       const [ctxArgRaw, dataArg] = runSpy.mock.calls[0] as [unknown, string];
-      const ctxArg = ctxArgRaw as { getConversationHistory?: () => unknown[] };
+      const ctxArg = ctxArgRaw as {
+        getConversationHistory?: () => unknown[];
+      };
       expect(dataArg).toBe('Latest user message with additional context.');
       expect(typeof ctxArg.getConversationHistory).toBe('function');
 

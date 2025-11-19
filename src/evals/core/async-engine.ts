@@ -11,6 +11,54 @@ import { GuardrailLLMContextWithHistory, GuardrailResult, GuardrailLLMContext } 
 import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../../utils/conversation';
 
 /**
+ * Extract plain text from message content, handling multi-part structures.
+ *
+ * OpenAI ChatAPI supports content as either:
+ * - String: "hello world"
+ * - List of parts: [{"type": "text", "text": "hello"}, {"type": "image_url", ...}]
+ *
+ * @param content - Message content (string, list of parts, or other)
+ * @returns Extracted text as a plain string
+ */
+function extractTextFromContent(content: unknown): string {
+  // Content is already a string
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  // Content is a list of parts (multi-modal message)
+  if (Array.isArray(content)) {
+    if (content.length === 0) {
+      return '';
+    }
+
+    const textParts: string[] = [];
+    for (const part of content) {
+      if (part && typeof part === 'object') {
+        // Extract text from various field names
+        let text: unknown = null;
+        const partObj = part as Record<string, unknown>;
+        for (const field of ['text', 'input_text', 'output_text']) {
+          if (field in partObj) {
+            text = partObj[field];
+            break;
+          }
+        }
+
+        if (text !== null && typeof text === 'string') {
+          textParts.push(text);
+        }
+      }
+    }
+
+    return textParts.join(' ');
+  }
+
+  // Fallback: stringify other types
+  return content !== null && content !== undefined ? String(content) : '';
+}
+
+/**
  * Runs guardrail evaluations asynchronously.
  */
 export class AsyncRunEngine implements RunEngine {
@@ -130,8 +178,9 @@ export class AsyncRunEngine implements RunEngine {
     sampleData: string
   ): Promise<GuardrailResult> {
     const usesConversationHistory = this.guardrailUsesConversationHistory(guardrail);
-    const shouldRunIncremental =
-      this.isPromptInjectionGuardrail(guardrail) || (usesConversationHistory && this.multiTurn);
+    
+    // Run incrementally if the guardrail uses conversation history and multi-turn is enabled
+    const shouldRunIncremental = usesConversationHistory && this.multiTurn;
 
     if (shouldRunIncremental) {
       return await this.runIncrementalConversationGuardrail(context, guardrail, sampleData);
@@ -141,15 +190,30 @@ export class AsyncRunEngine implements RunEngine {
       return await this.runConversationGuardrailSinglePass(context, guardrail, sampleData);
     }
 
-    return await guardrail.run(context as GuardrailLLMContext, sampleData);
+    const userPayload = this.extractLatestUserPayload(sampleData);
+    return await guardrail.run(context as GuardrailLLMContext, userPayload);
   }
 
-  private isPromptInjectionGuardrail(guardrail: ConfiguredGuardrail): boolean {
-    const normalized = (guardrail.definition.name ?? '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-    return normalized === 'prompt injection detection';
+  private extractLatestUserPayload(sampleData: string): string {
+    const conversation = normalizeConversation(parseConversationInput(sampleData));
+
+    if (conversation.length === 0) {
+      return sampleData;
+    }
+
+    for (let idx = conversation.length - 1; idx >= 0; idx -= 1) {
+      const entry = conversation[idx];
+      if (!entry.role || entry.role === 'user') {
+        const extracted = this.extractLatestInput(entry, sampleData);
+        if (extracted.trim().length > 0) {
+          return extracted;
+        }
+      }
+    }
+
+    const fallback = conversation[conversation.length - 1];
+    const extractedFallback = this.extractLatestInput(fallback, sampleData);
+    return extractedFallback.trim().length > 0 ? extractedFallback : sampleData;
   }
 
   private guardrailUsesConversationHistory(guardrail: ConfiguredGuardrail): boolean {
@@ -189,12 +253,11 @@ export class AsyncRunEngine implements RunEngine {
     for (let turnIndex = 0; turnIndex < conversation.length; turnIndex += 1) {
       const historySlice = conversation.slice(0, turnIndex + 1);
       const guardrailContext = this.createConversationContext(context, historySlice);
-      const serializedHistory = safeStringify(historySlice, sampleData);
       const latestMessage = historySlice[historySlice.length - 1];
 
-      const payload = this.isPromptInjectionGuardrail(guardrail)
-        ? serializedHistory
-        : this.extractLatestInput(latestMessage, serializedHistory);
+      // Extract the latest input from the current message
+      const serializedHistory = safeStringify(historySlice, sampleData);
+      const payload = this.extractLatestInput(latestMessage, serializedHistory);
 
       const result = await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, payload);
 
@@ -230,7 +293,8 @@ export class AsyncRunEngine implements RunEngine {
       return fallback;
     }
 
-    const content = typeof message.content === 'string' ? message.content : null;
+    // Handle multi-part content structures (e.g., ChatAPI content parts)
+    const content = extractTextFromContent(message.content);
     if (content && content.trim().length > 0) {
       return content.trim();
     }
@@ -273,8 +337,10 @@ export class AsyncRunEngine implements RunEngine {
     context: Context,
     conversationHistory: NormalizedConversationEntry[]
   ): GuardrailLLMContextWithHistory {
+    // Expose conversation_history as both a property and a method for compatibility
     return {
       guardrailLlm: context.guardrailLlm,
+      conversationHistory,
       getConversationHistory: () => conversationHistory,
     };
   }

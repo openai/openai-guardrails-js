@@ -281,6 +281,49 @@ describe('GuardrailsBaseClient helpers', () => {
 
       expect(spy).toHaveBeenCalled();
     });
+
+    it('exposes conversation history via getters and properties for conversation-aware guardrails', async () => {
+      let capturedContext: GuardrailLLMContext | undefined;
+      const guardrail = createGuardrail(
+        'Jailbreak',
+        async (ctx) => {
+          capturedContext = ctx;
+          return {
+            tripwireTriggered: false,
+            info: { observation: 'ok' },
+          };
+        },
+        { usesConversationHistory: true }
+      );
+
+      client.setGuardrails({
+        pre_flight: [guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
+        input: [],
+        output: [],
+      });
+
+      await client.runStageGuardrails(
+        'pre_flight',
+        'payload',
+        [{ role: 'user', content: 'hi there' }],
+        false,
+        false
+      );
+
+      expect(capturedContext).toBeDefined();
+      const ctx = capturedContext as GuardrailLLMContext & {
+        getConversationHistory?: () => unknown[];
+        conversationHistory?: unknown[];
+      };
+      
+      // Verify conversation history is accessible via method
+      expect(typeof ctx.getConversationHistory).toBe('function');
+      expect(Array.isArray(ctx.getConversationHistory?.())).toBe(true);
+      
+      // Verify conversation history is also accessible via direct property access
+      expect(Array.isArray(ctx.conversationHistory)).toBe(true);
+      expect(ctx.conversationHistory).toEqual(ctx.getConversationHistory?.());
+    });
   });
 
   describe('handleLlmResponse', () => {

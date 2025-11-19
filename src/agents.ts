@@ -192,18 +192,21 @@ async function ensureConversationIncludes(
 function createConversationContext(
   baseContext: GuardrailLLMContext,
   conversation: NormalizedConversationEntry[]
-): GuardrailLLMContext & { getConversationHistory: () => NormalizedConversationEntry[] } {
+): GuardrailLLMContext & { 
+  conversationHistory: NormalizedConversationEntry[];
+  getConversationHistory: () => NormalizedConversationEntry[];
+} {
   const historySnapshot = cloneEntries(conversation);
-  const guardrailContext: GuardrailLLMContext & {
-    getConversationHistory?: () => NormalizedConversationEntry[];
-  } = {
+  const getHistory = () => cloneEntries(historySnapshot);
+
+  // Expose conversation_history as both a property and a method for compatibility
+  const guardrailContext = {
     ...baseContext,
+    conversationHistory: historySnapshot,
+    getConversationHistory: getHistory,
   };
 
-  guardrailContext.getConversationHistory = () => cloneEntries(historySnapshot);
-  return guardrailContext as GuardrailLLMContext & {
-    getConversationHistory: () => NormalizedConversationEntry[];
-  };
+  return guardrailContext;
 }
 
 function normalizeAgentInput(input: unknown): NormalizedConversationEntry[] {
@@ -612,6 +615,11 @@ async function createInputGuardrailsFromStage(
 ): Promise<InputGuardrail[]> {
   const guardrails: ConfiguredGuardrail[] = await instantiateGuardrails(stageConfig);
 
+  // Optimization: Check if any guardrail in this stage needs conversation history
+  const needsConversationHistory = guardrails.some(
+    (g) => g.definition.metadata?.usesConversationHistory
+  );
+
   return guardrails.map((guardrail: ConfiguredGuardrail) => ({
     name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
     execute: async (args: InputGuardrailFunctionArgs) => {
@@ -621,8 +629,18 @@ async function createInputGuardrailsFromStage(
         const guardContext = ensureGuardrailContext(context, agentContext);
 
         const normalizedItems = normalizeAgentInput(input);
-        const conversationHistory = await ensureConversationIncludes(normalizedItems);
-        const ctxWithConversation = createConversationContext(guardContext, conversationHistory);
+        let ctxWithConversation: GuardrailLLMContext;
+        let conversationHistory: NormalizedConversationEntry[];
+
+        // Only load conversation history if at least one guardrail in this stage needs it
+        if (needsConversationHistory) {
+          conversationHistory = await ensureConversationIncludes(normalizedItems);
+          ctxWithConversation = createConversationContext(guardContext, conversationHistory);
+        } else {
+          conversationHistory = normalizedItems;
+          ctxWithConversation = guardContext;
+        }
+
         const inputText = resolveInputText(input, conversationHistory);
 
         const result: GuardrailResult = await guardrail.run(ctxWithConversation, inputText);
@@ -663,6 +681,11 @@ async function createOutputGuardrailsFromStage(
 ): Promise<OutputGuardrail[]> {
   const guardrails: ConfiguredGuardrail[] = await instantiateGuardrails(stageConfig);
 
+  // Optimization: Check if any guardrail in this stage needs conversation history
+  const needsConversationHistory = guardrails.some(
+    (g) => g.definition.metadata?.usesConversationHistory
+  );
+
   return guardrails.map((guardrail: ConfiguredGuardrail) => ({
     name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
     execute: async (args: OutputGuardrailFunctionArgs) => {
@@ -673,8 +696,15 @@ async function createOutputGuardrailsFromStage(
 
         const outputText = resolveOutputText(agentOutput);
         const normalizedItems = normalizeAgentOutput(outputText);
-        const conversationHistory = await ensureConversationIncludes(normalizedItems);
-        const ctxWithConversation = createConversationContext(guardContext, conversationHistory);
+        let ctxWithConversation: GuardrailLLMContext;
+
+        // Only load conversation history if at least one guardrail in this stage needs it
+        if (needsConversationHistory) {
+          const conversationHistory = await ensureConversationIncludes(normalizedItems);
+          ctxWithConversation = createConversationContext(guardContext, conversationHistory);
+        } else {
+          ctxWithConversation = guardContext;
+        }
 
         const result: GuardrailResult = await guardrail.run(ctxWithConversation, outputText);
 
