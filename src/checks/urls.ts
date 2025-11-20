@@ -390,7 +390,7 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
 
     const allowedScheme = hasExplicitScheme ? parsedAllowed.protocol.replace(/:$/, '').toLowerCase() : '';
     const allowedPort = safeGetPort(parsedAllowed, allowedScheme);
-    const allowIndicatesPort = parsedAllowed.host.includes(':') && !parsedAllowed.host.startsWith('[');
+    const allowIndicatesPort = Boolean(parsedAllowed.host) && parsedAllowed.host.includes(':') && !parsedAllowed.host.startsWith('[');
     if (allowedPort === null && allowIndicatesPort) {
       continue;
     }
@@ -410,10 +410,17 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
         continue;
       }
 
-      // Port matching: only enforce when allow list entry explicitly specifies a port
-      // Check parsedAllowed.port (empty string when no port specified) not allowedPort (always has default)
-      if (parsedAllowed.port) {
-        if (urlPort === null || allowedPort !== urlPort) {
+      // Port matching: only enforce when allow list entry explicitly specifies a non-default port
+      // Explicit default ports (e.g., :443 for https) should be treated as no port specified
+      const allowedHasNonDefaultPort = parsedAllowed.port && 
+        (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
+      
+      if (allowedHasNonDefaultPort) {
+        // Allow list has explicit non-default port, so URL must match exactly
+        const urlHasNonDefaultPort = parsedUrl.port && 
+          (urlPort !== DEFAULT_PORTS[schemeLower as keyof typeof DEFAULT_PORTS]);
+        
+        if (!urlHasNonDefaultPort || allowedPort !== urlPort) {
           continue;
         }
       }
@@ -448,10 +455,17 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
 
     const allowedDomain = allowedHost.replace(/^www\./, '');
 
-    // Port matching: only enforce when allow list entry explicitly specifies a port
-    // Check parsedAllowed.port (empty string when no port specified) not allowedPort (always has default)
-    if (parsedAllowed.port) {
-      if (urlPort === null || allowedPort !== urlPort) {
+    // Port matching: only enforce when allow list entry explicitly specifies a non-default port
+    // Explicit default ports (e.g., :443 for https) should be treated as no port specified
+    const allowedHasNonDefaultPort = parsedAllowed.port && 
+      (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
+    
+    if (allowedHasNonDefaultPort) {
+      // Allow list has explicit non-default port, so URL must match exactly
+      const urlHasNonDefaultPort = parsedUrl.port && 
+        (urlPort !== DEFAULT_PORTS[schemeLower as keyof typeof DEFAULT_PORTS]);
+      
+      if (!urlHasNonDefaultPort || allowedPort !== urlPort) {
         continue;
       }
     }

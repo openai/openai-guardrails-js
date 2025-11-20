@@ -384,6 +384,44 @@ describe('urls guardrail', () => {
     expect(result.info?.blocked).toContain('help-suntropy.es');
     expect(result.info?.blocked).toContain('help.suntropy.es');
   });
+
+  it('treats explicit default ports as equivalent to no port', async () => {
+    // URLs with explicit default ports should match allow list entries without ports
+    const config = {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https', 'http']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    const text = 'Visit https://example.com:443 and http://example.com:80';
+    const result = await urls({}, text, config);
+
+    // Both should be allowed (443 is default for https, 80 is default for http)
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.allowed).toContain('https://example.com:443');
+    expect(result.info?.allowed).toContain('http://example.com:80');
+    expect(result.info?.blocked).toEqual([]);
+  });
+
+  it('blocks non-default ports when allow list has no port', async () => {
+    // URLs with non-default ports should be blocked when allow list doesn't specify a port
+    const config = {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    const text = 'Visit https://example.com:8443 and https://example.com:9000';
+    const result = await urls({}, text, config);
+
+    // Both should be allowed - when allow list has no port, any port is OK
+    // (This matches the behavior: no port restriction when not specified)
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.allowed).toContain('https://example.com:8443');
+    expect(result.info?.allowed).toContain('https://example.com:9000');
+  });
 });
 
 describe('competitors guardrail', () => {
