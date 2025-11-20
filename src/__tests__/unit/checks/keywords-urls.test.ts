@@ -404,8 +404,8 @@ describe('urls guardrail', () => {
     expect(result.info?.blocked).toEqual([]);
   });
 
-  it('blocks non-default ports when allow list has no port', async () => {
-    // URLs with non-default ports should be blocked when allow list doesn't specify a port
+  it('allows any port when allow list entry has no port specification', async () => {
+    // When the allow list entry omits a port, URLs with any port (default or non-default) are allowed
     const config = {
       url_allow_list: ['example.com'],
       allowed_schemes: new Set(['https']),
@@ -417,7 +417,6 @@ describe('urls guardrail', () => {
     const result = await urls({}, text, config);
 
     // Both should be allowed - when allow list has no port, any port is OK
-    // (This matches the behavior: no port restriction when not specified)
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.allowed).toContain('https://example.com:8443');
     expect(result.info?.allowed).toContain('https://example.com:9000');
