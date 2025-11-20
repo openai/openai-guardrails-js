@@ -407,6 +407,47 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       continue;
     }
 
+    // Handle CIDR notation before URL parsing
+    // CIDR blocks like "10.0.0.0/8" should not be parsed as URLs
+    const cidrMatch = normalizedEntry.match(/^(\d+\.\d+\.\d+\.\d+)\/(\d+)$/);
+    if (cidrMatch) {
+      // Only match against IP URLs
+      if (!urlIsIp || urlIpInt === null) {
+        continue;
+      }
+
+      const [, network, prefixStr] = cidrMatch;
+      const prefix = Number(prefixStr);
+
+      if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) {
+        console.warn(`Warning: Invalid CIDR prefix in allow list: "${normalizedEntry}"`);
+        continue;
+      }
+
+      // Validate /0 must use 0.0.0.0 for clarity
+      // Any other network address with /0 is ambiguous and likely a configuration error
+      if (prefix === 0 && network !== '0.0.0.0') {
+        console.warn(
+          `Warning: CIDR /0 prefix must use 0.0.0.0, not "${network}". Entry: "${normalizedEntry}"`
+        );
+        continue;
+      }
+
+      try {
+        const networkInt = ipToInt(network);
+        const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+        if ((networkInt & mask) === (urlIpInt & mask)) {
+          return true;
+        }
+      } catch (error) {
+        console.warn(
+          `Warning: Invalid CIDR network address in allow list: "${normalizedEntry}" - ${error instanceof Error ? error.message : error}`
+        );
+      }
+
+      continue; // Skip URL parsing for CIDR entries
+    }
+
     const hasExplicitScheme = SCHEME_PREFIX_RE.test(normalizedEntry);
 
     let parsedAllowed: URL;
@@ -453,29 +494,9 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
         continue;
       }
 
+      // Exact IP match
       if (ipToInt(allowedHost) === urlIpInt) {
         return true;
-      }
-
-      let networkSpec = allowedHost;
-      if (allowedPath && allowedPath !== '/') {
-        networkSpec = `${networkSpec}${allowedPath}`;
-      }
-
-      if (networkSpec.includes('/')) {
-        const [network, prefixStr] = networkSpec.split('/');
-        const prefix = Number(prefixStr);
-        if (Number.isInteger(prefix) && prefix >= 0 && prefix <= 32) {
-          try {
-            const networkInt = ipToInt(network);
-            const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-            if ((networkInt & mask) === (urlIpInt & mask)) {
-              return true;
-            }
-          } catch {
-            // Invalid CIDR entry; ignore.
-          }
-        }
       }
 
       continue;

@@ -422,6 +422,58 @@ describe('urls guardrail', () => {
     expect(result.info?.allowed).toContain('https://example.com:8443');
     expect(result.info?.allowed).toContain('https://example.com:9000');
   });
+
+  it('accepts CIDR /0 with 0.0.0.0 network address', async () => {
+    // 0.0.0.0/0 should match all IPs
+    const config = {
+      url_allow_list: ['0.0.0.0/0'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    const text = 'Visit https://1.2.3.4 and https://192.168.1.1';
+    const result = await urls({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.allowed).toContain('https://1.2.3.4');
+    expect(result.info?.allowed).toContain('https://192.168.1.1');
+  });
+
+  it('rejects CIDR /0 with non-zero network address', async () => {
+    // 10.0.0.0/0 is ambiguous - /0 should only use 0.0.0.0
+    const config = {
+      url_allow_list: ['10.0.0.0/0'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    const text = 'Visit https://10.5.5.5 and https://192.168.1.1';
+    const result = await urls({}, text, config);
+
+    // Should block both because 10.0.0.0/0 is invalid (emits warning)
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.blocked).toContain('https://10.5.5.5');
+    expect(result.info?.blocked).toContain('https://192.168.1.1');
+  });
+
+  it('rejects invalid CIDR prefix values', async () => {
+    // Test various invalid CIDR prefixes
+    const config = {
+      url_allow_list: ['10.0.0.0/33', '192.168.0.0/-1', '172.16.0.0/abc'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    const text = 'Visit https://10.5.5.5 and https://192.168.1.1 and https://172.16.1.1';
+    const result = await urls({}, text, config);
+
+    // All should be blocked due to invalid CIDR configurations
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.blocked).toHaveLength(3);
+  });
 });
 
 describe('competitors guardrail', () => {
