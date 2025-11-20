@@ -452,7 +452,13 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     }
 
     if (allowedPath && allowedPath !== '/') {
-      if (urlPath !== allowedPath && !urlPath.startsWith(`${allowedPath}/`)) {
+      // Normalize trailing slashes to avoid double-slash issues when checking subpaths
+      // e.g., if allowedPath is "/api/", we normalize to "/api" before adding "/"
+      // so we check "/api/" not "/api//" when matching "/api/users"
+      const normalizedAllowedPath = allowedPath.replace(/\/+$/, '');
+      const normalizedUrlPath = urlPath.replace(/\/+$/, '');
+      
+      if (normalizedUrlPath !== normalizedAllowedPath && !normalizedUrlPath.startsWith(`${normalizedAllowedPath}/`)) {
         continue;
       }
     }

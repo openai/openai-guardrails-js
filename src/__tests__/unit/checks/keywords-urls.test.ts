@@ -311,6 +311,35 @@ describe('urls guardrail', () => {
     expect(result.info?.blocked).toHaveLength(3);
     expect(result.info?.blocked_reasons).toHaveLength(3);
   });
+
+  it('handles trailing slashes in allow list paths correctly', async () => {
+    // Regression test: allow list entries with trailing slashes should match subpaths
+    // Previously, '/api/' + '/' created '/api//' which wouldn't match '/api/users'
+    const text = [
+      'https://example.com/api/users',
+      'https://example.com/api/v2/data',
+      'https://example.com/other',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['https://example.com/api/'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining([
+        'https://example.com/api/users',
+        'https://example.com/api/v2/data',
+      ])
+    );
+    expect(result.info?.blocked).toContain('https://example.com/other');
+  });
 });
 
 describe('competitors guardrail', () => {
