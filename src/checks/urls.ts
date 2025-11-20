@@ -243,16 +243,18 @@ function detectUrls(text: string): string[] {
 function validateUrlSecurity(
   urlString: string,
   config: UrlsConfig
-): { parsedUrl: URL | null; reason: string } {
+): { parsedUrl: URL | null; reason: string; hadScheme: boolean } {
   try {
     let parsedUrl: URL;
     let originalScheme: string;
+    let hadScheme: boolean;
 
     // Parse URL - preserve original scheme for validation
     if (urlString.includes('://')) {
       // Standard URL with double-slash scheme (http://, https://, ftp://, etc.)
       parsedUrl = new URL(urlString);
       originalScheme = parsedUrl.protocol.replace(/:$/, '');
+      hadScheme = true;
     } else if (
       urlString.includes(':') &&
       urlString.split(':', 1)[0].match(/^(data|javascript|vbscript|mailto)$/)
@@ -260,41 +262,44 @@ function validateUrlSecurity(
       // Special single-colon schemes
       parsedUrl = new URL(urlString);
       originalScheme = parsedUrl.protocol.replace(/:$/, '');
+      hadScheme = true;
     } else {
       // Add http scheme for parsing, but remember this is a default
       parsedUrl = new URL(`http://${urlString}`);
       originalScheme = 'http'; // Default scheme for scheme-less URLs
+      hadScheme = false;
     }
 
     // Basic validation: must have scheme and hostname (except for special schemes)
     if (!parsedUrl.protocol) {
-      return { parsedUrl: null, reason: 'Invalid URL format' };
+      return { parsedUrl: null, reason: 'Invalid URL format', hadScheme: false };
     }
 
     // Special schemes like data: and javascript: don't need hostname
     const parsedScheme = parsedUrl.protocol.replace(/:$/, '').toLowerCase();
     if (!HOSTLESS_SCHEMES.has(parsedScheme) && !parsedUrl.hostname) {
-      return { parsedUrl: null, reason: 'Invalid URL format' };
+      return { parsedUrl: null, reason: 'Invalid URL format', hadScheme };
     }
 
     // Security validations - use original scheme
+    // Only check allowed_schemes if the URL explicitly had a scheme
     const normalizedScheme = originalScheme.toLowerCase();
 
-    if (!config.allowed_schemes.has(normalizedScheme)) {
-      return { parsedUrl: null, reason: `Blocked scheme: ${normalizedScheme}` };
+    if (hadScheme && !config.allowed_schemes.has(normalizedScheme)) {
+      return { parsedUrl: null, reason: `Blocked scheme: ${normalizedScheme}`, hadScheme };
     }
 
     if (config.block_userinfo && (parsedUrl.username || parsedUrl.password)) {
-      return { parsedUrl: null, reason: 'Contains userinfo (potential credential injection)' };
+      return { parsedUrl: null, reason: 'Contains userinfo (potential credential injection)', hadScheme };
     }
 
     // Everything else (IPs, localhost, private IPs) goes through allow list logic
-    return { parsedUrl, reason: '' };
+    return { parsedUrl, reason: '', hadScheme };
   } catch (error) {
     // Provide specific error information for debugging
     const errorName = error instanceof Error ? error.name : 'Error';
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { parsedUrl: null, reason: `URL parsing error: ${errorName}: ${errorMessage}` };
+    return { parsedUrl: null, reason: `URL parsing error: ${errorName}: ${errorMessage}`, hadScheme: false };
   }
 }
 
@@ -328,8 +333,13 @@ function isIpv4Address(value: string): boolean {
 
 /**
  * Check if URL is allowed based on the allow list configuration.
+ *
+ * @param parsedUrl - The parsed URL to check
+ * @param allowList - List of allowed URL patterns
+ * @param allowSubdomains - Whether to allow subdomains
+ * @param hadScheme - Whether the original URL had an explicit scheme
  */
-function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: boolean): boolean {
+function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: boolean, hadScheme: boolean): boolean {
   if (allowList.length === 0) {
     return false;
   }
@@ -395,11 +405,14 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
         continue;
       }
 
-      if (hasExplicitScheme && allowedScheme && allowedScheme !== schemeLower) {
+      // Scheme matching for IPs: only enforce when BOTH allow list entry AND URL have explicit schemes
+      if (hasExplicitScheme && hadScheme && allowedScheme && allowedScheme !== schemeLower) {
         continue;
       }
 
-      if (allowedPort !== null) {
+      // Port matching: only enforce when allow list entry explicitly specifies a port
+      // Check parsedAllowed.port (empty string when no port specified) not allowedPort (always has default)
+      if (parsedAllowed.port) {
         if (urlPort === null || allowedPort !== urlPort) {
           continue;
         }
@@ -435,7 +448,9 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
 
     const allowedDomain = allowedHost.replace(/^www\./, '');
 
-    if (allowedPort !== null) {
+    // Port matching: only enforce when allow list entry explicitly specifies a port
+    // Check parsedAllowed.port (empty string when no port specified) not allowedPort (always has default)
+    if (parsedAllowed.port) {
       if (urlPort === null || allowedPort !== urlPort) {
         continue;
       }
@@ -447,7 +462,8 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       continue;
     }
 
-    if (hasExplicitScheme && allowedScheme && allowedScheme !== schemeLower) {
+    // Scheme matching for domains: only enforce when BOTH allow list entry AND URL have explicit schemes
+    if (hasExplicitScheme && hadScheme && allowedScheme && allowedScheme !== schemeLower) {
       continue;
     }
 
@@ -492,7 +508,7 @@ export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, 
 
   for (const urlString of detectedUrls) {
     // Validate URL with security checks
-    const { parsedUrl, reason } = validateUrlSecurity(urlString, actualConfig);
+    const { parsedUrl, reason, hadScheme } = validateUrlSecurity(urlString, actualConfig);
 
     if (parsedUrl === null) {
       blocked.push(urlString);
@@ -509,7 +525,7 @@ export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, 
       // They were already validated for scheme permission in validateUrlSecurity
       allowed.push(urlString);
     } else if (
-      isUrlAllowed(parsedUrl, actualConfig.url_allow_list, actualConfig.allow_subdomains)
+      isUrlAllowed(parsedUrl, actualConfig.url_allow_list, actualConfig.allow_subdomains, hadScheme)
     ) {
       allowed.push(urlString);
     } else {

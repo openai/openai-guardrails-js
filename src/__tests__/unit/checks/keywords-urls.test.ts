@@ -340,6 +340,50 @@ describe('urls guardrail', () => {
     );
     expect(result.info?.blocked).toContain('https://example.com/other');
   });
+
+  it('matches scheme-less URLs against scheme-qualified allow list entries', async () => {
+    // Test exact behavior: scheme-qualified allow list vs scheme-less/explicit URLs
+    const config = {
+      url_allow_list: ['https://suntropy.es'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+
+    // Test scheme-less URL (should be allowed)
+    const result1 = await urls({}, 'Visit suntropy.es', config);
+    expect(result1.info?.allowed).toContain('suntropy.es');
+    expect(result1.tripwireTriggered).toBe(false);
+
+    // Test HTTPS URL (should match allow list scheme)
+    const result2 = await urls({}, 'Visit https://suntropy.es', config);
+    expect(result2.info?.allowed).toContain('https://suntropy.es');
+    expect(result2.tripwireTriggered).toBe(false);
+
+    // Test HTTP URL (wrong explicit scheme should be blocked)
+    const result3 = await urls({}, 'Visit http://suntropy.es', config);
+    expect(result3.info?.blocked).toContain('http://suntropy.es');
+    expect(result3.tripwireTriggered).toBe(true);
+  });
+
+  it('blocks subdomains and paths correctly with scheme-qualified allow list', async () => {
+    // Verify subdomains and paths are still blocked according to allow list rules
+    const config = {
+      url_allow_list: ['https://suntropy.es'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    };
+    
+    const text = 'Visit help-suntropy.es and help.suntropy.es';
+    const result = await urls({}, text, config);
+
+    // Both should be blocked - not in allow list
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.blocked).toHaveLength(2);
+    expect(result.info?.blocked).toContain('help-suntropy.es');
+    expect(result.info?.blocked).toContain('help.suntropy.es');
+  });
 });
 
 describe('competitors guardrail', () => {
