@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { keywordsCheck, KeywordsConfig } from '../../../checks/keywords';
-import { urls } from '../../../checks/urls';
+import { urls, UrlsConfig } from '../../../checks/urls';
 import { competitorsCheck } from '../../../checks/competitors';
 import { GuardrailResult } from '../../../types';
 
@@ -31,6 +31,16 @@ describe('keywords guardrail', () => {
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.matchedKeywords).toEqual([]);
+  });
+});
+
+describe('UrlsConfig', () => {
+  it('normalizes allowed scheme inputs', () => {
+    const config = UrlsConfig.parse({
+      allowed_schemes: ['HTTPS://', 'http:', '  https  '],
+    });
+
+    expect(Array.from(config.allowed_schemes).sort()).toEqual(['http', 'https']);
   });
 });
 
@@ -91,6 +101,215 @@ describe('urls guardrail', () => {
     expect(result.info?.allowed).toContain('https://sub.example.com');
     expect(result.info?.blocked).toContain('https://other.com');
     expect(result.tripwireTriggered).toBe(true);
+  });
+
+  it('allows full URLs with explicit paths in the allow list', async () => {
+    const text = [
+      'https://suntropy.es',
+      'https://api.example.com/v1/tools?id=2',
+      'https://api.example.com/v2',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['https://suntropy.es', 'https://api.example.com/v1'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining([
+        'https://suntropy.es',
+        'https://api.example.com/v1/tools?id=2',
+      ])
+    );
+    expect(result.info?.blocked).toContain('https://api.example.com/v2');
+  });
+
+  it('respects path segment boundaries to avoid prefix bypasses', async () => {
+    const text = [
+      'https://example.com/api',
+      'https://example.com/api/users',
+      'https://example.com/api2',
+      'https://example.com/api-v2',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['https://example.com/api'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining([
+        'https://example.com/api',
+        'https://example.com/api/users',
+      ])
+    );
+    expect(result.info?.blocked).toEqual(
+      expect.arrayContaining([
+        'https://example.com/api2',
+        'https://example.com/api-v2',
+      ])
+    );
+  });
+
+  it('matches scheme-less allow list entries across configured schemes', async () => {
+    const text = ['https://example.com', 'http://example.com'].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['example.com'],
+        allowed_schemes: new Set(['https', 'http']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining(['https://example.com', 'http://example.com'])
+    );
+    expect(result.info?.blocked).toEqual([]);
+  });
+
+  it('enforces explicit scheme matches when allow list entries include schemes', async () => {
+    const text = ['https://bank.example.com', 'http://bank.example.com'].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['https://bank.example.com'],
+        allowed_schemes: new Set(['https', 'http']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(expect.arrayContaining(['https://bank.example.com']));
+    expect(result.info?.blocked).toContain('http://bank.example.com');
+  });
+
+  it('supports CIDR ranges and explicit port matching', async () => {
+    const text = [
+      'https://10.5.5.5',
+      'https://192.168.1.100',
+      'https://192.168.2.1',
+      'https://example.com:8443',
+      'https://example.com',
+      'https://api.internal.com:9000',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['10.0.0.0/8', '192.168.1.0/24', 'https://example.com:8443', 'api.internal.com'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining([
+        'https://10.5.5.5',
+        'https://192.168.1.100',
+        'https://example.com:8443',
+        'https://api.internal.com:9000',
+      ])
+    );
+    expect(result.info?.blocked).toEqual(
+      expect.arrayContaining(['https://192.168.2.1', 'https://example.com'])
+    );
+  });
+
+  it('requires query strings and fragments to match exactly when configured', async () => {
+    const text = [
+      'https://example.com/search?q=test',
+      'https://example.com/search?q=other',
+      'https://example.com/docs#intro',
+      'https://example.com/docs#outro',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: [
+          'https://example.com/search?q=test',
+          'https://example.com/docs#intro',
+        ],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.allowed).toEqual(
+      expect.arrayContaining([
+        'https://example.com/search?q=test',
+        'https://example.com/docs#intro',
+      ])
+    );
+    expect(result.info?.blocked).toEqual(
+      expect.arrayContaining([
+        'https://example.com/search?q=other',
+        'https://example.com/docs#outro',
+      ])
+    );
+  });
+
+  it('blocks URLs containing only a password in userinfo when configured', async () => {
+    const result = await urls(
+      {},
+      'https://:secret@example.com',
+      {
+        url_allow_list: ['example.com'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.info?.blocked).toContain('https://:secret@example.com');
+    expect(
+      (result.info?.blocked_reasons as string[]).some((reason) => reason.includes('userinfo'))
+    ).toBe(true);
+  });
+
+  it('handles malformed ports gracefully without crashing', async () => {
+    const text = [
+      'https://example.com:99999',
+      'https://example.com:abc',
+      'https://example.com:-1',
+    ].join(' ');
+
+    const result = await urls(
+      {},
+      text,
+      {
+        url_allow_list: ['example.com'],
+        allowed_schemes: new Set(['https']),
+        allow_subdomains: false,
+        block_userinfo: true,
+      }
+    );
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.blocked).toHaveLength(3);
+    expect(result.info?.blocked_reasons).toHaveLength(3);
   });
 });
 

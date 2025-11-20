@@ -9,6 +9,55 @@ import { z } from 'zod';
 import { CheckFn } from '../types';
 import { defaultSpecRegistry } from '../registry';
 
+const DEFAULT_PORTS: Record<string, number> = {
+  http: 80,
+  https: 443,
+};
+
+const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+const HOSTLESS_SCHEMES = new Set(['data', 'javascript', 'vbscript', 'mailto']);
+
+function normalizeAllowedSchemes(value: unknown): Set<string> {
+  if (value === undefined || value === null) {
+    return new Set(['https']);
+  }
+
+  let rawValues: unknown[];
+  if (typeof value === 'string') {
+    rawValues = [value];
+  } else if (value instanceof Set) {
+    rawValues = Array.from(value.values());
+  } else if (Array.isArray(value)) {
+    rawValues = value;
+  } else {
+    throw new Error('allowed_schemes entries must be strings');
+  }
+
+  const normalized = new Set<string>();
+  for (const entry of rawValues) {
+    if (typeof entry !== 'string') {
+      throw new Error('allowed_schemes entries must be strings');
+    }
+    let cleaned = entry.trim().toLowerCase();
+    if (!cleaned) {
+      continue;
+    }
+    if (cleaned.endsWith('://')) {
+      cleaned = cleaned.slice(0, -3);
+    }
+    cleaned = cleaned.replace(/:+$/, '');
+    if (cleaned) {
+      normalized.add(cleaned);
+    }
+  }
+
+  if (normalized.size === 0) {
+    throw new Error('allowed_schemes must include at least one scheme');
+  }
+
+  return normalized;
+}
+
 /**
  * Configuration schema for URL filtering.
  */
@@ -17,7 +66,7 @@ export const UrlsConfig = z.object({
   url_allow_list: z.array(z.string()).default([]),
   /** Allowed URL schemes/protocols (default: HTTPS only for security) */
   allowed_schemes: z
-    .preprocess((val) => (Array.isArray(val) ? new Set(val) : val), z.set(z.string()))
+    .preprocess((val) => normalizeAllowedSchemes(val), z.set(z.string()))
     .default(new Set(['https'])),
   /** Block URLs with userinfo (user:pass@domain) to prevent credential injection */
   block_userinfo: z.boolean().default(true),
@@ -43,6 +92,35 @@ function ipToInt(ip: string): number {
     throw new Error(`Invalid IP address: ${ip}`);
   }
   return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+}
+
+function extractHostCandidate(url: string): string | null {
+  if (!url.includes('://')) {
+    return null;
+  }
+
+  const [, rest] = url.split('://', 2);
+  if (!rest) {
+    return null;
+  }
+
+  const hostAndRest = rest.split(/[/?#]/, 1)[0];
+  const withoutCreds = hostAndRest.includes('@')
+    ? hostAndRest.split('@').pop() ?? ''
+    : hostAndRest;
+  if (!withoutCreds) {
+    return null;
+  }
+
+  if (withoutCreds.startsWith('[')) {
+    const closingIndex = withoutCreds.indexOf(']');
+    if (closingIndex !== -1) {
+      return withoutCreds.slice(0, closingIndex + 1);
+    }
+    return withoutCreds;
+  }
+
+  return withoutCreds.split(':', 1)[0];
 }
 
 /**
@@ -129,8 +207,12 @@ function detectUrls(text: string): string[] {
           schemeUrlDomains.add(bareDomain);
         }
       } catch {
-        // Skip URLs with parsing errors (malformed URLs, encoding issues)
-        // This is expected for edge cases and doesn't require logging
+        const fallbackHost = extractHostCandidate(url);
+        if (fallbackHost) {
+          const normalizedHost = fallbackHost.toLowerCase();
+          schemeUrlDomains.add(normalizedHost);
+          schemeUrlDomains.add(normalizedHost.replace(/^www\./, ''));
+        }
       }
       finalUrls.push(url);
     }
@@ -152,7 +234,11 @@ function detectUrls(text: string): string[] {
 }
 
 /**
- * Validate URL against security configuration.
+ * Validate URL security properties using WHATWG URL parsing.
+ *
+ * Ensures scheme compliance, hostname presence (for host-based schemes), and
+ * blocks userinfo when configured. Returns structured errors for guardrail
+ * reporting while keeping the parsed URL when valid.
  */
 function validateUrlSecurity(
   urlString: string,
@@ -166,14 +252,14 @@ function validateUrlSecurity(
     if (urlString.includes('://')) {
       // Standard URL with double-slash scheme (http://, https://, ftp://, etc.)
       parsedUrl = new URL(urlString);
-      originalScheme = parsedUrl.protocol.replace(':', '');
+      originalScheme = parsedUrl.protocol.replace(/:$/, '');
     } else if (
       urlString.includes(':') &&
       urlString.split(':', 1)[0].match(/^(data|javascript|vbscript|mailto)$/)
     ) {
       // Special single-colon schemes
       parsedUrl = new URL(urlString);
-      originalScheme = parsedUrl.protocol.replace(':', '');
+      originalScheme = parsedUrl.protocol.replace(/:$/, '');
     } else {
       // Add http scheme for parsing, but remember this is a default
       parsedUrl = new URL(`http://${urlString}`);
@@ -186,17 +272,19 @@ function validateUrlSecurity(
     }
 
     // Special schemes like data: and javascript: don't need hostname
-    const specialSchemes = new Set(['data:', 'javascript:', 'vbscript:', 'mailto:']);
-    if (!specialSchemes.has(parsedUrl.protocol) && !parsedUrl.hostname) {
+    const parsedScheme = parsedUrl.protocol.replace(/:$/, '').toLowerCase();
+    if (!HOSTLESS_SCHEMES.has(parsedScheme) && !parsedUrl.hostname) {
       return { parsedUrl: null, reason: 'Invalid URL format' };
     }
 
     // Security validations - use original scheme
-    if (!config.allowed_schemes.has(originalScheme)) {
-      return { parsedUrl: null, reason: `Blocked scheme: ${originalScheme}` };
+    const normalizedScheme = originalScheme.toLowerCase();
+
+    if (!config.allowed_schemes.has(normalizedScheme)) {
+      return { parsedUrl: null, reason: `Blocked scheme: ${normalizedScheme}` };
     }
 
-    if (config.block_userinfo && parsedUrl.username) {
+    if (config.block_userinfo && (parsedUrl.username || parsedUrl.password)) {
       return { parsedUrl: null, reason: 'Contains userinfo (potential credential injection)' };
     }
 
@@ -204,8 +292,37 @@ function validateUrlSecurity(
     return { parsedUrl, reason: '' };
   } catch (error) {
     // Provide specific error information for debugging
+    const errorName = error instanceof Error ? error.name : 'Error';
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { parsedUrl: null, reason: `Invalid URL format: ${errorMessage}` };
+    return { parsedUrl: null, reason: `URL parsing error: ${errorName}: ${errorMessage}` };
+  }
+}
+
+function safeGetPort(parsed: URL, scheme: string): number | null {
+  if (parsed.port) {
+    const portNumber = Number(parsed.port);
+    if (Number.isInteger(portNumber) && portNumber >= 0 && portNumber <= 65535) {
+      return portNumber;
+    }
+    return null;
+  }
+
+  if (scheme) {
+    const defaultPort = DEFAULT_PORTS[scheme as keyof typeof DEFAULT_PORTS];
+    if (typeof defaultPort === 'number') {
+      return defaultPort;
+    }
+  }
+
+  return null;
+}
+
+function isIpv4Address(value: string): boolean {
+  try {
+    ipToInt(value);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -222,82 +339,133 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     return false;
   }
 
+  const urlDomain = urlHost.replace(/^www\./, '');
+  const schemeLower = parsedUrl.protocol ? parsedUrl.protocol.replace(/:$/, '').toLowerCase() : '';
+  const urlPort = safeGetPort(parsedUrl, schemeLower);
+  const hostIndicatesPort = Boolean(parsedUrl.host) && parsedUrl.host.includes(':') && !parsedUrl.host.startsWith('[');
+  if (urlPort === null && hostIndicatesPort) {
+    return false;
+  }
+
+  const urlPath = parsedUrl.pathname || '/';
+  const urlQuery = parsedUrl.search ? parsedUrl.search.slice(1) : '';
+  const urlFragment = parsedUrl.hash ? parsedUrl.hash.slice(1) : '';
+  const urlIsIp = isIpv4Address(urlHost);
+  const urlIpInt = urlIsIp ? ipToInt(urlHost) : null;
+
   for (const allowedEntry of allowList) {
-    const entry = allowedEntry.toLowerCase().trim();
-
-    // Handle full URLs with specific paths
-    if (entry.includes('://')) {
-      try {
-        const allowedUrl = new URL(entry);
-        const allowedHost = allowedUrl.hostname?.toLowerCase();
-        const allowedPath = allowedUrl.pathname;
-
-        if (urlHost === allowedHost) {
-          // Check if the URL path starts with the allowed path
-          if (!allowedPath || allowedPath === '/' || parsedUrl.pathname.startsWith(allowedPath)) {
-            return true;
-          }
-        }
-      } catch (error) {
-        // Invalid URL in allow list - log warning for configuration issues
-        console.warn(
-          `Warning: Invalid URL in allow list: "${entry}" - ${error instanceof Error ? error.message : error}`
-        );
-      }
+    const normalizedEntry = allowedEntry.toLowerCase().trim();
+    if (!normalizedEntry) {
       continue;
     }
 
-    // Handle IP addresses and CIDR blocks
+    const hasExplicitScheme = SCHEME_PREFIX_RE.test(normalizedEntry);
+
+    let parsedAllowed: URL;
     try {
-      // Basic IP pattern check
-      if (/^\d+\.\d+\.\d+\.\d+/.test(entry.split('/')[0])) {
-        if (entry === urlHost) {
-          return true;
-        }
-        // Proper CIDR validation
-        if (entry.includes('/') && urlHost.match(/^\d+\.\d+\.\d+\.\d+$/)) {
-          const [network, prefixStr] = entry.split('/');
-          const prefix = parseInt(prefixStr);
+      parsedAllowed = hasExplicitScheme
+        ? new URL(normalizedEntry)
+        : new URL(`http://${normalizedEntry}`);
+    } catch (error) {
+      console.warn(
+        `Warning: Invalid URL in allow list: "${normalizedEntry}" - ${error instanceof Error ? error.message : error}`
+      );
+      continue;
+    }
 
-          if (prefix >= 0 && prefix <= 32) {
-            // Convert IPs to 32-bit integers for bitwise comparison
-            const networkInt = ipToInt(network);
-            const hostInt = ipToInt(urlHost);
+    const allowedHost = (parsedAllowed.hostname || '').toLowerCase();
+    if (!allowedHost) {
+      continue;
+    }
 
-            // Create subnet mask
-            const mask = (0xffffffff << (32 - prefix)) >>> 0;
+    const allowedScheme = hasExplicitScheme ? parsedAllowed.protocol.replace(/:$/, '').toLowerCase() : '';
+    const allowedPort = safeGetPort(parsedAllowed, allowedScheme);
+    const allowIndicatesPort = parsedAllowed.host.includes(':') && !parsedAllowed.host.startsWith('[');
+    if (allowedPort === null && allowIndicatesPort) {
+      continue;
+    }
 
-            // Check if host is in the network
-            if ((networkInt & mask) === (hostInt & mask)) {
-              return true;
-            }
-          }
-        }
+    const allowedPath = parsedAllowed.pathname || '';
+    const allowedQuery = parsedAllowed.search ? parsedAllowed.search.slice(1) : '';
+    const allowedFragment = parsedAllowed.hash ? parsedAllowed.hash.slice(1) : '';
+
+    const allowedHostIsIp = isIpv4Address(allowedHost);
+    if (allowedHostIsIp) {
+      if (!urlIsIp || urlIpInt === null) {
         continue;
       }
-    } catch (error) {
-      // Expected: entry is not an IP address/CIDR, continue to domain matching
-      // Only log if it looks like it was intended to be an IP but failed parsing
-      if (/^\d+\.\d+/.test(entry)) {
-        console.warn(
-          `Warning: Malformed IP address in allow list: "${entry}" - ${error instanceof Error ? error.message : error}`
-        );
+
+      if (hasExplicitScheme && allowedScheme && allowedScheme !== schemeLower) {
+        continue;
+      }
+
+      if (allowedPort !== null) {
+        if (urlPort === null || allowedPort !== urlPort) {
+          continue;
+        }
+      }
+
+      if (ipToInt(allowedHost) === urlIpInt) {
+        return true;
+      }
+
+      let networkSpec = allowedHost;
+      if (allowedPath && allowedPath !== '/') {
+        networkSpec = `${networkSpec}${allowedPath}`;
+      }
+
+      if (networkSpec.includes('/')) {
+        const [network, prefixStr] = networkSpec.split('/');
+        const prefix = Number(prefixStr);
+        if (Number.isInteger(prefix) && prefix >= 0 && prefix <= 32) {
+          try {
+            const networkInt = ipToInt(network);
+            const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
+            if ((networkInt & mask) === (urlIpInt & mask)) {
+              return true;
+            }
+          } catch {
+            // Invalid CIDR entry; ignore.
+          }
+        }
+      }
+
+      continue;
+    }
+
+    const allowedDomain = allowedHost.replace(/^www\./, '');
+
+    if (allowedPort !== null) {
+      if (urlPort === null || allowedPort !== urlPort) {
+        continue;
       }
     }
 
-    // Handle domain matching
-    const allowedDomain = entry.replace(/^www\./, '');
-    const urlDomain = urlHost.replace(/^www\./, '');
-
-    // Exact match always allowed
-    if (urlDomain === allowedDomain) {
-      return true;
+    const hostMatches =
+      urlDomain === allowedDomain || (allowSubdomains && urlDomain.endsWith(`.${allowedDomain}`));
+    if (!hostMatches) {
+      continue;
     }
 
-    // Subdomain matching if enabled
-    if (allowSubdomains && urlDomain.endsWith(`.${allowedDomain}`)) {
-      return true;
+    if (hasExplicitScheme && allowedScheme && allowedScheme !== schemeLower) {
+      continue;
     }
+
+    if (allowedPath && allowedPath !== '/') {
+      if (urlPath !== allowedPath && !urlPath.startsWith(`${allowedPath}/`)) {
+        continue;
+      }
+    }
+
+    if (allowedQuery && allowedQuery !== urlQuery) {
+      continue;
+    }
+
+    if (allowedFragment && allowedFragment !== urlFragment) {
+      continue;
+    }
+
+    return true;
   }
 
   return false;
@@ -329,8 +497,8 @@ export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, 
     // Check against allow list
     // Special schemes (data:, javascript:, mailto:) don't have meaningful hosts
     // so they only need scheme validation, not host-based allow list checking
-    const hostlessSchemes = new Set(['data:', 'javascript:', 'vbscript:', 'mailto:']);
-    if (hostlessSchemes.has(parsedUrl.protocol)) {
+    const parsedScheme = parsedUrl.protocol.replace(/:$/, '').toLowerCase();
+    if (HOSTLESS_SCHEMES.has(parsedScheme)) {
       // For hostless schemes, only scheme permission matters (no allow list needed)
       // They were already validated for scheme permission in validateUrlSecurity
       allowed.push(urlString);
@@ -349,7 +517,7 @@ export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, 
   return {
     tripwireTriggered: tripwireTriggered,
     info: {
-      guardrail_name: 'URL Filter (Direct Config)',
+      guardrail_name: 'URL Filter',
       config: {
         allowed_schemes: Array.from(actualConfig.allowed_schemes),
         block_userinfo: actualConfig.block_userinfo,
