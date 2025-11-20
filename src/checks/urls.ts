@@ -14,7 +14,7 @@ const DEFAULT_PORTS: Record<string, number> = {
   https: 443,
 };
 
-const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//;
 const HOSTLESS_SCHEMES = new Set(['data', 'javascript', 'vbscript', 'mailto']);
 
 function normalizeAllowedSchemes(value: unknown): Set<string> {
@@ -30,7 +30,7 @@ function normalizeAllowedSchemes(value: unknown): Set<string> {
   } else if (Array.isArray(value)) {
     rawValues = value;
   } else {
-    throw new Error('allowed_schemes entries must be strings');
+    throw new Error('allowed_schemes must be a string, Set, or Array');
   }
 
   const normalized = new Set<string>();
@@ -332,6 +332,44 @@ function isIpv4Address(value: string): boolean {
 }
 
 /**
+ * Check if port matching should block the URL.
+ *
+ * Only enforces port matching when the allow list entry explicitly specifies
+ * a non-default port. Explicit default ports (e.g., :443 for https) are
+ * treated as equivalent to no port being specified.
+ *
+ * @param urlPort - The URL's port number (or default for its scheme)
+ * @param urlParsed - The parsed URL object
+ * @param allowedPort - The allow list entry's port number (or default for its scheme)
+ * @param allowedParsed - The parsed allow list entry URL object
+ * @param urlScheme - The URL's scheme
+ * @param allowedScheme - The allow list entry's scheme
+ * @returns true if the port doesn't match and should be blocked, false otherwise
+ */
+function shouldBlockDueToPortMismatch(
+  urlPort: number | null,
+  urlParsed: URL,
+  allowedPort: number | null,
+  allowedParsed: URL,
+  urlScheme: string,
+  allowedScheme: string
+): boolean {
+  // Only enforce port matching when allow list entry explicitly specifies a non-default port
+  const allowedHasNonDefaultPort = allowedParsed.port && 
+    (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
+  
+  if (!allowedHasNonDefaultPort) {
+    return false; // No port restriction when allow list has no non-default port
+  }
+  
+  // Allow list has explicit non-default port, so URL must match exactly
+  const urlHasNonDefaultPort = urlParsed.port && 
+    (urlPort !== DEFAULT_PORTS[urlScheme as keyof typeof DEFAULT_PORTS]);
+  
+  return !urlHasNonDefaultPort || allowedPort !== urlPort;
+}
+
+/**
  * Check if URL is allowed based on the allow list configuration.
  *
  * @param parsedUrl - The parsed URL to check
@@ -406,23 +444,13 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       }
 
       // Scheme matching for IPs: only enforce when BOTH allow list entry AND URL have explicit schemes
-      if (hasExplicitScheme && hadScheme && allowedScheme && allowedScheme !== schemeLower) {
+      if (hasExplicitScheme && hadScheme && allowedScheme !== schemeLower) {
         continue;
       }
 
       // Port matching: only enforce when allow list entry explicitly specifies a non-default port
-      // Explicit default ports (e.g., :443 for https) should be treated as no port specified
-      const allowedHasNonDefaultPort = parsedAllowed.port && 
-        (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
-      
-      if (allowedHasNonDefaultPort) {
-        // Allow list has explicit non-default port, so URL must match exactly
-        const urlHasNonDefaultPort = parsedUrl.port && 
-          (urlPort !== DEFAULT_PORTS[schemeLower as keyof typeof DEFAULT_PORTS]);
-        
-        if (!urlHasNonDefaultPort || allowedPort !== urlPort) {
-          continue;
-        }
+      if (shouldBlockDueToPortMismatch(urlPort, parsedUrl, allowedPort, parsedAllowed, schemeLower, allowedScheme)) {
+        continue;
       }
 
       if (ipToInt(allowedHost) === urlIpInt) {
@@ -456,18 +484,8 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     const allowedDomain = allowedHost.replace(/^www\./, '');
 
     // Port matching: only enforce when allow list entry explicitly specifies a non-default port
-    // Explicit default ports (e.g., :443 for https) should be treated as no port specified
-    const allowedHasNonDefaultPort = parsedAllowed.port && 
-      (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
-    
-    if (allowedHasNonDefaultPort) {
-      // Allow list has explicit non-default port, so URL must match exactly
-      const urlHasNonDefaultPort = parsedUrl.port && 
-        (urlPort !== DEFAULT_PORTS[schemeLower as keyof typeof DEFAULT_PORTS]);
-      
-      if (!urlHasNonDefaultPort || allowedPort !== urlPort) {
-        continue;
-      }
+    if (shouldBlockDueToPortMismatch(urlPort, parsedUrl, allowedPort, parsedAllowed, schemeLower, allowedScheme)) {
+      continue;
     }
 
     const hostMatches =
@@ -477,10 +495,12 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     }
 
     // Scheme matching for domains: only enforce when BOTH allow list entry AND URL have explicit schemes
-    if (hasExplicitScheme && hadScheme && allowedScheme && allowedScheme !== schemeLower) {
+    if (hasExplicitScheme && hadScheme && allowedScheme !== schemeLower) {
       continue;
     }
 
+    // Path matching: only enforce when allow list entry explicitly specifies a non-root path
+    // Note: Empty string ('') and root ('/') are both treated as "no path restriction"
     if (allowedPath && allowedPath !== '/') {
       // Normalize trailing slashes to avoid double-slash issues when checking subpaths
       // e.g., if allowedPath is "/api/", we normalize to "/api" before adding "/"
