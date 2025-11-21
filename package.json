@@ -1,6 +1,6 @@
 {
   "name": "@openai/guardrails",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "OpenAI Guardrails: A TypeScript framework for building safe and reliable AI systems",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
