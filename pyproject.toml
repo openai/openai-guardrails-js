@@ -1,6 +1,6 @@
 [project]
 name = "openai-guardrails-js-docs"
-version = "0.1.6"
+version = "0.2.0"
 description = "Documentation for OpenAI Guardrails JS"
 requires-python = ">=3.11"
 dependencies = [
