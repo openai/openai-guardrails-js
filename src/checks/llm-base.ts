@@ -291,6 +291,10 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     unavailable_reason: 'LLM call failed before usage could be recorded',
   });
 
+  // Declare tokenUsage outside try block so it's accessible in catch
+  // when JSON parsing or schema validation fails after a successful API call
+  let tokenUsage: TokenUsage = noUsage;
+
   try {
     // Handle temperature based on model capabilities
     let temperature = 0.0;
@@ -319,7 +323,8 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // @ts-ignore - safety_identifier is not in the OpenAI types yet
     const response = await client.chat.completions.create(params);
 
-    const tokenUsage = extractTokenUsage(response);
+    // Extract token usage immediately after API call so it's available even if parsing fails
+    tokenUsage = extractTokenUsage(response);
     const result = response.choices[0]?.message?.content;
     if (!result) {
       return [
@@ -356,6 +361,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     }
 
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
+    // Use tokenUsage here since API call succeeded but response parsing failed
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
       console.warn('LLM returned non-JSON or malformed JSON.', error);
       return [
@@ -366,11 +372,12 @@ export async function runLLM<TOutput extends ZodTypeAny>(
             error_message: 'LLM returned non-JSON or malformed JSON.',
           },
         }),
-        noUsage,
+        tokenUsage,
       ];
     }
 
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
+    // Use tokenUsage here since API call succeeded but schema validation failed
     if (error instanceof z.ZodError) {
       console.warn('LLM response validation failed.', error);
       return [
@@ -382,7 +389,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
             zod_issues: error.issues ?? [],
           },
         }),
-        noUsage,
+        tokenUsage,
       ];
     }
 

@@ -186,11 +186,11 @@ describe('LLM Base', () => {
       expect(result.info.flagged).toBe(false);
       expect(result.info.confidence).toBe(0.0);
       expect(result.info.error_message).toBe('LLM response validation failed.');
+      // Token usage is now preserved even when schema validation fails
       expect(result.info.token_usage).toEqual({
-        prompt_tokens: null,
-        completion_tokens: null,
-        total_tokens: null,
-        unavailable_reason: 'LLM call failed before usage could be recorded',
+        prompt_tokens: 12,
+        completion_tokens: 4,
+        total_tokens: 16,
       });
     });
 
@@ -235,11 +235,11 @@ describe('LLM Base', () => {
       expect(result.info.flagged).toBe(false);
       expect(result.info.confidence).toBe(0.0);
       expect(result.info.error_message).toBe('LLM returned non-JSON or malformed JSON.');
+      // Token usage is now preserved even when JSON parsing fails
       expect(result.info.token_usage).toEqual({
-        prompt_tokens: null,
-        completion_tokens: null,
-        total_tokens: null,
-        unavailable_reason: 'LLM call failed before usage could be recorded',
+        prompt_tokens: 8,
+        completion_tokens: 3,
+        total_tokens: 11,
       });
     });
   });
