@@ -455,7 +455,7 @@ export function createLLMCheckFn(
     );
 
     if (isLLMErrorOutput(analysis)) {
-      return createErrorResult(name, analysis, undefined, tokenUsage);
+      return createErrorResult(name, analysis, {}, tokenUsage);
     }
 
     const isTrigger = analysis.flagged && analysis.confidence >= config.confidence_threshold;
