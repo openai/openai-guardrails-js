@@ -132,6 +132,7 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.info.confidence).toBeLessThan(config.confidence_threshold);
     expect(result.info.guardrail_name).toBe('Prompt Injection Detection');
     expect(result.info.evidence).toBeNull();
+    expect(result.info.token_usage).toBeDefined();
   });
 
   it('should handle context with previous messages', async () => {

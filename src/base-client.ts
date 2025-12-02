@@ -13,6 +13,8 @@ import {
   Message,
   ContentPart,
   TextContentPart,
+  TokenUsageSummary,
+  aggregateTokenUsageFromInfos,
 } from './types';
 import { ContentUtils } from './utils/content';
 import {
@@ -81,6 +83,7 @@ export interface GuardrailResults {
   readonly allResults: GuardrailResult[];
   readonly tripwiresTriggered: boolean;
   readonly triggeredResults: GuardrailResult[];
+  readonly totalTokenUsage: TokenUsageSummary;
 }
 
 /**
@@ -103,6 +106,10 @@ export class GuardrailResultsImpl implements GuardrailResults {
 
   get triggeredResults(): GuardrailResult[] {
     return this.allResults.filter((r) => r.tripwireTriggered);
+  }
+
+  get totalTokenUsage(): TokenUsageSummary {
+    return aggregateTokenUsageFromInfos(this.allResults.map((result) => result.info));
   }
 }
 

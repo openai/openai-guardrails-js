@@ -18,7 +18,14 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
+import {
+  CheckFn,
+  GuardrailResult,
+  GuardrailLLMContext,
+  TokenUsage,
+  extractTokenUsage,
+  tokenUsageToDict,
+} from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { createErrorResult, LLMErrorOutput } from './llm-base';
 
@@ -159,6 +166,13 @@ export const hallucination_detection: CheckFn<
     throw new Error("knowledge_source must be a valid vector store ID starting with 'vs_'");
   }
 
+  let tokenUsage: TokenUsage = Object.freeze({
+    prompt_tokens: null,
+    completion_tokens: null,
+    total_tokens: null,
+    unavailable_reason: 'LLM call failed before usage could be recorded',
+  });
+
   try {
     // Create the validation query
     const validationQuery = `${VALIDATION_PROMPT}\n\nText to validate:\n${candidate}`;
@@ -174,6 +188,8 @@ export const hallucination_detection: CheckFn<
         },
       ],
     });
+
+    tokenUsage = extractTokenUsage(response);
 
     // Extract the analysis from the response
     // The response will contain the LLM's analysis in output_text
@@ -203,13 +219,18 @@ export const hallucination_detection: CheckFn<
         confidence: 0.0,
         info: { error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}` },
       };
-      return createErrorResult('Hallucination Detection', errorOutput, {
-        threshold: config.confidence_threshold,
-        reasoning: 'LLM response could not be parsed as JSON',
-        hallucination_type: null,
-        hallucinated_statements: null,
-        verified_statements: null,
-      });
+      return createErrorResult(
+        'Hallucination Detection',
+        errorOutput,
+        {
+          threshold: config.confidence_threshold,
+          reasoning: 'LLM response could not be parsed as JSON',
+          hallucination_type: null,
+          hallucinated_statements: null,
+          verified_statements: null,
+        },
+        tokenUsage
+      );
     }
 
     const analysis = HallucinationDetectionOutput.parse(parsedJson);
@@ -228,6 +249,7 @@ export const hallucination_detection: CheckFn<
         hallucinated_statements: analysis.hallucinated_statements,
         verified_statements: analysis.verified_statements,
         threshold: config.confidence_threshold,
+        token_usage: tokenUsageToDict(tokenUsage),
       },
     };
   } catch (error) {
@@ -238,13 +260,18 @@ export const hallucination_detection: CheckFn<
       confidence: 0.0,
       info: { error_message: error instanceof Error ? error.message : String(error) },
     };
-    return createErrorResult('Hallucination Detection', errorOutput, {
-      threshold: config.confidence_threshold,
-      reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-      hallucination_type: null,
-      hallucinated_statements: null,
-      verified_statements: null,
-    });
+    return createErrorResult(
+      'Hallucination Detection',
+      errorOutput,
+      {
+        threshold: config.confidence_threshold,
+        reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
+        hallucination_type: null,
+        hallucinated_statements: null,
+        verified_statements: null,
+      },
+      tokenUsage
+    );
   }
 };
 

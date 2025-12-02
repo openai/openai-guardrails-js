@@ -118,6 +118,11 @@ describe('LLM Base', () => {
                     },
                   },
                 ],
+                usage: {
+                  prompt_tokens: 20,
+                  completion_tokens: 10,
+                  total_tokens: 30,
+                },
               }),
             },
           },
@@ -133,6 +138,11 @@ describe('LLM Base', () => {
       expect(result.info.guardrail_name).toBe('Test Guardrail');
       expect(result.info.flagged).toBe(true);
       expect(result.info.confidence).toBe(0.8);
+      expect(result.info.token_usage).toEqual({
+        prompt_tokens: 20,
+        completion_tokens: 10,
+        total_tokens: 30,
+      });
     });
 
     it('should fail open on schema validation error and not trigger tripwire', async () => {
@@ -155,6 +165,11 @@ describe('LLM Base', () => {
                     },
                   },
                 ],
+                usage: {
+                  prompt_tokens: 12,
+                  completion_tokens: 4,
+                  total_tokens: 16,
+                },
               }),
             },
           },
@@ -170,7 +185,13 @@ describe('LLM Base', () => {
       expect(result.executionFailed).toBe(true);
       expect(result.info.flagged).toBe(false);
       expect(result.info.confidence).toBe(0.0);
-      expect(result.info.info.error_message).toBe('LLM response validation failed.');
+      expect(result.info.error_message).toBe('LLM response validation failed.');
+      expect(result.info.token_usage).toEqual({
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        unavailable_reason: 'LLM call failed before usage could be recorded',
+      });
     });
 
     it('should fail open on malformed JSON and not trigger tripwire', async () => {
@@ -193,6 +214,11 @@ describe('LLM Base', () => {
                     },
                   },
                 ],
+                usage: {
+                  prompt_tokens: 8,
+                  completion_tokens: 3,
+                  total_tokens: 11,
+                },
               }),
             },
           },
@@ -208,7 +234,13 @@ describe('LLM Base', () => {
       expect(result.executionFailed).toBe(true);
       expect(result.info.flagged).toBe(false);
       expect(result.info.confidence).toBe(0.0);
-      expect(result.info.info.error_message).toBe('LLM returned non-JSON or malformed JSON.');
+      expect(result.info.error_message).toBe('LLM returned non-JSON or malformed JSON.');
+      expect(result.info.token_usage).toEqual({
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        unavailable_reason: 'LLM call failed before usage could be recorded',
+      });
     });
   });
 });

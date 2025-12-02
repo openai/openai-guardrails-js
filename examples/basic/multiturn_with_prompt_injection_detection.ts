@@ -26,7 +26,12 @@
  */
 
 import * as readline from 'readline';
-import { GuardrailsOpenAI, GuardrailTripwireTriggered, GuardrailsResponse } from '../../src';
+import {
+  GuardrailsOpenAI,
+  GuardrailTripwireTriggered,
+  GuardrailsResponse,
+  totalGuardrailTokenUsage,
+} from '../../src';
 
 // Tool implementations (mocked)
 function get_horoscope(sign: string): { horoscope: string } {
@@ -299,6 +304,15 @@ async function main(malicious: boolean = false): Promise<void> {
 
         printGuardrailResults('initial', response);
 
+        const initialUsage = totalGuardrailTokenUsage(response);
+        if (initialUsage.total_tokens !== null) {
+          console.log(
+            `[dim]Guardrail tokens (initial): ${initialUsage.total_tokens} · prompt=${
+              initialUsage.prompt_tokens ?? 0
+            }, completion=${initialUsage.completion_tokens ?? 0}[/dim]`
+          );
+        }
+
         assistantOutputs = response.output ?? [];
 
         // Guardrails passed - now safe to add user message to conversation history
@@ -394,6 +408,14 @@ async function main(malicious: boolean = false): Promise<void> {
           });
 
           printGuardrailResults('final', response);
+          const finalUsage = totalGuardrailTokenUsage(response);
+          if (finalUsage.total_tokens !== null) {
+            console.log(
+              `[dim]Guardrail tokens (final): ${finalUsage.total_tokens} · prompt=${
+                finalUsage.prompt_tokens ?? 0
+              }, completion=${finalUsage.completion_tokens ?? 0}[/dim]`
+            );
+          }
           console.log(`\n🤖 Assistant: ${response.output_text}`);
 
           // Guardrails passed - now safe to add tool results and assistant responses to history

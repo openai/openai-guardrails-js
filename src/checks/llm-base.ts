@@ -9,7 +9,14 @@
 
 import { z, ZodTypeAny } from 'zod';
 import { OpenAI } from 'openai';
-import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
+import {
+  CheckFn,
+  GuardrailResult,
+  GuardrailLLMContext,
+  TokenUsage,
+  extractTokenUsage,
+  tokenUsageToDict,
+} from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
@@ -78,7 +85,8 @@ export type LLMErrorOutput = z.infer<typeof LLMErrorOutput>;
 export function createErrorResult(
   guardrailName: string,
   analysis: LLMErrorOutput,
-  additionalInfo: Record<string, unknown> = {}
+  additionalInfo: Record<string, unknown> = {},
+  tokenUsage?: TokenUsage
 ): GuardrailResult {
   return {
     tripwireTriggered: false,
@@ -90,6 +98,7 @@ export function createErrorResult(
       confidence: analysis.confidence,
       ...analysis.info,
       ...additionalInfo,
+      ...(tokenUsage ? { token_usage: tokenUsageToDict(tokenUsage) } : {}),
     },
   };
 }
@@ -273,8 +282,14 @@ export async function runLLM<TOutput extends ZodTypeAny>(
   client: OpenAI,
   model: string,
   outputModel: TOutput
-): Promise<z.infer<TOutput> | LLMErrorOutput> {
+): Promise<[z.infer<TOutput> | LLMErrorOutput, TokenUsage]> {
   const fullPrompt = buildFullPrompt(systemPrompt, outputModel);
+  const noUsage: TokenUsage = Object.freeze({
+    prompt_tokens: null,
+    completion_tokens: null,
+    total_tokens: null,
+    unavailable_reason: 'LLM call failed before usage could be recorded',
+  });
 
   try {
     // Handle temperature based on model capabilities
@@ -304,68 +319,84 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // @ts-ignore - safety_identifier is not in the OpenAI types yet
     const response = await client.chat.completions.create(params);
 
+    const tokenUsage = extractTokenUsage(response);
     const result = response.choices[0]?.message?.content;
     if (!result) {
-      return LLMErrorOutput.parse({
-        flagged: false,
-        confidence: 0.0,
-        info: {
-          error_message: 'LLM returned no content',
-        },
-      });
+      return [
+        LLMErrorOutput.parse({
+          flagged: false,
+          confidence: 0.0,
+          info: {
+            error_message: 'LLM returned no content',
+          },
+        }),
+        tokenUsage,
+      ];
     }
 
     const cleanedResult = stripJsonCodeFence(result);
-    return outputModel.parse(JSON.parse(cleanedResult));
+    return [outputModel.parse(JSON.parse(cleanedResult)), tokenUsage];
   } catch (error) {
     console.error('LLM guardrail failed for prompt:', systemPrompt, error);
 
     // Check if this is a content filter error - Azure OpenAI
     if (error && typeof error === 'string' && error.includes('content_filter')) {
       console.warn('Content filter triggered by provider:', error);
-      return LLMErrorOutput.parse({
-        flagged: true,
-        confidence: 1.0,
-        info: {
-          third_party_filter: true,
-          error_message: String(error),
-        },
-      });
+      return [
+        LLMErrorOutput.parse({
+          flagged: true,
+          confidence: 1.0,
+          info: {
+            third_party_filter: true,
+            error_message: String(error),
+          },
+        }),
+        noUsage,
+      ];
     }
 
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
       console.warn('LLM returned non-JSON or malformed JSON.', error);
-      return LLMErrorOutput.parse({
-        flagged: false,
-        confidence: 0.0,
-        info: {
-          error_message: 'LLM returned non-JSON or malformed JSON.',
-        },
-      });
+      return [
+        LLMErrorOutput.parse({
+          flagged: false,
+          confidence: 0.0,
+          info: {
+            error_message: 'LLM returned non-JSON or malformed JSON.',
+          },
+        }),
+        noUsage,
+      ];
     }
 
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     if (error instanceof z.ZodError) {
       console.warn('LLM response validation failed.', error);
-      return LLMErrorOutput.parse({
-        flagged: false,
-        confidence: 0.0,
-        info: {
-          error_message: 'LLM response validation failed.',
-          zod_issues: error.issues ?? [],
-        },
-      });
+      return [
+        LLMErrorOutput.parse({
+          flagged: false,
+          confidence: 0.0,
+          info: {
+            error_message: 'LLM response validation failed.',
+            zod_issues: error.issues ?? [],
+          },
+        }),
+        noUsage,
+      ];
     }
 
     // Always return error information for other LLM failures
-    return LLMErrorOutput.parse({
-      flagged: false,
-      confidence: 0.0,
-      info: {
-        error_message: String(error),
-      },
-    });
+    return [
+      LLMErrorOutput.parse({
+        flagged: false,
+        confidence: 0.0,
+        info: {
+          error_message: String(error),
+        },
+      }),
+      noUsage,
+    ];
   }
 }
 
@@ -408,7 +439,7 @@ export function createLLMCheckFn(
       );
     }
 
-    const analysis = await runLLM(
+    const [analysis, tokenUsage] = await runLLM(
       data,
       renderedSystemPrompt,
       ctx.guardrailLlm as OpenAI, // Type assertion to handle OpenAI client compatibility
@@ -417,15 +448,7 @@ export function createLLMCheckFn(
     );
 
     if (isLLMErrorOutput(analysis)) {
-      return {
-        tripwireTriggered: false,
-        executionFailed: true,
-        originalException: new Error(String(analysis.info?.error_message || 'LLM execution failed')),
-        info: {
-          guardrail_name: name,
-          ...analysis,
-        },
-      };
+      return createErrorResult(name, analysis, undefined, tokenUsage);
     }
 
     const isTrigger = analysis.flagged && analysis.confidence >= config.confidence_threshold;
@@ -435,6 +458,7 @@ export function createLLMCheckFn(
         guardrail_name: name,
         ...analysis,
         threshold: config.confidence_threshold,
+        token_usage: tokenUsageToDict(tokenUsage),
       },
     };
   }

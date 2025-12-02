@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext } from '../types';
+import { CheckFn, GuardrailResult, GuardrailLLMContext, tokenUsageToDict } from '../types';
 import { LLMConfig, LLMOutput, LLMErrorOutput, createErrorResult, runLLM } from './llm-base';
 import { defaultSpecRegistry } from '../registry';
 
@@ -224,7 +224,7 @@ export const jailbreak: CheckFn<JailbreakContext, string, JailbreakConfig> = asy
   const conversationHistory = extractConversationHistory(ctx);
   const analysisPayload = buildAnalysisPayload(conversationHistory, data);
 
-  const analysis = await runLLM(
+  const [analysis, tokenUsage] = await runLLM(
     analysisPayload,
     SYSTEM_PROMPT,
     ctx.guardrailLlm,
@@ -235,10 +235,15 @@ export const jailbreak: CheckFn<JailbreakContext, string, JailbreakConfig> = asy
   const usedConversationHistory = conversationHistory.length > 0;
 
   if (isLLMErrorOutput(analysis)) {
-    return createErrorResult('Jailbreak', analysis, {
-      checked_text: analysisPayload,
-      used_conversation_history: usedConversationHistory,
-    });
+    return createErrorResult(
+      'Jailbreak',
+      analysis,
+      {
+        checked_text: analysisPayload,
+        used_conversation_history: usedConversationHistory,
+      },
+      tokenUsage
+    );
   }
 
   const isTriggered = analysis.flagged && analysis.confidence >= config.confidence_threshold;
@@ -251,6 +256,7 @@ export const jailbreak: CheckFn<JailbreakContext, string, JailbreakConfig> = asy
       threshold: config.confidence_threshold,
       checked_text: analysisPayload,
       used_conversation_history: usedConversationHistory,
+      token_usage: tokenUsageToDict(tokenUsage),
     },
   };
 };

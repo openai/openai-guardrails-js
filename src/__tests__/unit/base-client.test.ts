@@ -368,3 +368,64 @@ describe('GuardrailsBaseClient helpers', () => {
     });
   });
 });
+
+describe('GuardrailResultsImpl token usage', () => {
+  it('aggregates usage across all stages', () => {
+    const results = new GuardrailResultsImpl(
+      [
+        {
+          tripwireTriggered: false,
+          info: {
+            guardrail_name: 'Jailbreak',
+            token_usage: {
+              prompt_tokens: 100,
+              completion_tokens: 40,
+              total_tokens: 140,
+            },
+          },
+        },
+      ],
+      [],
+      [
+        {
+          tripwireTriggered: false,
+          info: {
+            guardrail_name: 'NSFW',
+            token_usage: {
+              prompt_tokens: 50,
+              completion_tokens: 30,
+              total_tokens: 80,
+            },
+          },
+        },
+      ]
+    );
+
+    expect(results.totalTokenUsage).toEqual({
+      prompt_tokens: 150,
+      completion_tokens: 70,
+      total_tokens: 220,
+    });
+  });
+
+  it('returns null totals when no guardrail reports usage', () => {
+    const results = new GuardrailResultsImpl(
+      [
+        {
+          tripwireTriggered: false,
+          info: {
+            guardrail_name: 'Moderation',
+          },
+        },
+      ],
+      [],
+      []
+    );
+
+    expect(results.totalTokenUsage).toEqual({
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+    });
+  });
+});

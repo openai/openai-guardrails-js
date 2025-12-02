@@ -3,7 +3,7 @@
  * Streams output using console logging.
  */
 
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
 import * as readline from 'readline';
 
 // Define your pipeline configuration
@@ -14,10 +14,14 @@ const PIPELINE_CONFIG = {
     version: 1,
     guardrails: [
       {
-        name: 'Contains PII',
+        name: 'Moderation',
+        config: { categories: ['hate', 'violence'] },
+      },
+      {
+        name: 'Jailbreak',
         config: {
-          entities: ['US_SSN', 'PHONE_NUMBER', 'EMAIL_ADDRESS'],
-          block: false, // Use masking mode (default) - masks PII without blocking
+          model: 'gpt-4.1-mini',
+          confidence_threshold: 0.7,
         },
       },
     ],
@@ -49,6 +53,7 @@ const PIPELINE_CONFIG = {
         config: {
           entities: ['US_SSN', 'PHONE_NUMBER', 'EMAIL_ADDRESS'],
           block: true, // Use blocking mode on output
+          detect_encoded_pii: false,
         },
       },
     ],
@@ -78,8 +83,10 @@ async function processInput(
     console.log(outputText);
 
     let responseIdToReturn: string | null = null;
+    let lastChunk: unknown = null;
 
     for await (const chunk of stream) {
+      lastChunk = chunk;
       // Access streaming response exactly like native OpenAI API
       if ('delta' in chunk && chunk.delta && typeof chunk.delta === 'string') {
         outputText += chunk.delta;
@@ -99,6 +106,14 @@ async function processInput(
     }
 
     console.log(); // New line after streaming
+
+    if (lastChunk) {
+      const usage = totalGuardrailTokenUsage(lastChunk);
+      if (usage.total_tokens !== null) {
+        console.log(`[dim]📊 Guardrail tokens: ${usage.total_tokens}[/dim]`);
+      }
+    }
+
     return responseIdToReturn;
   } catch (error) {
     if (error instanceof GuardrailTripwireTriggered) {

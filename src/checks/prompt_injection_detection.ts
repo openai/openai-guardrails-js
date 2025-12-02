@@ -17,6 +17,8 @@ import {
   GuardrailLLMContext,
   GuardrailLLMContextWithHistory,
   ConversationMessage,
+  TokenUsage,
+  tokenUsageToDict,
 } from '../types';
 import { defaultSpecRegistry } from '../registry';
 import { LLMOutput, runLLM } from './llm-base';
@@ -220,7 +222,11 @@ export const promptInjectionDetectionCheck: CheckFn<
     }
 
     const analysisPrompt = buildAnalysisPrompt(userGoalText, recentMessages, actionableMessages);
-    const analysis = await callPromptInjectionDetectionLLM(ctx, analysisPrompt, config);
+    const { analysis, tokenUsage } = await callPromptInjectionDetectionLLM(
+      ctx,
+      analysisPrompt,
+      config
+    );
 
     const isMisaligned = analysis.flagged && analysis.confidence >= config.confidence_threshold;
 
@@ -237,6 +243,7 @@ export const promptInjectionDetectionCheck: CheckFn<
         action: actionableMessages,
         recent_messages: recentMessages,
         recent_messages_json: checkedText,
+        token_usage: tokenUsageToDict(tokenUsage),
       },
     };
   } catch (error) {
@@ -360,13 +367,21 @@ function isActionableMessage(message: NormalizedConversationEntry): boolean {
   return false;
 }
 
+const SKIPPED_USAGE: TokenUsage = Object.freeze({
+  prompt_tokens: null,
+  completion_tokens: null,
+  total_tokens: null,
+  unavailable_reason: 'No LLM call made (check was skipped)',
+});
+
 function createSkipResult(
   observation: string,
   threshold: number,
   recentMessagesJson: string,
   userGoal: string = 'N/A',
   action: ConversationMessage[] = [],
-  recentMessages: ConversationMessage[] = []
+  recentMessages: ConversationMessage[] = [],
+  tokenUsage: TokenUsage = SKIPPED_USAGE
 ): GuardrailResult {
   return {
     tripwireTriggered: false,
@@ -381,6 +396,7 @@ function createSkipResult(
       action: action ?? [],
       recent_messages: recentMessages,
       recent_messages_json: recentMessagesJson,
+      token_usage: tokenUsageToDict(tokenUsage),
     },
   };
 }
@@ -429,9 +445,23 @@ async function callPromptInjectionDetectionLLM(
   ctx: GuardrailLLMContext,
   prompt: string,
   config: PromptInjectionDetectionConfig
-): Promise<PromptInjectionDetectionOutput> {
+): Promise<{ analysis: PromptInjectionDetectionOutput; tokenUsage: TokenUsage }> {
+  const fallbackOutput: PromptInjectionDetectionOutput = {
+    flagged: false,
+    confidence: 0.0,
+    observation: 'LLM analysis failed - using fallback values',
+    evidence: null,
+  };
+
+  const fallbackUsage: TokenUsage = Object.freeze({
+    prompt_tokens: null,
+    completion_tokens: null,
+    total_tokens: null,
+    unavailable_reason: 'Prompt injection detection LLM call failed',
+  });
+
   try {
-    const result = await runLLM(
+    const [result, tokenUsage] = await runLLM(
       prompt,
       '',
       ctx.guardrailLlm,
@@ -439,14 +469,23 @@ async function callPromptInjectionDetectionLLM(
       PromptInjectionDetectionOutput
     );
 
-    return PromptInjectionDetectionOutput.parse(result);
-  } catch {
-    console.warn('Prompt injection detection LLM call failed, using fallback');
+    try {
+      return {
+        analysis: PromptInjectionDetectionOutput.parse(result),
+        tokenUsage,
+      };
+    } catch (parseError) {
+      console.warn('Prompt injection detection LLM parsing failed, using fallback', parseError);
+      return {
+        analysis: fallbackOutput,
+        tokenUsage,
+      };
+    }
+  } catch (error) {
+    console.warn('Prompt injection detection LLM call failed, using fallback', error);
     return {
-      flagged: false,
-      confidence: 0.0,
-      observation: 'LLM analysis failed - using fallback values',
-      evidence: null,
+      analysis: fallbackOutput,
+      tokenUsage: fallbackUsage,
     };
   }
 }

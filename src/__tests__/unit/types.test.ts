@@ -9,7 +9,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GuardrailResult, GuardrailLLMContext } from '../../types';
+import {
+  GuardrailResult,
+  GuardrailLLMContext,
+  aggregateTokenUsageFromInfos,
+  extractTokenUsage,
+  totalGuardrailTokenUsage,
+} from '../../types';
 import { OpenAI } from 'openai';
 
 describe('Types Module', () => {
@@ -142,6 +148,84 @@ describe('Types Module', () => {
 
       const result = check({}, 'input', { complex: { nested: 'config' } });
       expect(result.tripwireTriggered).toBe(false);
+    });
+  });
+});
+
+describe('token usage helpers', () => {
+  it('extractTokenUsage returns counts when usage present', () => {
+    const usage = extractTokenUsage({
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 4,
+        total_tokens: 16,
+      },
+    });
+
+    expect(usage).toEqual({
+      prompt_tokens: 12,
+      completion_tokens: 4,
+      total_tokens: 16,
+    });
+  });
+
+  it('aggregateTokenUsageFromInfos sums values', () => {
+    const summary = aggregateTokenUsageFromInfos([
+      {
+        token_usage: {
+          prompt_tokens: 50,
+          completion_tokens: 10,
+          total_tokens: 60,
+        },
+      },
+      {
+        token_usage: {
+          prompt_tokens: 25,
+          completion_tokens: 5,
+          total_tokens: 30,
+        },
+      },
+    ]);
+
+    expect(summary).toEqual({
+      prompt_tokens: 75,
+      completion_tokens: 15,
+      total_tokens: 90,
+    });
+  });
+
+  it('totalGuardrailTokenUsage handles GuardrailResults objects', () => {
+    const guardrailResults = {
+      totalTokenUsage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+      },
+    };
+
+    const totals = totalGuardrailTokenUsage({ guardrail_results: guardrailResults });
+    expect(totals).toEqual({
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+    });
+  });
+
+  it('totalGuardrailTokenUsage handles camelCase guardrailResults property', () => {
+    const result = totalGuardrailTokenUsage({
+      guardrailResults: {
+        totalTokenUsage: {
+          prompt_tokens: 25,
+          completion_tokens: 10,
+          total_tokens: 35,
+        },
+      },
+    });
+
+    expect(result).toEqual({
+      prompt_tokens: 25,
+      completion_tokens: 10,
+      total_tokens: 35,
     });
   });
 });

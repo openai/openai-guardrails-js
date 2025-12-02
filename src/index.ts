@@ -7,7 +7,7 @@
  */
 
 // Core types and interfaces
-export { GuardrailResult, GuardrailLLMContext, CheckFn } from './types';
+export { GuardrailResult, GuardrailLLMContext, CheckFn, totalGuardrailTokenUsage } from './types';
 
 // Exception types
 export {
@@ -65,4 +65,4 @@ export { GuardrailAgent } from './agents';
 export { main as cli } from './cli';
 
 // Re-export commonly used types
-export type { MaybeAwaitableResult } from './types';
+export type { MaybeAwaitableResult, TokenUsage, TokenUsageSummary } from './types';

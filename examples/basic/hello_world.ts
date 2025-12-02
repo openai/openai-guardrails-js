@@ -8,19 +8,23 @@
  */
 
 import * as readline from 'readline';
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
 
-// Pipeline configuration with preflight PII masking and input guardrails
+// Pipeline configuration with preflight and input guardrails
 const PIPELINE_CONFIG = {
   version: 1,
   pre_flight: {
     version: 1,
     guardrails: [
       {
-        name: 'Contains PII',
+        name: 'Moderation',
+        config: { categories: ['hate', 'violence'] },
+      },
+      {
+        name: 'Jailbreak',
         config: {
-          entities: ['US_SSN', 'PHONE_NUMBER', 'EMAIL_ADDRESS'],
-          block: true, // Use masking mode (default) - masks PII without blocking
+          model: 'gpt-4.1-mini',
+          confidence_threshold: 0.7,
         },
       },
     ],
@@ -76,6 +80,10 @@ async function processInput(
   // Show guardrail results if any were run
   if (response.guardrail_results.allResults.length > 0) {
     console.log(`[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`);
+    const usage = totalGuardrailTokenUsage(response);
+    if (usage.total_tokens !== null) {
+      console.log(`[dim]Token usage: ${JSON.stringify(usage)}[/dim]`);
+    }
   }
 
   return response.id;

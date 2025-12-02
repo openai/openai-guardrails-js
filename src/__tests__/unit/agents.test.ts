@@ -451,7 +451,7 @@ describe('GuardrailAgent', () => {
       expect(result.outputInfo.input).toBe('Latest user message with additional context.');
     });
 
-    it('should handle guardrail execution errors based on raiseGuardrailErrors setting', async () => {
+  it('should handle guardrail execution errors based on raiseGuardrailErrors setting', async () => {
       process.env.OPENAI_API_KEY = 'test';
       const config = {
         version: 1,
@@ -545,6 +545,70 @@ describe('GuardrailAgent', () => {
       await expect(guardrailFunctionStrict.execute('test')).rejects.toThrow(
         'Guardrail execution failed'
       );
+    });
+  });
+
+  it('propagates guardrail metadata to outputInfo on success', async () => {
+    process.env.OPENAI_API_KEY = 'test';
+    const config = {
+      version: 1,
+      input: {
+        version: 1,
+        guardrails: [{ name: 'Jailbreak', config: {} }],
+      },
+    };
+
+    const { instantiateGuardrails } = await import('../../runtime');
+    vi.mocked(instantiateGuardrails).mockImplementationOnce(() =>
+      Promise.resolve([
+        {
+          definition: {
+            name: 'Jailbreak',
+            description: 'Test guardrail',
+            mediaType: 'text/plain',
+            configSchema: z.object({}),
+            checkFn: vi.fn(),
+            metadata: {},
+            ctxRequirements: z.object({}),
+            schema: () => ({}),
+            instantiate: vi.fn(),
+          },
+          config: {},
+          run: vi.fn().mockResolvedValue({
+            tripwireTriggered: false,
+            info: {
+              guardrail_name: 'Jailbreak',
+              flagged: false,
+              token_usage: {
+                prompt_tokens: 42,
+                completion_tokens: 10,
+                total_tokens: 52,
+              },
+            },
+          }),
+        } as unknown as Parameters<typeof instantiateGuardrails>[0] extends Promise<infer T>
+          ? T extends readonly (infer U)[]
+            ? U
+            : never
+          : never,
+      ])
+    );
+
+    const agent = (await GuardrailAgent.create(
+      config,
+      'Metadata Agent',
+      'Test instructions'
+    )) as MockAgent;
+
+    const guardrailFunction = agent.inputGuardrails[0];
+    const result = await guardrailFunction.execute('payload');
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.outputInfo.guardrail_name).toBe('Jailbreak');
+    expect(result.outputInfo.token_usage).toEqual({
+      prompt_tokens: 42,
+      completion_tokens: 10,
+      total_tokens: 52,
     });
   });
 });

@@ -39,11 +39,18 @@ describe('jailbreak guardrail', () => {
   it('passes trimmed latest input and recent history to runLLM', async () => {
     const { jailbreak, MAX_CONTEXT_TURNS } = await import('../../../checks/jailbreak');
 
-    runLLMMock.mockResolvedValue({
-      flagged: true,
-      confidence: 0.92,
-      reason: 'Detected escalation.',
-    });
+    runLLMMock.mockResolvedValue([
+      {
+        flagged: true,
+        confidence: 0.92,
+        reason: 'Detected escalation.',
+      },
+      {
+        prompt_tokens: 120,
+        completion_tokens: 40,
+        total_tokens: 160,
+      },
+    ]);
 
     const history = Array.from({ length: MAX_CONTEXT_TURNS + 2 }, (_, i) => ({
       role: 'user',
@@ -76,16 +83,28 @@ describe('jailbreak guardrail', () => {
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info.used_conversation_history).toBe(true);
     expect(result.info.reason).toBe('Detected escalation.');
+    expect(result.info.token_usage).toEqual({
+      prompt_tokens: 120,
+      completion_tokens: 40,
+      total_tokens: 160,
+    });
   });
 
   it('falls back to latest input when no history is available', async () => {
     const { jailbreak } = await import('../../../checks/jailbreak');
 
-    runLLMMock.mockResolvedValue({
-      flagged: false,
-      confidence: 0.1,
-      reason: 'Benign request.',
-    });
+    runLLMMock.mockResolvedValue([
+      {
+        flagged: false,
+        confidence: 0.1,
+        reason: 'Benign request.',
+      },
+      {
+        prompt_tokens: 60,
+        completion_tokens: 20,
+        total_tokens: 80,
+      },
+    ]);
 
     const context = {
       guardrailLlm: {} as unknown,
@@ -106,18 +125,31 @@ describe('jailbreak guardrail', () => {
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info.used_conversation_history).toBe(false);
     expect(result.info.threshold).toBe(0.8);
+    expect(result.info.token_usage).toEqual({
+      prompt_tokens: 60,
+      completion_tokens: 20,
+      total_tokens: 80,
+    });
   });
 
   it('uses createErrorResult when runLLM returns an error output', async () => {
     const { jailbreak } = await import('../../../checks/jailbreak');
 
-    runLLMMock.mockResolvedValue({
-      flagged: false,
-      confidence: 0,
-      info: {
-        error_message: 'timeout',
+    runLLMMock.mockResolvedValue([
+      {
+        flagged: false,
+        confidence: 0,
+        info: {
+          error_message: 'timeout',
+        },
       },
-    });
+      {
+        prompt_tokens: null,
+        completion_tokens: null,
+        total_tokens: null,
+        unavailable_reason: 'LLM call failed before usage could be recorded',
+      },
+    ]);
 
     const context = {
       guardrailLlm: {} as unknown,
@@ -134,5 +166,11 @@ describe('jailbreak guardrail', () => {
     expect(result.info.error_message).toBe('timeout');
     expect(result.info.checked_text).toBeDefined();
     expect(result.info.used_conversation_history).toBe(true);
+    expect(result.info.token_usage).toEqual({
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      unavailable_reason: 'LLM call failed before usage could be recorded',
+    });
   });
 });

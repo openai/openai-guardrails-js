@@ -2,7 +2,7 @@
  * Example: Guardrail bundle using Ollama's Gemma3 model with GuardrailsClient.
  */
 
-import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '../../src';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
 import * as readline from 'readline';
 import { OpenAI } from 'openai';
 
@@ -46,6 +46,10 @@ async function processInput(
     // Access response content using standard OpenAI API
     const responseContent = response.choices[0].message.content ?? '';
     console.log(`\nAssistant output: ${responseContent}\n`);
+    const usage = totalGuardrailTokenUsage(response);
+    if (usage.total_tokens !== null) {
+      console.log(`Token usage: ${usage.total_tokens}`);
+    }
 
     // Guardrails passed - now safe to add to conversation history
     conversation.push({ role: 'user', content: userInput });

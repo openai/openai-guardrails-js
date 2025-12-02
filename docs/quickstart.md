@@ -205,6 +205,75 @@ const client = await GuardrailsOpenAI.create(
 );
 ```
 
+## Token Usage Tracking
+
+LLM-based guardrails (Jailbreak, custom prompt checks, etc.) consume tokens. Keep track of those costs with the `totalGuardrailTokenUsage` helper:
+
+```typescript
+import { GuardrailsOpenAI, totalGuardrailTokenUsage } from '@openai/guardrails';
+
+const client = await GuardrailsOpenAI.create(CONFIG);
+const response = await client.guardrails.responses.create({
+  model: 'gpt-4.1-mini',
+  input: 'Hello!',
+});
+
+const tokens = totalGuardrailTokenUsage(response);
+console.log(`Guardrail tokens used: ${tokens.total_tokens}`);
+// => Guardrail tokens used: 425
+```
+
+The helper returns:
+
+```typescript
+{
+  prompt_tokens: 300,       // Sum of prompt tokens across all LLM guardrails
+  completion_tokens: 125,   // Sum of completion tokens
+  total_tokens: 425,        // Total guardrail tokens
+}
+```
+
+### Works With GuardrailsOpenAI Clients
+
+`totalGuardrailTokenUsage` works across all client types and endpoints:
+
+- **OpenAI** - sync and async clients
+- **Azure OpenAI** - sync and async clients  
+- **Third-party providers** - any OpenAI-compatible API wrapper
+- **Endpoints** - both `responses` and `chat.completions`
+- **Streaming** - capture from the final chunk
+
+```typescript
+// OpenAI client responses
+const response = await client.guardrails.responses.create(...);
+const tokens = totalGuardrailTokenUsage(response);
+
+// Streaming – use the final chunk
+let lastChunk: unknown;
+for await (const chunk of stream) {
+  lastChunk = chunk;
+}
+const streamingTokens = lastChunk ? totalGuardrailTokenUsage(lastChunk) : null;
+```
+
+**Note:** The JavaScript Agents SDK (`@openai/agents`) does not currently populate guardrail results in the `RunResult` object, so `totalGuardrailTokenUsage()` will return empty results for Agents SDK runs.
+
+### Per-Guardrail Usage
+
+Each guardrail result includes its own `token_usage` entry:
+
+```typescript
+const response = await client.guardrails.responses.create(...);
+for (const gr of response.guardrail_results.allResults) {
+  const usage = gr.info.token_usage;
+  if (usage) {
+    console.log(`${gr.info.guardrail_name}: ${usage.total_tokens} tokens`);
+  }
+}
+```
+
+Non-LLM guardrails (PII, Moderation, URL Filter, etc.) do not consume tokens, so `token_usage` will be omitted.
+
 ## Next Steps
 
 - Explore TypeScript [examples](https://github.com/openai/openai-guardrails-js/tree/main/examples) for advanced patterns
