@@ -49,16 +49,6 @@ export const PromptInjectionDetectionConfig = z.object({
 
 export type PromptInjectionDetectionConfig = z.infer<typeof PromptInjectionDetectionConfig>;
 
-// Schema for registry type documentation - describes the resolved config shape.
-// Fields are required here for TypeScript registry compatibility; runtime validation
-// uses PromptInjectionDetectionConfig which applies defaults (confidence_threshold=0.7,
-// include_reasoning=false). Users don't need to provide these defaults explicitly.
-export const PromptInjectionDetectionConfigRequired = z.object({
-  model: z.string(),
-  confidence_threshold: z.number().min(0.0).max(1.0),
-  include_reasoning: z.boolean(),
-});
-
 /**
  * Context requirements for the prompt injection detection guardrail.
  *
@@ -563,7 +553,7 @@ defaultSpecRegistry.register(
   promptInjectionDetectionCheck,
   "Guardrail that detects when tool calls or tool outputs contain malicious instructions not aligned with the user's intent. Parses conversation history and uses LLM-based analysis for prompt injection detection checking.",
   'text/plain',
-  PromptInjectionDetectionConfigRequired,
+  PromptInjectionDetectionConfig as z.ZodType<PromptInjectionDetectionConfig>,
   undefined,
   { engine: 'LLM', usesConversationHistory: true }
 );
