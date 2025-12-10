@@ -39,6 +39,16 @@ export const LLMConfig = z.object({
     ),
   /** Optional system prompt details for user-defined LLM guardrails */
   system_prompt_details: z.string().optional().describe('Additional system prompt details'),
+  /**
+   * Whether to include reasoning/explanation in guardrail output.
+   * Useful for development and debugging, but disabled by default in production to save tokens.
+   */
+  include_reasoning: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Whether to include reasoning/explanation fields in the output. Defaults to false to minimize token costs.'
+    ),
 });
 
 export type LLMConfig = z.infer<typeof LLMConfig>;
@@ -56,6 +66,19 @@ export const LLMOutput = z.object({
 });
 
 export type LLMOutput = z.infer<typeof LLMOutput>;
+
+/**
+ * Extended LLM output schema with reasoning.
+ *
+ * Extends LLMOutput to include a reason field explaining the decision.
+ * Used when include_reasoning is enabled in the config.
+ */
+export const LLMReasoningOutput = LLMOutput.extend({
+  /** Explanation of the guardrail decision */
+  reason: z.string(),
+});
+
+export type LLMReasoningOutput = z.infer<typeof LLMReasoningOutput>;
 
 /**
  * Extended LLM output schema with error information.
@@ -428,9 +451,12 @@ export function createLLMCheckFn(
   name: string,
   description: string,
   systemPrompt: string,
-  outputModel: typeof LLMOutput = LLMOutput,
+  outputModel?: typeof LLMOutput,
   configModel: typeof LLMConfig = LLMConfig
 ): CheckFn<GuardrailLLMContext, string, z.infer<typeof LLMConfig>> {
+  // Store the custom output model if provided
+  const customOutputModel = outputModel;
+
   async function guardrailFunc(
     ctx: GuardrailLLMContext,
     data: string,
@@ -446,12 +472,23 @@ export function createLLMCheckFn(
       );
     }
 
+    // Determine output model: custom model takes precedence, otherwise use include_reasoning
+    let selectedOutputModel: typeof LLMOutput;
+    if (customOutputModel !== undefined) {
+      // Always use the custom model if provided
+      selectedOutputModel = customOutputModel;
+    } else {
+      // No custom model: use include_reasoning to decide
+      const includeReasoning = config.include_reasoning ?? false;
+      selectedOutputModel = includeReasoning ? LLMReasoningOutput : LLMOutput;
+    }
+
     const [analysis, tokenUsage] = await runLLM(
       data,
       renderedSystemPrompt,
       ctx.guardrailLlm as OpenAI, // Type assertion to handle OpenAI client compatibility
       config.model,
-      outputModel
+      selectedOutputModel
     );
 
     if (isLLMErrorOutput(analysis)) {

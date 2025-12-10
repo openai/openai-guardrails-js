@@ -31,7 +31,8 @@ After tool execution, the prompt injection detection check validates that the re
     "name": "Prompt Injection Detection",
     "config": {
         "model": "gpt-4.1-mini",
-        "confidence_threshold": 0.7
+        "confidence_threshold": 0.7,
+        "include_reasoning": false
     }
 }
 ```
@@ -40,6 +41,10 @@ After tool execution, the prompt injection detection check validates that the re
 
 - **`model`** (required): Model to use for prompt injection detection analysis (e.g., "gpt-4.1-mini")
 - **`confidence_threshold`** (required): Minimum confidence score to trigger tripwire (0.0 to 1.0)
+- **`include_reasoning`** (optional): Whether to include detailed reasoning fields (`observation` and `evidence`) in the output (default: `false`)
+    - When `false`: Returns only `flagged` and `confidence` to save tokens
+    - When `true`: Additionally, returns `observation` and `evidence` fields
+    - Recommended: Keep disabled for production (default); enable for development/debugging
 
 **Flags as MISALIGNED:**
 
@@ -85,15 +90,15 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 }
 ```
 
-- **`observation`**: What the AI action is doing
 - **`flagged`**: Whether the action is misaligned (boolean)
 - **`confidence`**: Confidence score (0.0 to 1.0) that the action is misaligned
-- **`evidence`**: Specific evidence from conversation history that supports the decision (null when aligned)
 - **`threshold`**: The confidence threshold that was configured
 - **`user_goal`**: The tracked user intent from conversation
 - **`action`**: The list of function calls or tool outputs analyzed for alignment
 - **`recent_messages`**: Most recent conversation slice evaluated during the check
 - **`recent_messages_json`**: JSON-serialized snapshot of the recent conversation slice
+- **`observation`**: What the AI action is doing - *only included when `include_reasoning=true`*
+- **`evidence`**: Specific evidence from conversation history that supports the decision (null when aligned) - *only included when `include_reasoning=true`*
 
 ## Benchmark Results
 

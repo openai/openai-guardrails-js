@@ -279,7 +279,7 @@ describe('userDefinedLLM integration tests', () => {
     consoleSpy.mockRestore();
   });
 
-  it('supports optional reason field in output', async () => {
+  it('supports optional reason field in output when include_reasoning is enabled', async () => {
     vi.doUnmock('../../../checks/llm-base');
     vi.doUnmock('../../../checks/user-defined-llm');
 
@@ -298,10 +298,11 @@ describe('userDefinedLLM integration tests', () => {
       ],
     });
 
-    const config: UserDefinedConfig = {
+    const config = {
       model: 'gpt-4',
       confidence_threshold: 0.7,
       system_prompt_details: 'Flag profanity.',
+      include_reasoning: true,
     };
 
     const result = await userDefinedLLM(ctx, 'Bad words', config);

@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
+import { LLMConfig, createLLMCheckFn } from './llm-base';
 
 /**
  * Configuration schema for user-defined LLM moderation checks.
@@ -26,16 +26,6 @@ export type UserDefinedConfig = z.infer<typeof UserDefinedConfig>;
  * Context requirements for the user-defined LLM guardrail.
  */
 export type UserDefinedContext = GuardrailLLMContext;
-
-/**
- * Output schema for user-defined LLM analysis.
- */
-export const UserDefinedOutput = LLMOutput.extend({
-  /** Optional reason for the flagging decision */
-  reason: z.string().optional(),
-});
-
-export type UserDefinedOutput = z.infer<typeof UserDefinedOutput>;
 
 /**
  * System prompt template for user-defined content moderation.
@@ -57,6 +47,6 @@ export const userDefinedLLM: CheckFn<UserDefinedContext, string, UserDefinedConf
     'Custom Prompt Check',
     'User-defined LLM guardrail for custom content moderation',
     SYSTEM_PROMPT,
-    UserDefinedOutput,
+    undefined, // Let createLLMCheckFn handle include_reasoning automatically
     UserDefinedConfig as unknown as typeof LLMConfig
   ) as CheckFn<UserDefinedContext, string, UserDefinedConfig>;

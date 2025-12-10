@@ -43,6 +43,17 @@ export const HallucinationDetectionConfig = z.object({
   knowledge_source: z
     .string()
     .regex(/^vs_/, "knowledge_source must be a valid vector store ID starting with 'vs_'"),
+  /**
+   * Whether to include detailed reasoning fields in the output.
+   * When false, only returns flagged and confidence.
+   * When true, additionally returns reasoning, hallucination_type, hallucinated_statements, and verified_statements.
+   */
+  include_reasoning: z
+    .boolean()
+    .default(false)
+    .describe(
+      'Whether to include detailed reasoning fields in the output. Defaults to false to minimize token costs.'
+    ),
 });
 
 export type HallucinationDetectionConfig = z.infer<typeof HallucinationDetectionConfig>;
@@ -53,13 +64,21 @@ export type HallucinationDetectionConfig = z.infer<typeof HallucinationDetection
 export type HallucinationDetectionContext = GuardrailLLMContext;
 
 /**
- * Output schema for hallucination detection analysis.
+ * Base output schema for hallucination detection (without reasoning fields).
  */
-export const HallucinationDetectionOutput = z.object({
+export const HallucinationDetectionBaseOutput = z.object({
   /** Whether the content was flagged as potentially hallucinated */
   flagged: z.boolean(),
   /** Confidence score (0.0 to 1.0) that the input is hallucinated */
   confidence: z.number().min(0.0).max(1.0),
+});
+
+export type HallucinationDetectionBaseOutput = z.infer<typeof HallucinationDetectionBaseOutput>;
+
+/**
+ * Full output schema for hallucination detection analysis (with reasoning fields).
+ */
+export const HallucinationDetectionOutput = HallucinationDetectionBaseOutput.extend({
   /** Detailed explanation of the analysis */
   reasoning: z.string(),
   /** Type of hallucination detected */
@@ -75,7 +94,7 @@ export type HallucinationDetectionOutput = z.infer<typeof HallucinationDetection
 /**
  * Pre-defined prompt for hallucination detection.
  */
-const VALIDATION_PROMPT = `You are an expert at detecting hallucinations in AI-generated text. Your task is to analyze the given text and determine if it contains any FACTUAL CLAIMS that are clearly contradicted or completely unsupported by the provided documents.
+const VALIDATION_PROMPT_BASE = `You are an expert at detecting hallucinations in AI-generated text. Your task is to analyze the given text and determine if it contains any FACTUAL CLAIMS that are clearly contradicted or completely unsupported by the provided documents.
 
 **IMPORTANT: Flag content that contains CLEAR CONTRADICTIONS or COMPLETELY UNSUPPORTED claims.**
 
@@ -125,14 +144,6 @@ Analyze the text and determine if it contains factual claims that are:
 3. **Clearly contradicted by the documents** - Claims that directly contradict the documents → FLAG
 4. **Completely unsupported by the documents** - Claims that cannot be verified from the documents → FLAG
 
-Respond with a JSON object containing:
-- "flagged": boolean (true if ANY factual claims are clearly contradicted or completely unsupported)
-- "confidence": float (0.0 to 1.0, your confidence that the input is hallucinated)
-- "reasoning": string (detailed explanation of your analysis)
-- "hallucination_type": string (type of issue, if detected: "factual_error", "unsupported_claim", or "none" if supported)
-- "hallucinated_statements": array of strings (specific factual statements that may be hallucinated)
-- "verified_statements": array of strings (specific factual statements that are supported by the documents)
-
 **CRITICAL GUIDELINES**: 
 - Flag content if ANY factual claims are unsupported or contradicted (even if some claims are supported)
 - Allow conversational, opinion-based, or general content to pass through
@@ -143,6 +154,29 @@ Respond with a JSON object containing:
     - 1.0 = Certain hallucinated
     - 0.0 = Certain not hallucinated
     - Use the full range [0.0 - 1.0] to reflect your level of certainty`;
+
+/**
+ * Build the validation prompt based on whether reasoning is requested.
+ */
+function buildValidationPrompt(includeReasoning: boolean): string {
+  if (includeReasoning) {
+    return `${VALIDATION_PROMPT_BASE}
+
+Respond with a JSON object containing:
+- "flagged": boolean (true if ANY factual claims are clearly contradicted or completely unsupported)
+- "confidence": float (0.0 to 1.0, your confidence that the input is hallucinated)
+- "reasoning": string (detailed explanation of your analysis)
+- "hallucination_type": string (type of issue, if detected: "factual_error", "unsupported_claim", or "none" if supported)
+- "hallucinated_statements": array of strings (specific factual statements that may be hallucinated)
+- "verified_statements": array of strings (specific factual statements that are supported by the documents)`;
+  } else {
+    return `${VALIDATION_PROMPT_BASE}
+
+Respond with a JSON object containing:
+- "flagged": boolean (true if ANY factual claims are clearly contradicted or completely unsupported)
+- "confidence": float (0.0 to 1.0, your confidence that the input is hallucinated)`;
+  }
+}
 
 /**
  * Detect potential hallucinations in text by validating against documents.
@@ -174,8 +208,12 @@ export const hallucination_detection: CheckFn<
   });
 
   try {
-    // Create the validation query
-    const validationQuery = `${VALIDATION_PROMPT}\n\nText to validate:\n${candidate}`;
+    // Determine whether to include reasoning
+    const includeReasoning = config.include_reasoning ?? false;
+    
+    // Create the validation query with the appropriate prompt
+    const validationPrompt = buildValidationPrompt(includeReasoning);
+    const validationQuery = `${validationPrompt}\n\nText to validate:\n${candidate}`;
 
     // Use the Responses API with file search
     const response = await ctx.guardrailLlm.responses.create({
@@ -219,38 +257,49 @@ export const hallucination_detection: CheckFn<
         confidence: 0.0,
         info: { error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}` },
       };
-      return createErrorResult(
-        'Hallucination Detection',
-        errorOutput,
-        {
-          threshold: config.confidence_threshold,
-          reasoning: 'LLM response could not be parsed as JSON',
-          hallucination_type: null,
-          hallucinated_statements: null,
-          verified_statements: null,
-        },
-        tokenUsage
-      );
+      
+      // Only include reasoning fields in error if reasoning was requested
+      const additionalInfo: Record<string, unknown> = {
+        threshold: config.confidence_threshold,
+      };
+      if (includeReasoning) {
+        additionalInfo.reasoning = 'LLM response could not be parsed as JSON';
+        additionalInfo.hallucination_type = null;
+        additionalInfo.hallucinated_statements = null;
+        additionalInfo.verified_statements = null;
+      }
+      
+      return createErrorResult('Hallucination Detection', errorOutput, additionalInfo, tokenUsage);
     }
 
-    const analysis = HallucinationDetectionOutput.parse(parsedJson);
+    // Validate with the appropriate schema
+    const selectedSchema = includeReasoning ? HallucinationDetectionOutput : HallucinationDetectionBaseOutput;
+    const analysis = selectedSchema.parse(parsedJson);
 
     // Determine if tripwire should be triggered
     const isTrigger = analysis.flagged && analysis.confidence >= config.confidence_threshold;
 
+    // Build result info with conditional fields
+    const resultInfo: Record<string, unknown> = {
+      guardrail_name: 'Hallucination Detection',
+      flagged: analysis.flagged,
+      confidence: analysis.confidence,
+      threshold: config.confidence_threshold,
+      token_usage: tokenUsageToDict(tokenUsage),
+    };
+
+    // Only include reasoning fields if reasoning was requested
+    if (includeReasoning && 'reasoning' in analysis) {
+      const fullAnalysis = analysis as HallucinationDetectionOutput;
+      resultInfo.reasoning = fullAnalysis.reasoning;
+      resultInfo.hallucination_type = fullAnalysis.hallucination_type;
+      resultInfo.hallucinated_statements = fullAnalysis.hallucinated_statements;
+      resultInfo.verified_statements = fullAnalysis.verified_statements;
+    }
+
     return {
       tripwireTriggered: isTrigger,
-      info: {
-        guardrail_name: 'Hallucination Detection',
-        flagged: analysis.flagged,
-        confidence: analysis.confidence,
-        reasoning: analysis.reasoning,
-        hallucination_type: analysis.hallucination_type,
-        hallucinated_statements: analysis.hallucinated_statements,
-        verified_statements: analysis.verified_statements,
-        threshold: config.confidence_threshold,
-        token_usage: tokenUsageToDict(tokenUsage),
-      },
+      info: resultInfo,
     };
   } catch (error) {
     // Log unexpected errors and return safe default using shared error helper
@@ -260,18 +309,20 @@ export const hallucination_detection: CheckFn<
       confidence: 0.0,
       info: { error_message: error instanceof Error ? error.message : String(error) },
     };
-    return createErrorResult(
-      'Hallucination Detection',
-      errorOutput,
-      {
-        threshold: config.confidence_threshold,
-        reasoning: `Analysis failed: ${error instanceof Error ? error.message : String(error)}`,
-        hallucination_type: null,
-        hallucinated_statements: null,
-        verified_statements: null,
-      },
-      tokenUsage
-    );
+    
+    // Only include reasoning fields in error if reasoning was requested
+    const includeReasoning = config.include_reasoning ?? false;
+    const additionalInfo: Record<string, unknown> = {
+      threshold: config.confidence_threshold,
+    };
+    if (includeReasoning) {
+      additionalInfo.reasoning = `Analysis failed: ${error instanceof Error ? error.message : String(error)}`;
+      additionalInfo.hallucination_type = null;
+      additionalInfo.hallucinated_statements = null;
+      additionalInfo.verified_statements = null;
+    }
+    
+    return createErrorResult('Hallucination Detection', errorOutput, additionalInfo, tokenUsage);
   }
 };
 

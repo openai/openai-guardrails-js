@@ -224,12 +224,16 @@ export const jailbreak: CheckFn<JailbreakContext, string, JailbreakConfig> = asy
   const conversationHistory = extractConversationHistory(ctx);
   const analysisPayload = buildAnalysisPayload(conversationHistory, data);
 
+  // Determine output model: use JailbreakOutput with reasoning if enabled, otherwise base LLMOutput
+  const includeReasoning = config.include_reasoning ?? false;
+  const selectedOutputModel = includeReasoning ? JailbreakOutput : LLMOutput;
+
   const [analysis, tokenUsage] = await runLLM(
     analysisPayload,
     SYSTEM_PROMPT,
     ctx.guardrailLlm,
     config.model,
-    JailbreakOutput
+    selectedOutputModel
   );
 
   const usedConversationHistory = conversationHistory.length > 0;

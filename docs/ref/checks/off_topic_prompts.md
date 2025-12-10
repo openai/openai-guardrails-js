@@ -10,7 +10,8 @@ Ensures content stays within defined business scope using LLM analysis. Flags co
     "config": {
         "model": "gpt-5",
         "confidence_threshold": 0.7,
-        "system_prompt_details": "Customer support for our e-commerce platform. Topics include order status, returns, shipping, and product questions."
+        "system_prompt_details": "Customer support for our e-commerce platform. Topics include order status, returns, shipping, and product questions.",
+        "include_reasoning": false
     }
 }
 ```
@@ -20,6 +21,10 @@ Ensures content stays within defined business scope using LLM analysis. Flags co
 - **`model`** (required): Model to use for analysis (e.g., "gpt-5")
 - **`confidence_threshold`** (required): Minimum confidence score to trigger tripwire (0.0 to 1.0)
 - **`system_prompt_details`** (required): Description of your business scope and acceptable topics
+- **`include_reasoning`** (optional): Whether to include reasoning/explanation fields in the guardrail output (default: `false`)
+    - When `false`: The LLM only generates the essential fields (`flagged` and `confidence`), reducing token generation costs
+    - When `true`: Additionally, returns detailed reasoning for its decisions
+    - **Use Case**: Keep disabled for production to minimize costs; enable for development and debugging
 
 ## Implementation Notes
 
@@ -40,7 +45,7 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 }
 ```
 
-- **`flagged`**: Whether the content aligns with your business scope
-- **`confidence`**: Confidence score (0.0 to 1.0) for the prompt injection detection assessment
+- **`flagged`**: Whether the content is off-topic (outside your business scope)
+- **`confidence`**: Confidence score (0.0 to 1.0) for the assessment
 - **`threshold`**: The confidence threshold that was configured
-- **`business_scope`**: Copy of the scope provided in configuration
+- **`reason`**: Explanation of why the input was flagged (or not flagged) - *only included when `include_reasoning=true`*

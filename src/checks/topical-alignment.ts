@@ -55,6 +55,6 @@ export const topicalAlignment: CheckFn<TopicalAlignmentContext, string, TopicalA
     'Off Topic Prompts',
     'Checks that the content stays within the defined business scope',
     SYSTEM_PROMPT,
-    TopicalAlignmentOutput,
+    undefined, // Let createLLMCheckFn handle include_reasoning automatically
     TopicalAlignmentConfig as unknown as typeof LLMConfig
   ) as CheckFn<TopicalAlignmentContext, string, TopicalAlignmentConfig>;

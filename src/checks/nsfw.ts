@@ -34,7 +34,7 @@
  */
 
 import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
+import { LLMConfig, createLLMCheckFn } from './llm-base';
 
 /**
  * Context requirements for the NSFW guardrail.
@@ -76,6 +76,6 @@ export const nsfw_content: CheckFn<NsfwContext, string, LLMConfig> = createLLMCh
   'NSFW Text',
   'Detects NSFW (Not Safe For Work) content in text, including sexual content, hate speech, violence, profanity, illegal activities, and other inappropriate material.',
   SYSTEM_PROMPT,
-  LLMOutput,
+  undefined, // Let createLLMCheckFn handle include_reasoning automatically
   LLMConfig
 );

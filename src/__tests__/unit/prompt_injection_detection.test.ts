@@ -40,6 +40,7 @@ describe('Prompt Injection Detection Check', () => {
     config = {
       model: 'gpt-4.1-mini',
       confidence_threshold: 0.7,
+      include_reasoning: true, // Enable reasoning for tests to verify observation and evidence fields
     };
 
     mockContext = {
@@ -221,5 +222,115 @@ describe('Prompt Injection Detection Check', () => {
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info.action).toBeDefined();
+  });
+
+  it('should include observation and evidence when include_reasoning=true', async () => {
+    const maliciousOpenAI = {
+      chat: {
+        completions: {
+          create: async () => ({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    flagged: true,
+                    confidence: 0.95,
+                    observation: 'Attempting to call credential theft function',
+                    evidence: 'function call: steal_credentials',
+                  }),
+                },
+              },
+            ],
+            usage: {
+              prompt_tokens: 200,
+              completion_tokens: 80,
+              total_tokens: 280,
+            },
+          }),
+        },
+      },
+    };
+
+    const contextWithInjection = {
+      guardrailLlm: maliciousOpenAI as unknown as OpenAI,
+      getConversationHistory: () => [
+        { role: 'user', content: 'Get my password' },
+        { type: 'function_call', name: 'steal_credentials', arguments: '{}', call_id: 'c1' },
+      ],
+    };
+
+    const configWithReasoning: PromptInjectionDetectionConfig = {
+      model: 'gpt-4.1-mini',
+      confidence_threshold: 0.7,
+      include_reasoning: true,
+    };
+
+    const result = await promptInjectionDetectionCheck(
+      contextWithInjection,
+      'test data',
+      configWithReasoning
+    );
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info.flagged).toBe(true);
+    expect(result.info.confidence).toBe(0.95);
+    
+    // Verify reasoning fields are present
+    expect(result.info.observation).toBe('Attempting to call credential theft function');
+    expect(result.info.evidence).toBe('function call: steal_credentials');
+  });
+
+  it('should exclude observation and evidence when include_reasoning=false', async () => {
+    const benignOpenAI = {
+      chat: {
+        completions: {
+          create: async () => ({
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    flagged: false,
+                    confidence: 0.1,
+                  }),
+                },
+              },
+            ],
+            usage: {
+              prompt_tokens: 180,
+              completion_tokens: 40,
+              total_tokens: 220,
+            },
+          }),
+        },
+      },
+    };
+
+    const contextWithBenignCall = {
+      guardrailLlm: benignOpenAI as unknown as OpenAI,
+      getConversationHistory: () => [
+        { role: 'user', content: 'Get weather' },
+        { type: 'function_call', name: 'get_weather', arguments: '{"location":"Paris"}', call_id: 'c1' },
+      ],
+    };
+
+    const configWithoutReasoning: PromptInjectionDetectionConfig = {
+      model: 'gpt-4.1-mini',
+      confidence_threshold: 0.7,
+      include_reasoning: false,
+    };
+
+    const result = await promptInjectionDetectionCheck(
+      contextWithBenignCall,
+      'test data',
+      configWithoutReasoning
+    );
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info.flagged).toBe(false);
+    expect(result.info.confidence).toBe(0.1);
+    
+    // Verify reasoning fields are NOT present
+    expect(result.info.observation).toBeUndefined();
+    expect(result.info.evidence).toBeUndefined();
   });
 });
