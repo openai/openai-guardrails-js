@@ -255,7 +255,7 @@ export const promptInjectionDetectionCheck: CheckFn<
       actionableMessages,
       includeReasoning
     );
-    const { analysis, tokenUsage } = await callPromptInjectionDetectionLLM(
+    const { analysis, tokenUsage, executionFailed, errorMessage } = await callPromptInjectionDetectionLLM(
       ctx,
       analysisPrompt,
       config
@@ -280,6 +280,17 @@ export const promptInjectionDetectionCheck: CheckFn<
     if (includeReasoning && 'observation' in analysis) {
       resultInfo.observation = analysis.observation;
       resultInfo.evidence = analysis.evidence ?? null;
+    }
+
+    // If LLM call or parsing failed, signal execution failure
+    if (executionFailed) {
+      resultInfo.error_message = errorMessage;
+      return {
+        tripwireTriggered: false,
+        executionFailed: true,
+        originalException: new Error(errorMessage || 'LLM execution failed'),
+        info: resultInfo,
+      };
     }
 
     return {
@@ -491,6 +502,8 @@ async function callPromptInjectionDetectionLLM(
 ): Promise<{
   analysis: PromptInjectionDetectionOutput | PromptInjectionDetectionBaseOutput;
   tokenUsage: TokenUsage;
+  executionFailed: boolean;
+  errorMessage?: string;
 }> {
   const includeReasoning = config.include_reasoning ?? false;
   const selectedOutputModel = includeReasoning
@@ -531,19 +544,26 @@ async function callPromptInjectionDetectionLLM(
       return {
         analysis: selectedOutputModel.parse(result),
         tokenUsage,
+        executionFailed: false,
       };
     } catch (parseError) {
+      const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
       console.warn('Prompt injection detection LLM parsing failed, using fallback', parseError);
       return {
         analysis: fallbackOutput,
         tokenUsage,
+        executionFailed: true,
+        errorMessage: `LLM response parsing failed: ${errorMsg}`,
       };
     }
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
     console.warn('Prompt injection detection LLM call failed, using fallback', error);
     return {
       analysis: fallbackOutput,
       tokenUsage: fallbackUsage,
+      executionFailed: true,
+      errorMessage: `LLM call failed: ${errorMsg}`,
     };
   }
 }
