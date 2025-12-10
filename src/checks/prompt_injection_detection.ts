@@ -49,7 +49,10 @@ export const PromptInjectionDetectionConfig = z.object({
 
 export type PromptInjectionDetectionConfig = z.infer<typeof PromptInjectionDetectionConfig>;
 
-// Schema for registry registration - requires all fields without defaults for type compatibility
+// Schema for registry type documentation - describes the resolved config shape.
+// Fields are required here for TypeScript registry compatibility; runtime validation
+// uses PromptInjectionDetectionConfig which applies defaults (confidence_threshold=0.7,
+// include_reasoning=false). Users don't need to provide these defaults explicitly.
 export const PromptInjectionDetectionConfigRequired = z.object({
   model: z.string(),
   confidence_threshold: z.number().min(0.0).max(1.0),
@@ -504,10 +507,19 @@ async function callPromptInjectionDetectionLLM(
     ? PromptInjectionDetectionOutput
     : PromptInjectionDetectionBaseOutput;
 
-  const fallbackOutput: PromptInjectionDetectionBaseOutput = {
-    flagged: false,
-    confidence: 0.0,
-  };
+  // Build fallback output with reasoning fields if reasoning was requested
+  const fallbackOutput: PromptInjectionDetectionOutput | PromptInjectionDetectionBaseOutput =
+    includeReasoning
+      ? {
+          flagged: false,
+          confidence: 0.0,
+          observation: 'LLM analysis failed - using fallback values',
+          evidence: null,
+        }
+      : {
+          flagged: false,
+          confidence: 0.0,
+        };
 
   const fallbackUsage: TokenUsage = Object.freeze({
     prompt_tokens: null,
