@@ -25,6 +25,11 @@ import { LLMOutput, runLLM } from './llm-base';
 import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../utils/conversation';
 
 /**
+ * Default maximum number of conversation turns for prompt injection detection.
+ */
+const DEFAULT_PID_MAX_TURNS = 10;
+
+/**
  * Configuration schema for the prompt injection detection guardrail.
  *
  * Extends the base LLM configuration with prompt injection detection-specific parameters.
@@ -44,6 +49,18 @@ export const PromptInjectionDetectionConfig = z.object({
     .default(false)
     .describe(
       'Whether to include detailed reasoning fields in the output. Defaults to false to minimize token costs.'
+    ),
+  /**
+   * Maximum number of conversation turns to include for multi-turn analysis.
+   * Defaults to 10. Set to 1 for single-turn mode.
+   */
+  max_turns: z
+    .number()
+    .int()
+    .min(1)
+    .default(DEFAULT_PID_MAX_TURNS)
+    .describe(
+      'Maximum number of conversation turns to include for multi-turn analysis. Defaults to 10. Set to 1 for single-turn mode.'
     ),
 });
 
@@ -218,9 +235,11 @@ export const promptInjectionDetectionCheck: CheckFn<
       );
     }
 
+    const maxTurns = config.max_turns ?? DEFAULT_PID_MAX_TURNS;
     const { recentMessages, actionableMessages, userIntent } = prepareConversationSlice(
       conversationHistory,
-      parsedDataMessages
+      parsedDataMessages,
+      maxTurns
     );
 
     const userGoalText = formatUserGoal(userIntent);
@@ -318,7 +337,8 @@ function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): Norma
 
 function prepareConversationSlice(
   conversationHistory: NormalizedConversationEntry[],
-  parsedDataMessages: NormalizedConversationEntry[]
+  parsedDataMessages: NormalizedConversationEntry[],
+  maxTurns: number
 ): {
   recentMessages: NormalizedConversationEntry[];
   actionableMessages: NormalizedConversationEntry[];
@@ -327,17 +347,21 @@ function prepareConversationSlice(
   const historyMessages = Array.isArray(conversationHistory) ? conversationHistory : [];
   const datasetMessages = Array.isArray(parsedDataMessages) ? parsedDataMessages : [];
 
-  const sourceMessages = historyMessages.length > 0 ? historyMessages : datasetMessages;
+  // Apply max_turns limit to the conversation history
+  const limitedHistoryMessages = historyMessages.slice(-maxTurns);
+  const limitedDatasetMessages = datasetMessages.slice(-maxTurns);
+
+  const sourceMessages = limitedHistoryMessages.length > 0 ? limitedHistoryMessages : limitedDatasetMessages;
   let userIntent = extractUserIntentFromMessages(sourceMessages);
 
   let recentMessages = sliceMessagesAfterLatestUser(sourceMessages);
   let actionableMessages = extractActionableMessages(recentMessages);
 
-  if (actionableMessages.length === 0 && datasetMessages.length > 0 && historyMessages.length > 0) {
-    recentMessages = sliceMessagesAfterLatestUser(datasetMessages);
+  if (actionableMessages.length === 0 && limitedDatasetMessages.length > 0 && limitedHistoryMessages.length > 0) {
+    recentMessages = sliceMessagesAfterLatestUser(limitedDatasetMessages);
     actionableMessages = extractActionableMessages(recentMessages);
     if (!userIntent.most_recent_message) {
-      userIntent = extractUserIntentFromMessages(datasetMessages);
+      userIntent = extractUserIntentFromMessages(limitedDatasetMessages);
     }
   }
 

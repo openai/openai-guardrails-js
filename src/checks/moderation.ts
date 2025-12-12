@@ -196,7 +196,6 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
             executionFailed: true,
             originalException: errorObj,
             info: {
-              checked_text: data,
               error: errorObj.message,
             },
           };

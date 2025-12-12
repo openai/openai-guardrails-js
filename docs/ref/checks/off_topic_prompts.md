@@ -11,7 +11,8 @@ Ensures content stays within defined business scope using LLM analysis. Flags co
         "model": "gpt-5",
         "confidence_threshold": 0.7,
         "system_prompt_details": "Customer support for our e-commerce platform. Topics include order status, returns, shipping, and product questions.",
-        "include_reasoning": false
+        "include_reasoning": false,
+        "max_turns": 10
     }
 }
 ```
@@ -25,6 +26,9 @@ Ensures content stays within defined business scope using LLM analysis. Flags co
     - When `false`: The LLM only generates the essential fields (`flagged` and `confidence`), reducing token generation costs
     - When `true`: Additionally, returns detailed reasoning for its decisions
     - **Use Case**: Keep disabled for production to minimize costs; enable for development and debugging
+    - **Performance**: In our evaluations, disabling reasoning reduces median latency by 40% on average (ranging from 18% to 67% depending on model) while maintaining detection performance
+- **`max_turns`** (optional): Maximum number of conversation turns to include for multi-turn analysis (default: `10`)
+    - Set to `1` for single-turn mode
 
 ## Implementation Notes
 
@@ -41,7 +45,11 @@ Returns a `GuardrailResult` with the following `info` dictionary:
     "flagged": false,
     "confidence": 0.85,
     "threshold": 0.7,
-    "business_scope": "Customer support for our e-commerce platform. Topics include order status, returns, shipping, and product questions."
+    "token_usage": {
+        "prompt_tokens": 100,
+        "completion_tokens": 15,
+        "total_tokens": 115
+    }
 }
 ```
 
@@ -49,3 +57,4 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 - **`confidence`**: Confidence score (0.0 to 1.0) for the assessment
 - **`threshold`**: The confidence threshold that was configured
 - **`reason`**: Explanation of why the input was flagged (or not flagged) - *only included when `include_reasoning=true`*
+- **`token_usage`**: Token usage details from the LLM call

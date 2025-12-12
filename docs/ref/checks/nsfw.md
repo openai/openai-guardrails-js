@@ -21,7 +21,8 @@ Flags workplace‑inappropriate model outputs: explicit sexual content, profanit
     "config": {
         "model": "gpt-4.1-mini",
         "confidence_threshold": 0.7,
-        "include_reasoning": false
+        "include_reasoning": false,
+        "max_turns": 10
     }
 }
 ```
@@ -34,6 +35,9 @@ Flags workplace‑inappropriate model outputs: explicit sexual content, profanit
     - When `false`: The LLM only generates the essential fields (`flagged` and `confidence`), reducing token generation costs
     - When `true`: Additionally, returns detailed reasoning for its decisions
     - **Use Case**: Keep disabled for production to minimize costs; enable for development and debugging
+    - **Performance**: In our evaluations, disabling reasoning reduces median latency by 40% on average (ranging from 18% to 67% depending on model) while maintaining detection performance
+- **`max_turns`** (optional): Maximum number of conversation turns to include for multi-turn analysis (default: `10`)
+    - Set to `1` for single-turn mode
 
 ### Tuning guidance
 
@@ -49,7 +53,12 @@ Returns a `GuardrailResult` with the following `info` dictionary:
     "guardrail_name": "NSFW Text",
     "flagged": true,
     "confidence": 0.85,
-    "threshold": 0.7
+    "threshold": 0.7,
+    "token_usage": {
+        "prompt_tokens": 120,
+        "completion_tokens": 20,
+        "total_tokens": 140
+    }
 }
 ```
 
@@ -57,6 +66,7 @@ Returns a `GuardrailResult` with the following `info` dictionary:
 - **`confidence`**: Confidence score (0.0 to 1.0) for the detection
 - **`threshold`**: The confidence threshold that was configured
 - **`reason`**: Explanation of why the input was flagged (or not flagged) - *only included when `include_reasoning=true`*
+- **`token_usage`**: Token usage details from the LLM call
 
 ### Examples
 

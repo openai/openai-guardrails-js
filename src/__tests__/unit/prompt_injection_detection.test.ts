@@ -333,4 +333,150 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.info.observation).toBeUndefined();
     expect(result.info.evidence).toBeUndefined();
   });
+
+  describe('max_turns configuration', () => {
+    it('should default max_turns to 10', () => {
+      const configParsed = PromptInjectionDetectionConfig.parse({
+        model: 'gpt-4.1-mini',
+        confidence_threshold: 0.7,
+      });
+
+      expect(configParsed.max_turns).toBe(10);
+    });
+
+    it('should accept custom max_turns parameter', () => {
+      const configParsed = PromptInjectionDetectionConfig.parse({
+        model: 'gpt-4.1-mini',
+        confidence_threshold: 0.7,
+        max_turns: 5,
+      });
+
+      expect(configParsed.max_turns).toBe(5);
+    });
+
+    it('should validate max_turns is at least 1', () => {
+      expect(() =>
+        PromptInjectionDetectionConfig.parse({
+          model: 'gpt-4.1-mini',
+          confidence_threshold: 0.7,
+          max_turns: 0,
+        })
+      ).toThrow();
+    });
+
+    it('should limit conversation history based on max_turns', async () => {
+      // Create a long conversation history (15 turns)
+      const longHistory: Array<{ role?: string; content?: string; type?: string; tool_name?: string; arguments?: string }> = Array.from({ length: 15 }, (_, i) => ({
+        role: 'user',
+        content: `Turn_${i + 1}`,
+      }));
+      // Add a function call at the end
+      longHistory.push({
+        type: 'function_call',
+        tool_name: 'test_function',
+        arguments: '{}',
+      });
+
+      let capturedPrompt = '';
+      const capturingOpenAI = {
+        chat: {
+          completions: {
+            create: async (params: { messages: Array<{ role: string; content: string }> }) => {
+              capturedPrompt = params.messages[1].content;
+              return {
+                choices: [
+                  {
+                    message: {
+                      content: JSON.stringify({
+                        flagged: false,
+                        confidence: 0.1,
+                      }),
+                    },
+                  },
+                ],
+                usage: {
+                  prompt_tokens: 50,
+                  completion_tokens: 10,
+                  total_tokens: 60,
+                },
+              };
+            },
+          },
+        },
+      };
+
+      const contextWithLongHistory = {
+        guardrailLlm: capturingOpenAI as unknown as OpenAI,
+        getConversationHistory: () => longHistory,
+      };
+
+      const configWithMaxTurns: PromptInjectionDetectionConfig = {
+        model: 'gpt-4.1-mini',
+        confidence_threshold: 0.7,
+        max_turns: 3,
+      };
+
+      await promptInjectionDetectionCheck(contextWithLongHistory, 'test data', configWithMaxTurns);
+
+      // Verify old messages are not in the recent_messages section
+      // With max_turns=3, only the last 3 messages should be considered
+      expect(capturedPrompt).not.toContain('Turn_1"');
+      expect(capturedPrompt).not.toContain('Turn_10');
+    });
+
+    it('should use single-turn mode with max_turns=1', async () => {
+      const history = [
+        { role: 'user', content: 'Old message 1' },
+        { role: 'user', content: 'Old message 2' },
+        { role: 'user', content: 'Most recent message' },
+        { type: 'function_call', tool_name: 'test_func', arguments: '{}' },
+      ];
+
+      let capturedPrompt = '';
+      const capturingOpenAI = {
+        chat: {
+          completions: {
+            create: async (params: { messages: Array<{ role: string; content: string }> }) => {
+              capturedPrompt = params.messages[1].content;
+              return {
+                choices: [
+                  {
+                    message: {
+                      content: JSON.stringify({
+                        flagged: false,
+                        confidence: 0.0,
+                      }),
+                    },
+                  },
+                ],
+              };
+            },
+          },
+        },
+      };
+
+      const contextWithHistory = {
+        guardrailLlm: capturingOpenAI as unknown as OpenAI,
+        getConversationHistory: () => history,
+      };
+
+      const configSingleTurn: PromptInjectionDetectionConfig = {
+        model: 'gpt-4.1-mini',
+        confidence_threshold: 0.7,
+        max_turns: 1,
+      };
+
+      const result = await promptInjectionDetectionCheck(
+        contextWithHistory,
+        'test data',
+        configSingleTurn
+      );
+
+      expect(result.tripwireTriggered).toBe(false);
+      // With max_turns=1, only the most recent message should be in context
+      // Old messages should not appear in the captured prompt
+      expect(capturedPrompt).not.toContain('Old message 1');
+      expect(capturedPrompt).not.toContain('Old message 2');
+    });
+  });
 });

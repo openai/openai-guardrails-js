@@ -38,6 +38,7 @@ const PIPELINE_CONFIG = {
           model: 'gpt-4.1-mini',
           confidence_threshold: 0.7,
           system_prompt_details: 'Check if the text contains any math problems.',
+          include_reasoning: true,
         },
       },
     ],

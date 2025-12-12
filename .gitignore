@@ -102,5 +102,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# internal examples
+# internal files
 internal_examples/
+PR_READINESS_CHECKLIST.md

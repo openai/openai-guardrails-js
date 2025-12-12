@@ -8,9 +8,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult, GuardrailLLMContext, tokenUsageToDict } from '../types';
-import { LLMConfig, LLMOutput, LLMErrorOutput, createErrorResult, runLLM } from './llm-base';
-import { defaultSpecRegistry } from '../registry';
+import { CheckFn, GuardrailLLMContext } from '../types';
+import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
 
 /**
  * Configuration schema for jailbreak detection.
@@ -25,22 +24,12 @@ export type JailbreakConfig = z.infer<typeof JailbreakConfig>;
 export type JailbreakContext = GuardrailLLMContext;
 
 /**
- * Maximum number of conversation turns to include in LLM analysis.
- *
- * Keeps payloads compact while preserving enough recent context to capture
- * multi-turn manipulation patterns (~5 user/assistant exchanges).
- */
-export const MAX_CONTEXT_TURNS = 10;
-
-/**
  * Extended LLM output schema including rationale.
  */
 export const JailbreakOutput = LLMOutput.extend({
   /** Explanation of the guardrail decision. */
   reason: z.string(),
 });
-
-export type JailbreakOutput = z.infer<typeof JailbreakOutput>;
 
 /**
  * System prompt for jailbreak detection with detailed taxonomy guidance.
@@ -178,108 +167,13 @@ When in doubt: If it's a direct request without deception or manipulation tactic
 
 Focus on detecting ADVERSARIAL BEHAVIOR and MANIPULATION, not just harmful topics.`;
 
-function extractConversationHistory(ctx: JailbreakContext): unknown[] {
-  const candidate = (ctx as { getConversationHistory?: () => unknown[] }).getConversationHistory;
-  if (typeof candidate !== 'function') {
-    return [];
-  }
-
-  try {
-    const history = candidate();
-    return Array.isArray(history) ? history : [];
-  } catch {
-    return [];
-  }
-}
-
-function buildAnalysisPayload(conversationHistory: unknown[], latestInput: string): string {
-  const trimmedInput = typeof latestInput === 'string' ? latestInput.trim() : '';
-  const recentTurns = conversationHistory.slice(-MAX_CONTEXT_TURNS);
-
-  return JSON.stringify({
-    conversation: recentTurns,
-    latest_input: trimmedInput,
-  });
-}
-
-function isLLMErrorOutput(result: unknown): result is LLMErrorOutput {
-  return Boolean(
-    result &&
-    typeof result === 'object' &&
-    'info' in result &&
-    result.info &&
-    typeof (result as LLMErrorOutput).info === 'object' &&
-    'error_message' in (result as LLMErrorOutput).info
-  );
-}
-
 /**
  * Conversation-aware jailbreak detection guardrail.
  */
-export const jailbreak: CheckFn<JailbreakContext, string, JailbreakConfig> = async (
-  ctx,
-  data,
-  config
-): Promise<GuardrailResult> => {
-  const conversationHistory = extractConversationHistory(ctx);
-  const analysisPayload = buildAnalysisPayload(conversationHistory, data);
-
-  // Determine output model: use JailbreakOutput with reasoning if enabled, otherwise base LLMOutput
-  const includeReasoning = config.include_reasoning ?? false;
-  const selectedOutputModel = includeReasoning ? JailbreakOutput : LLMOutput;
-
-  const [analysis, tokenUsage] = await runLLM(
-    analysisPayload,
-    SYSTEM_PROMPT,
-    ctx.guardrailLlm,
-    config.model,
-    selectedOutputModel
-  );
-
-  const usedConversationHistory = conversationHistory.length > 0;
-
-  if (isLLMErrorOutput(analysis)) {
-    return createErrorResult(
-      'Jailbreak',
-      analysis,
-      {
-        checked_text: analysisPayload,
-        used_conversation_history: usedConversationHistory,
-      },
-      tokenUsage
-    );
-  }
-
-  const isTriggered = analysis.flagged && analysis.confidence >= config.confidence_threshold;
-
-  // Build result info with conditional fields for consistency with other guardrails
-  const resultInfo: Record<string, unknown> = {
-    guardrail_name: 'Jailbreak',
-    flagged: analysis.flagged,
-    confidence: analysis.confidence,
-    threshold: config.confidence_threshold,
-    checked_text: analysisPayload,
-    used_conversation_history: usedConversationHistory,
-    token_usage: tokenUsageToDict(tokenUsage),
-  };
-
-  // Only include reason field if reasoning was requested and present
-  if (includeReasoning && 'reason' in analysis) {
-    resultInfo.reason = (analysis as JailbreakOutput).reason;
-  }
-
-  return {
-    tripwireTriggered: isTriggered,
-    info: resultInfo,
-  };
-};
-
-defaultSpecRegistry.register(
+export const jailbreak: CheckFn<JailbreakContext, string, LLMConfig> = createLLMCheckFn(
   'Jailbreak',
-  jailbreak,
   'Detects attempts to jailbreak or bypass AI safety measures using techniques such as prompt injection, role-playing requests, system prompt overrides, or social engineering.',
-  'text/plain',
-  JailbreakConfig as z.ZodType<JailbreakConfig>,
-  undefined,
-  { engine: 'LLM', usesConversationHistory: true }
+  SYSTEM_PROMPT,
+  undefined, // Let createLLMCheckFn handle include_reasoning automatically
+  LLMConfig
 );

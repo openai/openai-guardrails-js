@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { LLMConfig, LLMOutput, LLMReasoningOutput, createLLMCheckFn } from '../../checks/llm-base';
+import {
+  LLMConfig,
+  LLMOutput,
+  LLMReasoningOutput,
+  createLLMCheckFn,
+  extractConversationHistory,
+  buildAnalysisPayload,
+  DEFAULT_MAX_TURNS,
+} from '../../checks/llm-base';
 import { defaultSpecRegistry } from '../../registry';
-import { GuardrailLLMContext } from '../../types';
+import { GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../../types';
 
 // Mock the registry
 vi.mock('../../registry', () => ({
@@ -76,6 +84,34 @@ describe('LLM Base', () => {
 
       expect(configFalse.include_reasoning).toBe(false);
     });
+
+    it('should default max_turns to DEFAULT_MAX_TURNS', () => {
+      const config = LLMConfig.parse({
+        model: 'gpt-4',
+        confidence_threshold: 0.7,
+      });
+
+      expect(config.max_turns).toBe(DEFAULT_MAX_TURNS);
+    });
+
+    it('should accept custom max_turns parameter', () => {
+      const config = LLMConfig.parse({
+        model: 'gpt-4',
+        confidence_threshold: 0.7,
+        max_turns: 5,
+      });
+
+      expect(config.max_turns).toBe(5);
+    });
+
+    it('should validate max_turns is at least 1', () => {
+      expect(() =>
+        LLMConfig.parse({
+          model: 'gpt-4',
+          max_turns: 0,
+        })
+      ).toThrow();
+    });
   });
 
   describe('LLMOutput', () => {
@@ -122,6 +158,95 @@ describe('LLM Base', () => {
     });
   });
 
+  describe('extractConversationHistory', () => {
+    it('should return empty array when context has no getConversationHistory', () => {
+      const ctx = { guardrailLlm: {} } as GuardrailLLMContext;
+      const result = extractConversationHistory(ctx);
+      expect(result).toEqual([]);
+    });
+
+    it('should return conversation history when available', () => {
+      const history = [
+        { role: 'user', content: 'Hello' },
+        { role: 'assistant', content: 'Hi there' },
+      ];
+      const ctx = {
+        guardrailLlm: {},
+        conversationHistory: history,
+        getConversationHistory: () => history,
+      } as unknown as GuardrailLLMContextWithHistory;
+
+      const result = extractConversationHistory(ctx);
+      expect(result).toEqual(history);
+    });
+
+    it('should return empty array when getConversationHistory throws', () => {
+      const ctx = {
+        guardrailLlm: {},
+        getConversationHistory: () => {
+          throw new Error('Test error');
+        },
+      } as unknown as GuardrailLLMContextWithHistory;
+
+      const result = extractConversationHistory(ctx);
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array when getConversationHistory returns non-array', () => {
+      const ctx = {
+        guardrailLlm: {},
+        getConversationHistory: () => 'not an array' as unknown,
+      } as unknown as GuardrailLLMContextWithHistory;
+
+      const result = extractConversationHistory(ctx);
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('buildAnalysisPayload', () => {
+    it('should build payload with conversation history and latest input', () => {
+      const history = [
+        { role: 'user', content: 'First message' },
+        { role: 'assistant', content: 'First response' },
+      ];
+      const result = buildAnalysisPayload(history, 'Test input', 10);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.conversation).toEqual(history);
+      expect(parsed.latest_input).toBe('Test input');
+    });
+
+    it('should trim whitespace from latest input', () => {
+      const history = [{ role: 'user', content: 'Hello' }];
+      const result = buildAnalysisPayload(history, '  Trimmed input  ', 10);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.latest_input).toBe('Trimmed input');
+    });
+
+    it('should limit conversation history to max_turns', () => {
+      const history = Array.from({ length: 15 }, (_, i) => ({
+        role: 'user',
+        content: `Message ${i + 1}`,
+      }));
+      const result = buildAnalysisPayload(history, 'Latest', 5);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.conversation).toHaveLength(5);
+      // Should include the last 5 messages (11-15)
+      expect(parsed.conversation[0].content).toBe('Message 11');
+      expect(parsed.conversation[4].content).toBe('Message 15');
+    });
+
+    it('should handle empty conversation history', () => {
+      const result = buildAnalysisPayload([], 'Test input', 10);
+      const parsed = JSON.parse(result);
+
+      expect(parsed.conversation).toEqual([]);
+      expect(parsed.latest_input).toBe('Test input');
+    });
+  });
+
   describe('createLLMCheckFn', () => {
     it('should create and register a guardrail function', () => {
       const guardrail = createLLMCheckFn(
@@ -141,7 +266,7 @@ describe('LLM Base', () => {
         'text/plain',
         LLMConfig,
         expect.any(Object),
-        { engine: 'LLM' }
+        { engine: 'LLM', usesConversationHistory: true }
       );
     });
 
@@ -423,6 +548,199 @@ describe('LLM Base', () => {
       expect(result.info.flagged).toBe(false);
       expect(result.info.confidence).toBe(0.2);
       expect(result.info.reason).toBeUndefined();
+    });
+
+    it('should use conversation history when available in context', async () => {
+      const guardrail = createLLMCheckFn(
+        'Multi-Turn Guardrail',
+        'Test description',
+        'Test system prompt'
+      );
+
+      const history = [
+        { role: 'user', content: 'Previous message' },
+        { role: 'assistant', content: 'Previous response' },
+      ];
+
+      const createMock = vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                flagged: false,
+                confidence: 0.3,
+              }),
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 50,
+          completion_tokens: 10,
+          total_tokens: 60,
+        },
+      });
+
+      const mockContext = {
+        guardrailLlm: {
+          chat: {
+            completions: {
+              create: createMock,
+            },
+          },
+        },
+        conversationHistory: history,
+        getConversationHistory: () => history,
+      };
+
+      const result = await guardrail(
+        mockContext as unknown as GuardrailLLMContextWithHistory,
+        'Current input',
+        {
+          model: 'gpt-4',
+          confidence_threshold: 0.7,
+        }
+      );
+
+      // Verify the LLM was called with multi-turn payload
+      expect(createMock).toHaveBeenCalledTimes(1);
+      const callArgs = createMock.mock.calls[0][0];
+      const userMessage = callArgs.messages.find((m: { role: string }) => m.role === 'user');
+      expect(userMessage.content).toContain('# Analysis Input');
+      expect(userMessage.content).toContain('Previous message');
+      expect(userMessage.content).toContain('Current input');
+
+      // Verify result was successful
+      expect(result.tripwireTriggered).toBe(false);
+    });
+
+    it('should use single-turn mode when no conversation history', async () => {
+      const guardrail = createLLMCheckFn(
+        'Single-Turn Guardrail',
+        'Test description',
+        'Test system prompt'
+      );
+
+      const createMock = vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                flagged: false,
+                confidence: 0.1,
+              }),
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 20,
+          completion_tokens: 5,
+          total_tokens: 25,
+        },
+      });
+
+      const mockContext = {
+        guardrailLlm: {
+          chat: {
+            completions: {
+              create: createMock,
+            },
+          },
+        },
+      };
+
+      const result = await guardrail(mockContext as unknown as GuardrailLLMContext, 'Test input', {
+        model: 'gpt-4',
+        confidence_threshold: 0.7,
+      });
+
+      // Verify the LLM was called with single-turn format
+      expect(createMock).toHaveBeenCalledTimes(1);
+      const callArgs = createMock.mock.calls[0][0];
+      const userMessage = callArgs.messages.find((m: { role: string }) => m.role === 'user');
+      expect(userMessage.content).toContain('# Text');
+      expect(userMessage.content).toContain('Test input');
+      expect(userMessage.content).not.toContain('# Analysis Input');
+
+      // Verify result was successful
+      expect(result.tripwireTriggered).toBe(false);
+    });
+
+    it('should respect max_turns config to limit conversation history', async () => {
+      const guardrail = createLLMCheckFn(
+        'Max Turns Guardrail',
+        'Test description',
+        'Test system prompt'
+      );
+
+      const history = Array.from({ length: 10 }, (_, i) => ({
+        role: 'user',
+        content: `Turn_${i + 1}`,
+      }));
+
+      const createMock = vi.fn().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                flagged: false,
+                confidence: 0.2,
+              }),
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 40,
+          completion_tokens: 8,
+          total_tokens: 48,
+        },
+      });
+
+      const mockContext = {
+        guardrailLlm: {
+          chat: {
+            completions: {
+              create: createMock,
+            },
+          },
+        },
+        conversationHistory: history,
+        getConversationHistory: () => history,
+      };
+
+      await guardrail(mockContext as unknown as GuardrailLLMContextWithHistory, 'Current', {
+        model: 'gpt-4',
+        confidence_threshold: 0.7,
+        max_turns: 3,
+      });
+
+      // Verify the LLM was called with limited history
+      expect(createMock).toHaveBeenCalledTimes(1);
+      const callArgs = createMock.mock.calls[0][0];
+      const userMessage = callArgs.messages.find((m: { role: string }) => m.role === 'user');
+      
+      // Should only include the last 3 messages (Turn_8, Turn_9, Turn_10)
+      expect(userMessage.content).not.toContain('Turn_1"');
+      expect(userMessage.content).not.toContain('Turn_7');
+      expect(userMessage.content).toContain('Turn_8');
+      expect(userMessage.content).toContain('Turn_10');
+    });
+
+    it('should register with usesConversationHistory metadata', () => {
+      createLLMCheckFn(
+        'Metadata Test Guardrail',
+        'Test description',
+        'Test system prompt'
+      );
+
+      expect(defaultSpecRegistry.register).toHaveBeenCalledWith(
+        'Metadata Test Guardrail',
+        expect.any(Function),
+        'Test description',
+        'text/plain',
+        expect.any(Object),
+        expect.any(Object),
+        { engine: 'LLM', usesConversationHistory: true }
+      );
     });
   });
 });
