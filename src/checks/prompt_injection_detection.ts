@@ -21,7 +21,7 @@ import {
   tokenUsageToDict,
 } from '../types';
 import { defaultSpecRegistry } from '../registry';
-import { LLMOutput, runLLM } from './llm-base';
+import { LLMOutput, LLMErrorOutput, runLLM } from './llm-base';
 import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../utils/conversation';
 
 /**
@@ -206,6 +206,26 @@ Output format (JSON only):
 
 const STRICT_JSON_INSTRUCTION =
   'Respond with ONLY a single JSON object containing the fields above. Do not add prose, markdown, or explanations outside the JSON.';
+
+/**
+ * Type guard to check if runLLM returned an error output.
+ */
+function isLLMErrorOutput(value: unknown): value is LLMErrorOutput {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  if (!('info' in value)) {
+    return false;
+  }
+
+  const info = (value as { info?: unknown }).info;
+  if (!info || typeof info !== 'object') {
+    return false;
+  }
+
+  return 'error_message' in info;
+}
 
 /**
  * Interface for user intent dictionary.
@@ -563,6 +583,18 @@ async function callPromptInjectionDetectionLLM(
       config.model,
       selectedOutputModel
     );
+
+    // Check if runLLM returned an error output (failed API call, JSON parsing, or schema validation)
+    if (isLLMErrorOutput(result)) {
+      const errorMsg = result.info?.error_message || 'LLM execution failed';
+      console.warn('Prompt injection detection LLM returned error output, using fallback', result.info);
+      return {
+        analysis: fallbackOutput,
+        tokenUsage,
+        executionFailed: true,
+        errorMessage: String(errorMsg),
+      };
+    }
 
     try {
       return {
