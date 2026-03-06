@@ -418,6 +418,37 @@ describe('LLM Base', () => {
       });
     });
 
+    it('should not crash when LLM throws a malformed error object', async () => {
+      const guardrail = createLLMCheckFn(
+        'Malformed Error Guardrail',
+        'Ensures malformed errors do not crash logging',
+        'Test system prompt'
+      );
+
+      // Simulate an error object that would crash Node's util.inspect
+      const malformedError = Object.create(null);
+
+      const mockContext = {
+        guardrailLlm: {
+          chat: {
+            completions: {
+              create: vi.fn().mockRejectedValue(malformedError),
+            },
+          },
+        },
+      };
+
+      const result = await guardrail(mockContext as unknown as GuardrailLLMContext, 'test text', {
+        model: 'gpt-4',
+        confidence_threshold: 0.7,
+      });
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.executionFailed).toBe(true);
+      expect(result.info.flagged).toBe(false);
+      expect(result.info.confidence).toBe(0.0);
+    });
+
     it('should not include reasoning by default (include_reasoning=false)', async () => {
       const guardrail = createLLMCheckFn(
         'Test Guardrail Without Reasoning',

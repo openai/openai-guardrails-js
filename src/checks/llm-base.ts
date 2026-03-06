@@ -23,6 +23,21 @@ import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-ide
 import { NormalizedConversationEntry } from '../utils/conversation';
 
 /**
+ * Safely convert an error to a loggable string, avoiding crashes from
+ * malformed objects that break Node's util.inspect formatting.
+ */
+function safeErrorString(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
+/**
  * Default maximum number of conversation turns to include for multi-turn analysis.
  */
 export const DEFAULT_MAX_TURNS = 10;
@@ -450,18 +465,18 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     const cleanedResult = stripJsonCodeFence(result);
     return [outputModel.parse(JSON.parse(cleanedResult)), tokenUsage];
   } catch (error) {
-    console.error('LLM guardrail failed for prompt:', systemPrompt, error);
+    console.error('LLM guardrail failed for prompt:', systemPrompt, safeErrorString(error));
 
     // Check if this is a content filter error - Azure OpenAI
     if (error && typeof error === 'string' && error.includes('content_filter')) {
-      console.warn('Content filter triggered by provider:', error);
+      console.warn('Content filter triggered by provider:', safeErrorString(error));
       return [
         LLMErrorOutput.parse({
           flagged: true,
           confidence: 1.0,
           info: {
             third_party_filter: true,
-            error_message: String(error),
+            error_message: safeErrorString(error),
           },
         }),
         noUsage,
@@ -471,7 +486,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     // Use tokenUsage here since API call succeeded but response parsing failed
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
-      console.warn('LLM returned non-JSON or malformed JSON.', error);
+      console.warn('LLM returned non-JSON or malformed JSON.', safeErrorString(error));
       return [
         LLMErrorOutput.parse({
           flagged: false,
@@ -487,7 +502,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     // Use tokenUsage here since API call succeeded but schema validation failed
     if (error instanceof z.ZodError) {
-      console.warn('LLM response validation failed.', error);
+      console.warn('LLM response validation failed.', safeErrorString(error));
       return [
         LLMErrorOutput.parse({
           flagged: false,
@@ -507,7 +522,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
         flagged: false,
         confidence: 0.0,
         info: {
-          error_message: String(error),
+          error_message: safeErrorString(error),
         },
       }),
       noUsage,
