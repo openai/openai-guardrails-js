@@ -96,7 +96,7 @@ describe('Chat resource', () => {
       model: 'gpt-4',
       stream: false,
       safety_identifier: 'openai-guardrails-js',
-    });
+    }, undefined);
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'chat-response' },
       [{ stage: 'preflight' }],
@@ -157,7 +157,7 @@ describe('Responses resource', () => {
       stream: false,
       tools: undefined,
       safety_identifier: 'openai-guardrails-js',
-    });
+    }, undefined);
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'responses-api' },
       [{ stage: 'preflight' }],
