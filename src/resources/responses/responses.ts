@@ -27,7 +27,8 @@ export class Responses {
       stream: true;
       tools?: unknown[];
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>
+    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<AsyncIterableIterator<GuardrailsResponse>>;
 
   // Overload: non-streaming (default)
@@ -38,7 +39,8 @@ export class Responses {
       stream?: false;
       tools?: unknown[];
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>
+    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<GuardrailsResponse<OpenAI.Responses.Response>>;
 
   async create(
@@ -48,7 +50,8 @@ export class Responses {
       stream?: boolean;
       tools?: unknown[];
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>
+    } & Omit<OpenAI.Responses.ResponseCreateParams, 'input' | 'model' | 'stream' | 'tools'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<GuardrailsResponse<OpenAI.Responses.Response> | AsyncIterableIterator<GuardrailsResponse>> {
     const { input, model, stream = false, tools, suppressTripwire = false, ...kwargs } = params;
 
@@ -112,7 +115,7 @@ export class Responses {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
-      resourceClient.responses.create(apiParams),
+      resourceClient.responses.create(apiParams, options),
     ]);
 
     // Handle streaming vs non-streaming

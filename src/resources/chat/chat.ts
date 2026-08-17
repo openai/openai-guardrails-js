@@ -40,7 +40,8 @@ export class ChatCompletions {
       model: string;
       stream: true;
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>
+    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<AsyncIterableIterator<GuardrailsResponse>>;
 
   // Overload: non-streaming (default)
@@ -50,7 +51,8 @@ export class ChatCompletions {
       model: string;
       stream?: false;
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>
+    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion>>;
 
   async create(
@@ -59,7 +61,8 @@ export class ChatCompletions {
       model: string;
       stream?: boolean;
       suppressTripwire?: boolean;
-    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>
+    } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
+    options?: OpenAI.RequestOptions,
   ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion> | AsyncIterableIterator<GuardrailsResponse>> {
     const { messages, model, stream = false, suppressTripwire = false, ...kwargs } = params;
 
@@ -109,7 +112,7 @@ export class ChatCompletions {
         suppressTripwire,
         this.client.raiseGuardrailErrors
       ),
-      resourceClient.chat.completions.create(apiParams),
+      resourceClient.chat.completions.create(apiParams, options),
     ]);
 
     // Handle streaming vs non-streaming
