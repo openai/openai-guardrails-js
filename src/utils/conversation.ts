@@ -198,7 +198,7 @@ function normalizeMapping(item: Record<string, unknown>): NormalizedConversation
   const textContent = extractText('content' in item ? item.content : item.text);
 
   const entry = createConversationEntry({
-    role,
+    ...(role !== undefined ? { role } : {}),
     content: textContent,
     type: itemType,
   });

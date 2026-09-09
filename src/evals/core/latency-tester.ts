@@ -12,16 +12,12 @@ import { instantiateGuardrails, GuardrailBundle } from '../../runtime';
  * Tests end-to-end guardrail latency for different models.
  */
 export class LatencyTester {
-  private readonly iterations: number;
-
   /**
    * Initialize the latency tester.
    *
-   * @param iterations - Number of samples to time per model
+   * @param _iterations - Retained for compatibility; each timing call specifies its iterations.
    */
-  constructor(iterations: number = 20) {
-    this.iterations = iterations;
-  }
+  constructor(_iterations: number = 20) {}
 
   /**
    * Calculate latency statistics from a list of times.

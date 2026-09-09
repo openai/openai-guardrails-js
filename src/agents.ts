@@ -590,7 +590,7 @@ export class GuardrailAgent {
 
       return new Agent({
         name,
-        instructions,
+        ...(instructions !== undefined ? { instructions } : {}),
         inputGuardrails,
         outputGuardrails,
         ...filteredAgentKwargs,
