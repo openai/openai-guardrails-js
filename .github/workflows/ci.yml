@@ -12,8 +12,12 @@ permissions: {}
 
 jobs:
   build-test-lint:
-    name: Build, Test, and Lint
+    name: Build, Test, and Lint (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24, 26]
     permissions:
       contents: read
 
@@ -26,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: npm
 
       - name: Install dependencies
@@ -40,3 +44,14 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+  ci-status:
+    name: Build, Test, and Lint
+    if: always()
+    needs: build-test-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check matrix results
+        env:
+          MATRIX_RESULT: ${{ needs.build-test-lint.result }}
+        run: test "$MATRIX_RESULT" = success
