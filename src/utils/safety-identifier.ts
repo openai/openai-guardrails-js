@@ -56,12 +56,14 @@ export function supportsSafetyIdentifier(client: OpenAI | unknown): boolean {
     (clientObj._baseURL as string);
 
   if (baseURL !== undefined && baseURL !== null) {
-    const baseURLStr = String(baseURL);
     // Only official OpenAI API endpoints support safety_identifier
-    return baseURLStr.includes('api.openai.com');
+    try {
+      return new URL(String(baseURL)).hostname === 'api.openai.com';
+    } catch {
+      return false;
+    }
   }
 
   // Default OpenAI client (no custom baseURL) supports it
   return true;
 }
-
