@@ -62,6 +62,8 @@ export class GuardrailExecutionError extends GuardrailError {
   constructor(message: string, cause?: Error) {
     super(message);
     this.name = 'GuardrailExecutionError';
-    this.cause = cause;
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
   }
 }

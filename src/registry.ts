@@ -172,7 +172,7 @@ export class GuardrailRegistry {
       mediaType: spec.mediaType,
       hasConfig: spec.configSchema !== NO_CONFIG,
       hasContext: spec.ctxRequirements !== NO_CONTEXT_REQUIREMENTS,
-      metadata: spec.metadata,
+      ...(spec.metadata !== undefined ? { metadata: spec.metadata } : {}),
     }));
   }
 }

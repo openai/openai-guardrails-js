@@ -83,7 +83,7 @@ class MemoryVectorStore implements VectorStore {
   private documents: Map<string, Document> = new Map();
   private embeddings: Map<string, number[]> = new Map();
 
-  constructor(private config: Record<string, unknown>) {}
+  constructor(_config: Record<string, unknown>) {}
 
   async addDocuments(documents: Document[]): Promise<void> {
     for (const doc of documents) {
@@ -144,7 +144,7 @@ class MemoryVectorStore implements VectorStore {
  * Placeholder implementations for other vector store types.
  */
 class PineconeVectorStore implements VectorStore {
-  constructor(private config: Record<string, unknown>) {}
+  constructor(_config: Record<string, unknown>) {}
 
   async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Pinecone vector store not implemented');
@@ -164,7 +164,7 @@ class PineconeVectorStore implements VectorStore {
 }
 
 class WeaviateVectorStore implements VectorStore {
-  constructor(private config: Record<string, unknown>) {}
+  constructor(_config: Record<string, unknown>) {}
 
   async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Weaviate vector store not implemented');
@@ -184,7 +184,7 @@ class WeaviateVectorStore implements VectorStore {
 }
 
 class ChromaVectorStore implements VectorStore {
-  constructor(private config: Record<string, unknown>) {}
+  constructor(_config: Record<string, unknown>) {}
 
   async addDocuments(_documents: Document[]): Promise<void> {
     throw new Error('Chroma vector store not implemented');

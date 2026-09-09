@@ -299,10 +299,10 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
       azureApiVersion: args.azureApiVersion || '2025-01-01-preview',
       mode: args.mode || 'evaluate',
       models: args.models || null,
-      latencyIterations: args.latencyIterations,
-      multiTurn: args.multiTurn,
-      maxParallelModels: args.maxParallelModels,
-      benchmarkChunkSize: args.benchmarkChunkSize,
+      ...(args.latencyIterations !== undefined ? { latencyIterations: args.latencyIterations } : {}),
+      ...(args.multiTurn !== undefined ? { multiTurn: args.multiTurn } : {}),
+      ...(args.maxParallelModels !== undefined ? { maxParallelModels: args.maxParallelModels } : {}),
+      ...(args.benchmarkChunkSize !== undefined ? { benchmarkChunkSize: args.benchmarkChunkSize } : {}),
     });
 
     console.log('Evaluation completed successfully!');
