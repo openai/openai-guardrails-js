@@ -135,6 +135,8 @@ await eval.run('Evaluating my dataset');
 
 ### Project Structure
 
+For release notes and publishing, see the [Changesets release guide](.changeset/README.md).
+
 - `src/` - TypeScript source code
 - `dist/` - Compiled JavaScript output
 - `src/checks/` - Built-in guardrail checks
