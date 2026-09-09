@@ -1,4 +1,4 @@
-name: Create releases
+name: Create release PRs
 
 on:
   push:
@@ -11,25 +11,20 @@ jobs:
   release:
     if: github.repository == 'openai/openai-guardrails-js' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: release
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     concurrency:
       group: release-please-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - name: Create release app token
-        id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.OPENAI_SDKS_APP_CLIENT_ID }}
-          private-key: ${{ secrets.OPENAI_SDKS_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-issues: write
-          permission-pull-requests: write
-
-      - name: Create release PR or GitHub release
+      - name: Create or update release PR
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          # Token-created tags would not trigger the existing npm publisher.
+          skip-github-release: true
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: main

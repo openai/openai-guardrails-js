@@ -1,32 +1,23 @@
 # Releasing @openai/guardrails
 
-Releases use the `openai-sdks` GitHub App and release-please, following
-[openai-node](https://github.com/openai/openai-node/blob/main/.github/workflows/create-releases.yml).
+Release-please uses the repository's `GITHUB_TOKEN` to open and update release
+PRs. A maintainer creates the release tag after merging the reviewed PR; the tag
+starts the existing npm trusted-publishing workflow.
 
-## One-time administrator setup
+## Repository setup
 
-Complete this setup before merging the release workflow:
+In **Settings > Actions > General > Workflow permissions**, enable **Allow
+GitHub Actions to create and approve pull requests**. The workflow requests
+Contents, Issues, and Pull requests write permissions only for its release job;
+the repository's default workflow permissions can remain read-only. Release PRs
+still require normal human review, required checks, and the merge queue.
 
-1. Ask an OpenAI organization GitHub App administrator to grant the existing
-   `openai-sdks` installation access to `openai/openai-guardrails-js`. It needs
-   **Contents**, **Issues**, and **Pull requests** read/write permissions.
-2. Create a GitHub Actions environment named `release` in this repository and
-   restrict its deployment branches to `main` only. Configure any required
-   release approvals according to the SDK team's policy.
-3. In that environment, set `OPENAI_SDKS_APP_CLIENT_ID` to the existing App's
-   client ID (`Iv23li2AtcmhLHO07J87`, also used by openai-node). Have the App's
-   credential owner provision `OPENAI_SDKS_APP_PRIVATE_KEY` as an environment
-   secret through the approved secret-management process. Never put the private
-   key in Git, issues, or chat. GitHub cannot copy or reveal another repository's
-   stored secret.
-4. Confirm repository rules allow the App to create release branches, PRs, and
-   `v*` tags. Release PRs should still use the normal review, required checks,
-   and merge queue; the App does not need to bypass protection on `main`.
-5. Confirm the npm trusted publisher for `@openai/guardrails` names owner
-   `openai`, repository `openai-guardrails-js`, and workflow `publish.yml`,
-   with no environment requirement (the existing publish job has none).
-   Publishing remains in that workflow; the App credentials only orchestrate
-   GitHub releases.
+No App installation, private key, or release environment is required. Migration
+to `openai-sdks` is deferred to SDK-533 in Linear.
+
+The existing npm trusted publisher for `@openai/guardrails` should name owner
+`openai`, repository `openai-guardrails-js`, and workflow `publish.yml`, with no
+environment requirement (the publish job has none).
 
 ## First automated release
 
@@ -50,29 +41,45 @@ the Node release strategy does not update them.
 ## Normal release process
 
 1. Merge changes to `main` using Conventional Commit titles, such as `fix:` or
-   `feat:`. The **Create releases** workflow opens or updates a release PR under
-   the App's identity. The Node release strategy updates `package.json`,
+   `feat:`. The **Create release PRs** workflow opens or updates a release PR as
+   `github-actions[bot]`. The Node release strategy updates `package.json`,
    `package-lock.json`, the release manifest, and `CHANGELOG.md`.
-2. Review the generated version and changelog, wait for CI, and merge the release
-   PR through the normal process. The manifest starts at the existing `0.2.1`
-   release; pre-1.0 breaking changes bump the minor version.
-3. The next **Create releases** run creates the GitHub release and a `v*` tag.
-   Because it uses an App installation token, the tag triggers **Publish
-   Package** (`.github/workflows/publish.yml`), which builds, tests, and publishes
-   through npm trusted publishing. Monitor both workflows to completion and
-   verify the resulting version on npm.
+2. A maintainer with write access must select **Approve workflows to run** on
+   the release PR when GitHub requests it, including after automated updates.
+   [GitHub requires approval for PR workflow runs triggered by `GITHUB_TOKEN`](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+   Wait for the checks on the current PR commit; do not bypass required checks.
+3. Review the generated version and changelog and merge through the normal
+   process. The manifest starts at the existing `0.2.1` release; pre-1.0 breaking
+   changes bump the minor version. Apply the first-release checklist above.
+4. Once CI passes on the merged release commit, use your normal maintainer Git
+   credentials to create and push a `v<version>` tag at that exact commit. Verify
+   the version in its `package.json` matches the tag. This tag push starts
+   **Publish Package** (`.github/workflows/publish.yml`), which builds, tests,
+   and publishes through npm trusted publishing. Monitor it to completion and
+   verify the version on npm.
+5. Create the GitHub release from that existing tag using the reviewed changelog.
+   On the merged release PR, remove `autorelease: pending` and add
+   `autorelease: tagged` (create the latter label if necessary). Release-please
+   waits while a merged release PR still has the pending label, so complete
+   these steps before expecting the next release PR.
+
+GitHub release/tag creation is intentionally disabled in release-please with
+`skip-github-release: true`: tags pushed with `GITHUB_TOKEN` would not trigger
+the existing publisher. Manual workflow dispatch only updates release PRs.
 
 ## Recovery and verification
 
-- After administrator setup, run **Create releases** manually on `main` if
-  needed. It can create a release for an already merged release PR, so treat
-  this as a release operation. Dispatches on other branches are skipped.
-- If App token creation fails, check installation access, the environment's
-  client ID/private key, and the three requested App permissions.
-- If the GitHub release succeeds but publishing fails, inspect **Publish
+- Run **Create release PRs** manually on `main` if needed. Dispatches on other
+  branches are skipped.
+- If PR creation is rejected, check the repository's Actions PR-creation setting
+  and any organization policy that restricts it.
+- If a new release PR is blocked by an outstanding merged release, finish its
+  manual tagging, publication, GitHub release, and label updates above.
+- If publishing fails after tagging, inspect **Publish
   Package**, fix the underlying cause, and rerun the failed publishing job.
   Check npm first in case publication succeeded before a later error. Do not
   delete and recreate a release tag or try to overwrite an npm version.
-- Verify the first App-created release PR receives normal CI checks and its tag
-  starts **Publish Package**. This end-to-end check requires the administrator
-  credentials and an actual release; local validation cannot establish it.
+- Verify the first bot-created release PR receives CI checks after maintainer
+  approval and the maintainer-pushed tag starts **Publish Package**. This
+  end-to-end check requires an actual release; local validation cannot establish
+  it.
