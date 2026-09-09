@@ -166,6 +166,58 @@ describe('moderation guardrail', () => {
 });
 
 describe('secret key guardrail', () => {
+  it.each(['balanced', 'permissive'] as const)(
+    'preserves URL exemptions in %s mode',
+    async (threshold) => {
+      const urls = [
+        'http://Example123.com',
+        'HTTPS://Example123.com/',
+        'https://Example123.com/Abc_456-def/ghi.jkl',
+        'https://Example123_com',
+        'http://a',
+        'http://.',
+        'http://-',
+      ];
+
+      for (const url of urls) {
+        const result = await secretKeysCheck({}, url, SecretKeysConfig.parse({ threshold }));
+
+        expect(result.tripwireTriggered).toBe(false);
+        expect(result.info?.masked_text).toBe(url);
+      }
+    }
+  );
+
+  it.each([
+    'https://_Example123.com/Abc456',
+    'https:///Example123.com/Abc456',
+    'https://Example123.com/Abc456?query=789',
+    'https://Example123.com/Abc456!',
+    'https://Example123.com/sk-Abc456Def789',
+  ])('does not exempt secret candidates outside the allowed URL pattern: %s', async (text) => {
+    const result = await secretKeysCheck(
+      {},
+      text,
+      SecretKeysConfig.parse({ threshold: 'balanced' })
+    );
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.detected_secrets).toEqual([text]);
+    expect(result.info?.masked_text).toBe('<SECRET>');
+  });
+
+  it('still checks URLs in strict mode and applies custom patterns before exemptions', async () => {
+    const text = 'https://Example123.com/Abc456';
+    for (const config of [
+      SecretKeysConfig.parse({ threshold: 'strict' }),
+      SecretKeysConfig.parse({ threshold: 'balanced', custom_regex: ['Example123'] }),
+    ]) {
+      const result = await secretKeysCheck({}, text, config);
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.info?.masked_text).toBe('<SECRET>');
+    }
+  });
+
   it('detects and masks secret candidates', async () => {
     const text = 'Here is a token sk-1234567890 and some safe text.';
 
