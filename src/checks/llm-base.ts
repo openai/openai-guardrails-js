@@ -244,8 +244,14 @@ function buildFieldInstructionBlock(outputModel?: ZodTypeAny): string | null {
 export function buildFullPrompt(systemPrompt: string, outputModel?: ZodTypeAny): string {
   // Check if the system prompt already contains JSON output format instructions
   // Look for phrases that indicate output formatting requirements, not just mentions of JSON
-  const hasJsonOutputInstructions = /(?:respond|output|return)\s+(?:with\s+)?(?:a\s+)?json|format.*json/i.test(systemPrompt);
-  
+  const hasJsonOutputInstructions =
+    /(?:respond|output|return)\s+(?:with\s+)?(?:a\s+)?json/i.test(systemPrompt) ||
+    systemPrompt.split(/[\n\r\u2028\u2029]/).some((line) => {
+      // Only the first "format" matters; avoid rescanning a suffix for each occurrence.
+      const formatIndex = line.search(/format/i);
+      return formatIndex !== -1 && /json/i.test(line.slice(formatIndex + 6));
+    });
+
   if (hasJsonOutputInstructions) {
     // If the system prompt already has detailed JSON instructions, use it as-is
     return systemPrompt;
