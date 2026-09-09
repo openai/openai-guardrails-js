@@ -129,7 +129,7 @@ This benchmark evaluates model performance on agent conversation traces:
 
 #### ROC Curve
 
-![ROC Curve](../../benchmarking/alignment_roc_curves.png)
+![ROC Curve](/benchmarking/alignment_roc_curves.png)
 
 #### Performance Metrics
 

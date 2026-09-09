@@ -1,13 +1,6 @@
 {
-  "buildCommand": "pip install -r requirements.txt && mkdocs build",
-  "outputDirectory": ".vercel/output/static",
-  "framework": "other",
-  "installCommand": "echo 'Skipping npm install'",
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/$1",
-      "continue": true
-    }
-  ]
+  "buildCommand": "DOCS_BASE=/ npm run docs:build",
+  "outputDirectory": "site",
+  "framework": null,
+  "installCommand": "npm ci"
 }

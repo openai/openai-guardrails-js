@@ -94,7 +94,7 @@ For benchmarking, we randomly sampled 4,000 conversations from this pool using a
 
 #### ROC Curve
 
-![ROC Curve](../../benchmarking/Jailbreak_roc_curves.png)
+![ROC Curve](/benchmarking/Jailbreak_roc_curves.png)
 
 #### Metrics Table
 

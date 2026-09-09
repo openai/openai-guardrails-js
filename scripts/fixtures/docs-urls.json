@@ -1,0 +1,331 @@
+[
+  {
+    "path": "",
+    "headings": [
+      "guardrails",
+      "why-guardrails",
+      "how-it-works",
+      "built-in-guardrails",
+      "quickstart",
+      "next-steps",
+      "disclaimers"
+    ]
+  },
+  {
+    "path": "agents_sdk_integration/",
+    "headings": [
+      "using-guardrails-with-agents-sdk",
+      "overview",
+      "quick-start-with-guardrailagent",
+      "configuration-options",
+      "next-steps",
+      "token-usage-tracking"
+    ]
+  },
+  {
+    "path": "evals/",
+    "headings": [
+      "guardrails-evaluation-tool",
+      "quick-start",
+      "basic-evaluation",
+      "benchmark-mode",
+      "dependencies",
+      "arguments",
+      "configuration",
+      "dataset-format",
+      "standard-guardrails",
+      "fields",
+      "conversation-aware-guardrails-multi-turn",
+      "multi-turn-evaluation-mode",
+      "multi-turn-data-format",
+      "output-structure",
+      "evaluation-mode",
+      "benchmark-mode_1",
+      "third-party-model-support",
+      "openai-default",
+      "azure-openai",
+      "ollama-local-models",
+      "features",
+      "next-steps"
+    ]
+  },
+  {
+    "path": "examples/",
+    "headings": ["examples", "example-implementations", "getting-started"]
+  },
+  {
+    "path": "quickstart/",
+    "headings": [
+      "quickstart-typescript",
+      "install",
+      "set-api-key",
+      "create-pipeline-configuration",
+      "pipeline-stages",
+      "use-as-drop-in-replacement",
+      "multi-turn-conversations",
+      "guardrail-execution-error-handling",
+      "fail-safe-mode-default",
+      "fail-secure-mode",
+      "agents-sdk-integration",
+      "azure-openai",
+      "third-party-models",
+      "token-usage-tracking",
+      "works-with-guardrailsopenai-clients",
+      "per-guardrail-usage",
+      "next-steps"
+    ]
+  },
+  {
+    "path": "streaming_output/",
+    "headings": [
+      "streaming-vs-blocking",
+      "non-streaming-blocking-safe-and-reliable-default",
+      "streaming-fast-but-less-safe"
+    ]
+  },
+  {
+    "path": "tripwires/",
+    "headings": [
+      "tripwires",
+      "how-tripwires-work",
+      "default-behavior-blocking",
+      "suppressing-tripwires",
+      "tripwire-results",
+      "next-steps"
+    ]
+  },
+  {
+    "path": "ref/exceptions-typescript/",
+    "headings": ["exceptions-typescript"]
+  },
+  {
+    "path": "ref/registry/",
+    "headings": ["registry"]
+  },
+  {
+    "path": "ref/runtime/",
+    "headings": ["runtime"]
+  },
+  {
+    "path": "ref/spec/",
+    "headings": ["spec"]
+  },
+  {
+    "path": "ref/types-typescript/",
+    "headings": [
+      "types-typescript",
+      "guardrailllmcontext",
+      "guardrailllmcontextwithhistory",
+      "guardrailresult",
+      "checkfn",
+      "utility-types"
+    ]
+  },
+  {
+    "path": "ref/checks/competitors/",
+    "headings": [
+      "competitor-detection",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns"
+    ]
+  },
+  {
+    "path": "ref/checks/custom_prompt_check/",
+    "headings": [
+      "custom-prompt-check",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns"
+    ]
+  },
+  {
+    "path": "ref/checks/hallucination_detection/",
+    "headings": [
+      "hallucination-detection",
+      "hallucination-detection-definition",
+      "configuration",
+      "parameters",
+      "tuning-guidance",
+      "implementation",
+      "prerequisites-create-a-vector-store",
+      "configure-guardrails",
+      "use-with-guardrails-client",
+      "how-it-works",
+      "complete-example",
+      "notes",
+      "error-handling",
+      "what-it-returns",
+      "fields",
+      "benchmark-results",
+      "dataset-description",
+      "knowledge-source",
+      "evaluation-set",
+      "results",
+      "roc-curve",
+      "model-performance-table",
+      "latency-performance",
+      "vector-store-scaling-analysis",
+      "vector-store-configurations",
+      "latency-scaling",
+      "performance-scaling",
+      "complete-performance-metrics-across-all-vector-store-sizes"
+    ]
+  },
+  {
+    "path": "ref/checks/jailbreak/",
+    "headings": [
+      "jailbreak-detection",
+      "jailbreak-definition",
+      "what-it-detects",
+      "configuration",
+      "parameters",
+      "tuning-guidance",
+      "what-it-returns",
+      "benchmark-results",
+      "dataset-description",
+      "results",
+      "roc-curve",
+      "metrics-table",
+      "latency-performance"
+    ]
+  },
+  {
+    "path": "ref/checks/keywords/",
+    "headings": ["keyword-filter", "configuration", "parameters", "what-it-returns"]
+  },
+  {
+    "path": "ref/checks/llm_base/",
+    "headings": [
+      "llm-base",
+      "configuration",
+      "parameters",
+      "what-it-does",
+      "multi-turn-support",
+      "special-considerations",
+      "what-it-returns",
+      "usage"
+    ]
+  },
+  {
+    "path": "ref/checks/moderation/",
+    "headings": [
+      "moderation",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns"
+    ]
+  },
+  {
+    "path": "ref/checks/nsfw/",
+    "headings": [
+      "nsfw-text-detection",
+      "nsfw-definition",
+      "what-it-does-not-focus-on",
+      "configuration",
+      "parameters",
+      "tuning-guidance",
+      "what-it-returns",
+      "examples",
+      "benchmark-results",
+      "dataset-description",
+      "results",
+      "roc-curve",
+      "metrics-table"
+    ]
+  },
+  {
+    "path": "ref/checks/off_topic_prompts/",
+    "headings": [
+      "off-topic-prompts",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns"
+    ]
+  },
+  {
+    "path": "ref/checks/pii/",
+    "headings": [
+      "contains-pii",
+      "configuration",
+      "parameters",
+      "important-nrp-and-person-entity-deprecation",
+      "implementation-notes",
+      "what-it-returns",
+      "basic-example-plain-pii",
+      "with-encoded-pii-detection-enabled",
+      "field-descriptions"
+    ]
+  },
+  {
+    "path": "ref/checks/prompt_injection_detection/",
+    "headings": [
+      "prompt-injection-detection",
+      "how-prompt-injection-detection-guardrails-work",
+      "1-output-guardrail-tool-call-validation",
+      "2-pre-flight-guardrail-tool-call-output-validation",
+      "configuration",
+      "parameters",
+      "what-it-returns",
+      "benchmark-results",
+      "dataset-description",
+      "results",
+      "roc-curve",
+      "performance-metrics",
+      "latency-performance"
+    ]
+  },
+  {
+    "path": "ref/checks/secret_keys/",
+    "headings": [
+      "secret-keys",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns"
+    ]
+  },
+  {
+    "path": "ref/checks/urls/",
+    "headings": [
+      "url-filter",
+      "configuration",
+      "parameters",
+      "implementation-notes",
+      "what-it-returns",
+      "response-fields"
+    ]
+  },
+  {
+    "path": "ref/eval/guardrail_evals/",
+    "headings": ["guardrail-evals"]
+  },
+  {
+    "path": "ref/eval/core/async_engine/",
+    "headings": ["async-engine"]
+  },
+  {
+    "path": "ref/eval/core/calculator/",
+    "headings": ["calculator"]
+  },
+  {
+    "path": "ref/eval/core/json_reporter/",
+    "headings": ["json-reporter"]
+  },
+  {
+    "path": "ref/eval/core/jsonl_loader/",
+    "headings": ["jsonl-loader"]
+  },
+  {
+    "path": "ref/eval/core/types/",
+    "headings": ["types"]
+  },
+  {
+    "path": "ref/eval/core/validate_dataset/",
+    "headings": ["validate-dataset"]
+  }
+]

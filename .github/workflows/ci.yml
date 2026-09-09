@@ -40,3 +40,6 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Build and check docs
+        run: npm run docs:check

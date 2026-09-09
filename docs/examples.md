@@ -14,7 +14,7 @@ Ready-to-run examples demonstrating Guardrails in various scenarios. See the [`e
 
 ## Getting Started
 
-1. Follow the Quickstart guide: [TypeScript](./quickstart.md)
+1. Follow the Quickstart guide: [TypeScript](/quickstart/)
 2. Explore examples: [TypeScript examples](https://github.com/openai/openai-guardrails-js/tree/main/examples/)
 3. Run scripts to see Guardrails in action
 

@@ -148,7 +148,7 @@ const client = await GuardrailsOpenAI.create(
 // Raises exceptions if guardrails fail to execute properly
 ```
 
-**Note**: This only affects guardrail execution errors. Safety violations (tripwires) are handled separately - see [Tripwires](./tripwires.md) for details.
+**Note**: This only affects guardrail execution errors. Safety violations (tripwires) are handled separately - see [Tripwires](/tripwires/) for details.
 
 ## Agents SDK Integration
 
@@ -277,4 +277,4 @@ Non-LLM guardrails (PII, Moderation, URL Filter, etc.) do not consume tokens, so
 ## Next Steps
 
 - Explore TypeScript [examples](https://github.com/openai/openai-guardrails-js/tree/main/examples) for advanced patterns
-- Learn about [streaming considerations](./streaming_output.md)
+- Learn about [streaming considerations](/streaming_output/)

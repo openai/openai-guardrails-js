@@ -82,5 +82,5 @@ TypeScript
 
 ## Next Steps
 
-- Learn about [streaming considerations](./streaming_output.md)
-- Explore [examples](./examples.md) for usage patterns
+- Learn about [streaming considerations](/streaming_output/)
+- Explore [examples](/examples/) for usage patterns

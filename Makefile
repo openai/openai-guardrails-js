@@ -20,16 +20,16 @@ build:
 
 .PHONY: sync
 sync:
-	uv sync
+	npm ci
 
 .PHONY: build-docs
 build-docs:
-	uv run mkdocs build --site-dir site
+	npm run docs:build
 
 .PHONY: serve-docs
 serve-docs:
-	uv run mkdocs serve
+	npm run docs:dev
 
 .PHONY: deploy-docs
 deploy-docs:
-	uv run mkdocs gh-deploy --force --verbose
+	gh workflow run docs.yml --ref main

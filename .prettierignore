@@ -3,3 +3,6 @@ package-lock.json
 dist
 build
 coverage
+
+site
+docs/.vitepress/cache
