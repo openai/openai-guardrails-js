@@ -6,6 +6,7 @@ import {
   createLLMCheckFn,
   extractConversationHistory,
   buildAnalysisPayload,
+  buildFullPrompt,
   DEFAULT_MAX_TURNS,
 } from '../../checks/llm-base';
 import { defaultSpecRegistry } from '../../registry';
@@ -21,6 +22,37 @@ vi.mock('../../registry', () => ({
 describe('LLM Base', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('buildFullPrompt', () => {
+    it.each([
+      'Respond with a JSON object',
+      'output json',
+      'return a json object',
+      'Respond\nwith a JSON object',
+      'Use FORMAT: JSON',
+      'formatjson',
+      'Use formatting appropriate for JSON',
+      'JSON examples; format the result as json',
+      'Instructions\nformat the result as JSON',
+      'format the header; format the result as JSON',
+    ])('preserves existing JSON instructions: %s', (prompt) => {
+      expect(buildFullPrompt(prompt)).toBe(prompt);
+    });
+
+    it.each([
+      '',
+      'Check the text',
+      'Discuss JSON and then format the result',
+      'format the result as plain text',
+      ...['\n', '\r', '\u2028', '\u2029'].map((separator) => `format${separator}JSON`),
+    ])('adds JSON instructions when absent: %s', (prompt) => {
+      const result = buildFullPrompt(prompt, LLMOutput);
+      expect(result).toContain(prompt);
+      expect(result).toContain('Respond with a json object containing:');
+      expect(result).toContain('- "flagged": boolean');
+      expect(result).toContain('- "confidence": float');
+    });
   });
 
   describe('LLMConfig', () => {

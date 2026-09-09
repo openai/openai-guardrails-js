@@ -43,6 +43,39 @@ describe('pii guardrail', () => {
     await expect(pii({}, '', config)).rejects.toThrow('Text cannot be empty or null');
   });
 
+  describe.each([false, true])('Finnish identity codes with block=%s', (block) => {
+    it.each(['+', '-', 'A'])('detects the supported century marker %s', async (marker) => {
+      const config = PIIConfig.parse({
+        entities: [PIIEntity.FI_PERSONAL_IDENTITY_CODE],
+        block,
+      });
+      const identityCode = `010101${marker}0101`;
+      const result = await pii({}, `ID: ${identityCode}`, config);
+
+      expect(result.tripwireTriggered).toBe(block);
+      expect(result.info?.detected_entities).toEqual({
+        FI_PERSONAL_IDENTITY_CODE: [identityCode],
+      });
+      expect(result.info?.checked_text).toBe('ID: <FI_PERSONAL_IDENTITY_CODE>');
+    });
+
+    it.each([',', '.', '/', '0', '9', ':', ';', '<', '=', '>', '?', '@'])(
+      'does not treat %s as a century marker',
+      async (marker) => {
+        const config = PIIConfig.parse({
+          entities: [PIIEntity.FI_PERSONAL_IDENTITY_CODE],
+          block,
+        });
+        const text = `ID: 010101${marker}0101`;
+        const result = await pii({}, text, config);
+
+        expect(result.tripwireTriggered).toBe(false);
+        expect(result.info?.detected_entities).toEqual({});
+        expect(result.info?.checked_text).toBe(text);
+      }
+    );
+  });
+
   it('detects valid Korean Resident Registration Number (KR_RRN)', async () => {
     const config = PIIConfig.parse({
       entities: [PIIEntity.KR_RRN],

@@ -35,6 +35,20 @@ describe('Safety Identifier utilities', () => {
       expect(supportsSafetyIdentifier(mockClient)).toBe(true);
     });
 
+    it.each([
+      ['https://API.OPENAI.COM/v1', true],
+      ['https://api.openai.com:443/v1/', true],
+      ['https://staging.api.openai.com/v1', false],
+      ['https://openai.com/v1', false],
+      ['/v1', false],
+      ['not a URL', false],
+      ['', false],
+    ])('should classify the parsed hostname of %s as %s', (baseURL, expected) => {
+      expect(supportsSafetyIdentifier({ baseURL })).toBe(expected);
+      expect(supportsSafetyIdentifier({ _client: { baseURL } })).toBe(expected);
+      expect(supportsSafetyIdentifier({ _baseURL: baseURL })).toBe(expected);
+    });
+
     it('should return false for Azure OpenAI client', () => {
       const mockClient = {
         constructor: { name: 'AzureOpenAI' },
@@ -125,4 +139,3 @@ describe('Safety Identifier utilities', () => {
     });
   });
 });
-
