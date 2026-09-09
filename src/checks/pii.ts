@@ -391,7 +391,7 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
   [PIIEntity.IN_PASSPORT]: [{ regex: /\b[A-Z]\d{7}\b/g }],
 
   // Finland
-  [PIIEntity.FI_PERSONAL_IDENTITY_CODE]: [{ regex: /\b\d{6}[+-A]\d{3}[A-Z0-9]\b/g }],
+  [PIIEntity.FI_PERSONAL_IDENTITY_CODE]: [{ regex: /\b\d{6}[+A-]\d{3}[A-Z0-9]\b/g }],
 
   // Korea
   // Format: YYMMDD-GNNNNNN where YY=year, MM=month(01-12), DD=day(01-31), G=gender/century(1-4)
