@@ -28,6 +28,25 @@ Complete this setup before merging the release workflow:
    Publishing remains in that workflow; the App credentials only orchestrate
    GitHub releases.
 
+## First automated release
+
+Before merging the first generated release PR, reconcile its proposed version
+and changelog with all changes since `v0.2.1` (`git log v0.2.1..main`). Historical
+commits do not all use Conventional Commit titles, so generated notes alone are
+not a complete inventory.
+
+In particular, [PR #63](https://github.com/openai/openai-guardrails-js/pull/63)
+added the `RequestOptions` parameter to response and chat creation methods under
+a non-Conventional title. Include that feature in the first release's changelog
+and explicitly review whether the proposed version reflects the unreleased
+features before approving the release PR. Do not assume a generated patch bump
+has accounted for those changes.
+
+The versions in `pyproject.toml` and the root project entry in `uv.lock` describe
+the Python documentation tooling project. They remain consistent with each other
+and are not inputs to the npm package version or rendered documentation version;
+the Node release strategy does not update them.
+
 ## Normal release process
 
 1. Merge changes to `main` using Conventional Commit titles, such as `fix:` or
