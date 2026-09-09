@@ -59,7 +59,14 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   const { keywords } = actualConfig as KeywordsConfig;
 
   // Sanitize keywords by stripping trailing punctuation
-  const sanitizedKeywords = keywords.map((k: string) => k.replace(/[.,!?;:]+$/, ''));
+  const sanitizedKeywords = keywords.map((keyword: string) => {
+    let end = keyword.length;
+    // Scan the suffix once instead of retrying a trailing-punctuation regex.
+    while (end > 0 && '.,!?;:'.includes(keyword[end - 1])) {
+      end -= 1;
+    }
+    return keyword.slice(0, end);
+  });
 
   const keywordEntries = sanitizedKeywords
     .map((sanitized) => ({

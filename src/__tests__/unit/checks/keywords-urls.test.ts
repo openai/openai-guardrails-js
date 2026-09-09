@@ -9,6 +9,29 @@ import { competitorsCheck } from '../../../checks/competitors';
 import { GuardrailResult } from '../../../types';
 
 describe('keywords guardrail', () => {
+  it.each([
+    ['secret.,!?;:', 'secret'],
+    ['.,!?;:', ''],
+    ['', ''],
+    ['hello!world', 'hello!world'],
+    ['!secret?', '!secret'],
+    ['secret! ', 'secret! '],
+    ['secret!\n', 'secret!\n'],
+    ['secret!\r\n', 'secret!\r\n'],
+    ['你好!?', '你好'],
+    ['hello😀!?', 'hello😀'],
+    ['secret@', 'secret@'],
+  ])('sanitizes %j to %j', (keyword, sanitized) => {
+    const result = keywordsCheck(
+      {},
+      'Ordinary input',
+      KeywordsConfig.parse({ keywords: [keyword] })
+    ) as GuardrailResult;
+
+    expect(result.info?.sanitizedKeywords).toEqual([sanitized]);
+    expect(result.info?.originalKeywords).toEqual([keyword]);
+  });
+
   it('detects keywords with trailing punctuation removed', () => {
     const result = keywordsCheck(
       {},
