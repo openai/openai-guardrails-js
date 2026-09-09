@@ -61,7 +61,7 @@ describe('Types Module', () => {
 
   describe('CheckFn', () => {
     it('should work with sync function', () => {
-      const syncCheck = (ctx: Record<string, unknown>, data: string): GuardrailResult => ({
+      const syncCheck = (_ctx: Record<string, unknown>, data: string): GuardrailResult => ({
         tripwireTriggered: data === 'trigger',
         info: {
           guardrail_name: 'Sync',
@@ -73,7 +73,7 @@ describe('Types Module', () => {
     });
 
     it('should work with async function', async () => {
-      const asyncCheck = async (ctx: Record<string, unknown>, data: string): Promise<GuardrailResult> => ({
+      const asyncCheck = async (_ctx: Record<string, unknown>, data: string): Promise<GuardrailResult> => ({
         tripwireTriggered: data === 'trigger',
         info: {
           guardrail_name: 'Async',
@@ -110,7 +110,7 @@ describe('Types Module', () => {
   describe('Type compatibility', () => {
     it('should allow flexible context types', () => {
       const check = (
-        ctx: { user: string },
+        _ctx: { user: string },
         data: string,
         config: { threshold: number }
       ): GuardrailResult => ({
@@ -125,7 +125,7 @@ describe('Types Module', () => {
     });
 
     it('should allow flexible input types', () => {
-      const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
+      const check = (_ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
           guardrail_name: 'FlexibleInput',
@@ -138,7 +138,7 @@ describe('Types Module', () => {
     });
 
     it('should allow flexible config types', () => {
-      const check = (ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
+      const check = (_ctx: unknown, data: unknown, _config: unknown): GuardrailResult => ({
         tripwireTriggered: false,
         info: {
           guardrail_name: 'FlexibleConfig',

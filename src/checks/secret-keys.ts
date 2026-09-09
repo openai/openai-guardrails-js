@@ -270,13 +270,13 @@ function detectSecretKeys(
  * Scans the input for likely secrets or credentials (e.g., API keys, tokens)
  * using entropy, diversity, and pattern rules.
  *
- * @param ctx Guardrail context (unused).
+ * @param _ctx Guardrail context (unused).
  * @param data Input text to scan.
  * @param config Configuration for secret detection.
  * @returns GuardrailResult indicating if secrets were detected, with findings in info.
  */
 export const secretKeysCheck: CheckFn<SecretKeysContext, string, SecretKeysConfig> = async (
-  ctx,
+  _ctx,
   data,
   config
 ): Promise<GuardrailResult> => {

@@ -14,7 +14,7 @@ import { CheckFn } from '../../types';
 import { loadConfigBundle } from '../../runtime';
 
 // Mock check function for testing
-const mockCheck: CheckFn<object, string, object> = (ctx, data) => ({
+const mockCheck: CheckFn<object, string, object> = (_ctx, data) => ({
   tripwireTriggered: data === 'trigger',
   info: {
     sampled_text: data,

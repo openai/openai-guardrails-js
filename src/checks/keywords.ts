@@ -35,7 +35,7 @@ export type KeywordsContext = z.infer<typeof KeywordsContext>;
  * Checks if any of the configured keywords appear in the input text.
  * Can be configured to trigger tripwires on matches or just report them.
  *
- * @param ctx Runtime context (unused for this guardrail)
+ * @param _ctx Runtime context (unused for this guardrail)
  * @param text Input text to check
  * @param config Configuration specifying keywords and behavior
  * @returns GuardrailResult indicating if tripwire was triggered
@@ -50,7 +50,7 @@ const isWordChar = (() => {
 })();
 
 export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
-  ctx,
+  _ctx,
   text,
   config
 ): GuardrailResult => {
