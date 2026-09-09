@@ -1,15 +1,31 @@
 # Releases
 
 This repository uses Changesets to release the single npm package
-`@openai/guardrails`. Python dependencies in `pyproject.toml` only build the docs;
-their project version is independent of npm releases.
+`@openai/guardrails`. VitePress builds the documentation separately from npm
+releases.
 
 ## Contributing a release note
 
 For a user-visible SDK change, run `npm run changeset`, choose the appropriate
 patch, minor, or major bump, and write a short description of the change. Commit
-the generated `.changeset/*.md` file with the code. Internal tooling and docs-only
-changes do not require a release note.
+the generated `.changeset/*.md` file with the code.
+
+Add an entry for changes that materially affect package users: new features,
+bug fixes, public APIs or types, deprecations, breaking changes, and meaningful
+runtime performance or security improvements. Include dependency, build, or
+packaging changes when they affect installation, supported environments, or
+runtime behavior.
+
+Do not add entries for internal tooling, CI, release automation, tests,
+documentation-only edits, or refactoring without user-visible effects. For
+example, upgrading a CI action needs no entry; fixing missing files in the
+published npm package does. Describe what users experience and any migration
+steps, rather than internal implementation details.
+
+Code reviewers should require a matching, accurate changeset for material
+user-facing changes and check its version-bump level. They should not request
+one for internal-only changes or ask generated release PRs for another changeset.
+See [agent and code-review guidance](../AGENTS.md).
 
 Use `npm run changeset -- status` to preview pending releases. Do not manually bump
 `package.json` or create a release tag as part of an ordinary code PR.
@@ -50,6 +66,5 @@ Pushing a tag no longer triggers npm publishing. Publishing and tag creation now
 happen together after merging the version PR, preventing a second tag-triggered
 publish of the same version.
 
-The CLI stays on Changesets 2.x to preserve the SDK repository's Node 18 developer
-compatibility; Changesets 3.x requires a newer Node version. The release workflow
-uses the compatible Changesets action 1.x.
+The release workflow uses Changesets CLI 2.x with the compatible Changesets action
+1.x on Node 22.
