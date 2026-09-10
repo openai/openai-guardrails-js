@@ -12,6 +12,25 @@ Advanced URL detection and filtering guardrail that prevents access to unauthori
 
 ## Configuration
 
+### Control characters and scope
+
+The filter rejects `http`, `https`, `ftp`, `data`, `javascript`, and `vbscript`
+scheme prefixes with TAB, LF, or CR between their letters or before the colon.
+WHATWG URL parsers remove those characters, so ordinary whitespace-based
+detection could otherwise miss the scheme. The original prefix is reported in
+`detected` and `blocked` with an ambiguous-scheme reason, even if its destination
+or scheme would otherwise be allowed. Ordinary line breaks between URLs or prose
+remain text boundaries.
+
+This check scans URLs in text; it does not validate every possible interpretation
+of the entire input as one URL. In particular, this scheme-prefix fix does not
+change handling of control characters in hosts, paths, queries, or fragments.
+Applications making network requests must separately validate the exact URL they
+will request, including redirect destinations and resolved addresses. Passing
+this text filter alone is not an SSRF-prevention guarantee.
+
+### Example
+
 ```json
 {
     "name": "URL Filter",
