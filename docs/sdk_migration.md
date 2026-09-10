@@ -5,7 +5,7 @@ The release introduces breaking dependency and runtime changes:
 
 | Dependency | In 0.2.1 | Required by 0.3.0 |
 | --- | --- | --- |
-| Node.js | `>=18.0.0` | `^22.13.0 || >=24.0.0` |
+| Node.js | `>=18.0.0` | `^22.13.0 \|\| >=24.0.0` |
 | `zod` | `^3.22.0` | `^4.5.4` |
 | `openai` | `^4.0.0` | `^7.9.0` |
 | `@openai/agents` | `^0.1.3` | `^0.17.2` |
