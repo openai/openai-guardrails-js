@@ -97,3 +97,62 @@ appropriate patch, minor, or major bump.
 Do not request a changeset for internal-only changes listed above. Generated
 release PRs consume changesets into the changelog; review their versions and
 changelog rather than asking for another changeset.
+
+
+## Repository map and supported tools
+
+This repository publishes one package, `@openai/guardrails`, from `dist/`.
+Use the owning module when changing a behavior:
+
+| Area | Ownership |
+| --- | --- |
+| Public exports | `src/index.ts` and emitted declarations |
+| OpenAI and Azure clients | `src/client.ts`, shared pipeline in `src/base-client.ts` |
+| Chat Completions and Responses | `src/resources/`; preserve request parameters and options |
+| Configuration and registration | `src/runtime.ts`, `src/spec.ts`, `src/registry.ts` |
+| Built-in checks | `src/checks/` and shared schema/output helpers in `src/utils/` |
+| Streaming output | `src/streaming.ts` and resource-specific stream handling |
+| Agents integration | `src/agents.ts` and shared conversation normalization |
+| Evaluation | `src/evals/` and `src/cli.ts` |
+| Tests | `src/__tests__/unit/` and `src/__tests__/integration/` |
+| Documentation | `docs/`, `docs/.vitepress/`, and `scripts/docs.test.mjs` |
+
+Use [package.json](package.json) and the committed npm lockfile as the toolchain
+source of truth. The current stack uses TypeScript 7, Vitest 4, Biome, and
+VitePress. Node support is declared in `engines`; CI tests Node 22, 24, and 26.
+The [SDK migration guide](docs/sdk_migration.md) documents the OpenAI 7,
+Agents 0.17, and Zod 4 compatibility boundaries.
+
+## Local verification
+
+From the repository root, the full CI-equivalent sequence is:
+
+```sh
+npm ci
+npm run build
+npm run test:run
+npm run lint
+npm run docs:check
+```
+
+Run the commands one at a time and stop on failure. Build before the tests:
+some SDK compatibility tests load the built CommonJS package and declarations.
+`npm run lint` checks formatting and imports as well as lint rules with Biome;
+a separate Prettier or ESLint installation is unnecessary. `npm run docs:check`
+builds VitePress and checks generated documentation URLs using Node. Python,
+MkDocs, uv, and Make are not required for these checks.
+
+During implementation, use focused tests such as
+`npm run test:run -- src/__tests__/unit/client.test.ts`. Run the full sequence
+for runtime, dependencies, build, test, or packaging changes. For contributor
+instructions and skill metadata only, validate the changed guidance, references,
+and metadata and run `git diff --check`; unchanged runtime tests need not be
+repeated. For site content, navigation, or documentation tooling changes, run
+`npm run docs:check` after installing dependencies. A local docs check does not
+publish the site.
+
+Use the repository's current configuration when formatting changed supported
+files. Biome does not cover Markdown or YAML here; review those formats and
+links directly. Preserve existing checks, and report exactly which checks ran
+and any failures or unavailable coverage. Release-note requirements are defined
+above and in the [release guide](.changeset/README.md).
