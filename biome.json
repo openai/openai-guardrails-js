@@ -38,7 +38,8 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "error",
-        "noUnusedFunctionParameters": "error"
+        "noUnusedFunctionParameters": "error",
+        "noUndeclaredVariables": "error"
       },
       "suspicious": {
         "noExplicitAny": "error"

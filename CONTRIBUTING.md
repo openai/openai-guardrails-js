@@ -73,7 +73,8 @@ files, or `npx biome check --write path/to/file.ts` for a single file.
 `npm run format:check` checks formatting without writing files.
 
 The configuration enables Biome's recommended rules and explicitly rejects unused
-imports, variables and parameters, explicit `any`, and non-null assertions. It also
+imports, variables and parameters, undeclared identifiers, explicit `any`, and
+non-null assertions. It also
 requires `node:` imports and type-only imports. TypeScript's strict compiler checks
 remain enabled; Biome does not replace `npm run build`.
 
