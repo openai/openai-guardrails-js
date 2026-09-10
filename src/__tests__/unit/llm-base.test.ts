@@ -27,6 +27,94 @@ describe('LLM Base', () => {
     vi.clearAllMocks();
   });
 
+  describe('malformed thrown values', () => {
+    afterEach(() => vi.restoreAllMocks());
+
+    const inaccessible = () => {
+      throw new Error('Inaccessible property');
+    };
+
+    it.each([
+      { name: 'null prototype', make: () => Object.create(null), message: '{}' },
+      { name: 'undefined', make: () => undefined, message: 'undefined' },
+      { name: 'null', make: () => null, message: 'null' },
+      { name: 'symbol', make: () => Symbol('failure'), message: 'Symbol(failure)' },
+      { name: 'provider string', make: () => 'unavailable', message: 'unavailable' },
+      { name: 'ordinary Error', make: () => new Error('failure'), message: 'Error: failure' },
+      {
+        name: 'failed string and JSON conversion',
+        make: () => ({ toString: inaccessible, toJSON: inaccessible }),
+        message: 'Unknown LLM error',
+      },
+      {
+        name: 'undefined JSON conversion',
+        make: () => ({ toString: inaccessible, toJSON: () => undefined }),
+        message: 'Unknown LLM error',
+      },
+      {
+        name: 'circular null-prototype object',
+        make: () => {
+          const value = Object.create(null);
+          value.self = value;
+          return value;
+        },
+        message: 'Unknown LLM error',
+      },
+      {
+        name: 'inaccessible constructor',
+        make: () => Object.defineProperty({}, 'constructor', { get: inaccessible }),
+        message: '[object Object]',
+      },
+      {
+        name: 'inaccessible prototype',
+        make: () => new Proxy({}, { getPrototypeOf: inaccessible }),
+        message: '[object Object]',
+      },
+      {
+        name: 'inaccessible message',
+        make: () => Object.defineProperty(new Error(), 'message', { get: inaccessible }),
+        message: '{}',
+      },
+      {
+        name: 'inaccessible stack',
+        make: () => Object.defineProperty(new Error('failure'), 'stack', { get: inaccessible }),
+        message: 'Error: failure',
+      },
+      {
+        name: 'changing stack',
+        make: () => {
+          let reads = 0;
+          return Object.defineProperty(new Error('failure'), 'stack', {
+            get: () => (++reads === 1 ? 'stack' : inaccessible()),
+          });
+        },
+        message: 'Error: failure',
+      },
+      {
+        name: 'inaccessible Zod issues',
+        make: () =>
+          new Proxy(new z.ZodError([]), {
+            get: (target, key, receiver) =>
+              key === 'issues' ? inaccessible() : Reflect.get(target, key, receiver),
+          }),
+        message: '[]',
+      },
+    ])('recovers from $name', async ({ make, message }) => {
+      const create = vi.fn().mockRejectedValue(make());
+      const client = { chat: { completions: { create } } } as unknown as OpenAI;
+      const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const [result, usage] = await runLLM('text', 'prompt', client, 'gpt-4', LLMOutput);
+
+      expect(result).toEqual({
+        flagged: false,
+        confidence: 0,
+        info: { error_message: message },
+      });
+      expect(usage.unavailable_reason).toBe('LLM call failed before usage could be recorded');
+      expect(log).toHaveBeenCalledWith('LLM guardrail failed for prompt:', 'prompt', message);
+    });
+  });
+
   describe('error recovery when logging throws', () => {
     afterEach(() => {
       vi.restoreAllMocks();

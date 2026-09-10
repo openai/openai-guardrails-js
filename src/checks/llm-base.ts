@@ -362,6 +362,39 @@ function stripJsonCodeFence(text: string): string {
   return candidate;
 }
 
+/** Preserve ordinary error messages without letting thrown values break recovery. */
+function safeErrorMessage(error: unknown): string {
+  try {
+    return String(error);
+  } catch {
+    // Some objects, including null-prototype objects, cannot be coerced.
+  }
+  try {
+    const json = JSON.stringify(error);
+    if (typeof json === 'string') return json;
+  } catch {
+    // Circular objects and throwing accessors may also prevent serialization.
+  }
+  return 'Unknown LLM error';
+}
+
+function classifyLLMError(error: unknown): {
+  kind: 'syntax' | 'schema' | 'other';
+  issues?: unknown;
+} {
+  try {
+    if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
+      return { kind: 'syntax' };
+    }
+    if (error instanceof z.ZodError) {
+      return { kind: 'schema', issues: error.issues ?? [] };
+    }
+  } catch {
+    // Exception prototypes and properties may be inaccessible; use generic recovery.
+  }
+  return { kind: 'other' };
+}
+
 function logLLMError(level: 'error' | 'warn', ...args: unknown[]): void {
   try {
     console[level](...args);
@@ -476,7 +509,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     return [outputModel.parse(JSON.parse(cleanedResult)), tokenUsage];
   } catch (error) {
     // Logging exception objects can itself fail in Node's object inspector.
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = safeErrorMessage(error);
     logLLMError('error', 'LLM guardrail failed for prompt:', systemPrompt, errorMessage);
 
     // Check if this is a content filter error - Azure OpenAI
@@ -488,16 +521,18 @@ export async function runLLM<TOutput extends ZodTypeAny>(
           confidence: 1.0,
           info: {
             third_party_filter: true,
-            error_message: String(error),
+            error_message: errorMessage,
           },
         }),
         noUsage,
       ];
     }
 
+    const classification = classifyLLMError(error);
+
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     // Use tokenUsage here since API call succeeded but response parsing failed
-    if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
+    if (classification.kind === 'syntax') {
       logLLMError('warn', 'LLM returned non-JSON or malformed JSON.', errorMessage);
       return [
         LLMErrorOutput.parse({
@@ -513,7 +548,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
 
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     // Use tokenUsage here since API call succeeded but schema validation failed
-    if (error instanceof z.ZodError) {
+    if (classification.kind === 'schema') {
       logLLMError('warn', 'LLM response validation failed.', errorMessage);
       return [
         LLMErrorOutput.parse({
@@ -521,7 +556,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
           confidence: 0.0,
           info: {
             error_message: 'LLM response validation failed.',
-            zod_issues: error.issues ?? [],
+            zod_issues: classification.issues,
           },
         }),
         tokenUsage,
@@ -534,7 +569,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
         flagged: false,
         confidence: 0.0,
         info: {
-          error_message: String(error),
+          error_message: errorMessage,
         },
       }),
       noUsage,
