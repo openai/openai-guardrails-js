@@ -42,6 +42,7 @@ export class StreamingMixin {
         hasMultipleChoices = true;
       }
       const periodicChecks: Promise<GuardrailResult[]>[] = [];
+      const periodicCheckpoints: { state: { lastStrictCheckedTextLength: number }; length: number }[] = [];
       for (const alternative of alternatives) {
         const chunkText = this.extractResponseText(alternative.response);
         if (!chunkText) {
@@ -56,17 +57,14 @@ export class StreamingMixin {
           const history = mergeConversationWithItems(baseHistory, [
             { role: 'assistant', content: state.text },
           ]);
-          const checkedLength = state.text.length;
-          const strict = this.raiseGuardrailErrors;
-          periodicChecks.push(this.runStageGuardrails('output', state.text, history, true, false).then((results) => {
-            if (strict) state.lastStrictCheckedTextLength = checkedLength;
-            return results;
-          }));
+          periodicCheckpoints.push({ state, length: state.text.length });
+          periodicChecks.push(this.runStageGuardrails('output', state.text, history, true, false));
         }
       }
 
       const periodicResults = (await Promise.all(periodicChecks)).flat();
-      const periodicFailure = getGuardrailFailure(periodicResults, suppressTripwire, this.raiseGuardrailErrors);
+      const strict = this.raiseGuardrailErrors;
+      const periodicFailure = getGuardrailFailure(periodicResults, suppressTripwire, strict);
       if (periodicFailure) {
         if (periodicFailure.kind === 'tripwire') {
           yield this.createGuardrailsResponse(
@@ -75,6 +73,12 @@ export class StreamingMixin {
           );
         }
         throw periodicFailure.error;
+      }
+
+      if (strict) {
+        for (const checkpoint of periodicCheckpoints) {
+          checkpoint.state.lastStrictCheckedTextLength = checkpoint.length;
+        }
       }
 
       const response = this.createGuardrailsResponse(
