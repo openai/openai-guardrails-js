@@ -4,13 +4,21 @@
 
 ### Minor Changes
 
-- a1b8172: Upgrade to Agents SDK 0.17, OpenAI SDK 7, and Zod 4 together. Custom guardrail schemas must use Zod 4, and applications sharing OpenAI or Agents clients should upgrade those dependencies too. Exported schema definitions, validation errors, and inherited OpenAI APIs now follow their new upstream versions. See the SDK migration guide for native fetch, schema defaults, and inherited API changes.
+- a1b8172: **Breaking changes — Zod 4, OpenAI 7, and Agents SDK 0.17.** Upgrade applications sharing schemas or clients with Guardrails to the following dependency versions:
 
-  Preserve built-in LLM output field instructions with Zod 4 and resolve Agents session history through the public SDK entry point, without relying on a hoisted agents-core package. Pipeline JSON and Guardrails factory entry points are unchanged.
+  | Dependency | Guardrails 0.2.1 | Guardrails 0.3.0 |
+  | --- | --- | --- |
+  | `zod` | `^3.22.0` | `^4.5.4` |
+  | `openai` | `^4.0.0` | `^7.9.0` |
+  | `@openai/agents` | `^0.1.3` | `^0.17.2` |
 
-  Keep default PII entity lists independent across configurations, and preserve API-key callbacks for the separate client used by guardrail checks.
+  - **Zod:** Custom configuration, context, and output schemas must use Zod 4. Migrate `.errors` to `.issues`, single-argument `z.record()` calls to key/value schemas, and review default parsing behavior. Exported schema definitions now use Zod 4 internals.
+  - **OpenAI:** Shared clients, inherited methods, request/response types, and options now follow OpenAI 7. Custom fetch implementations must use Web `Response` objects; error headers use `Headers`. Replace `httpAgent` with supported `fetchOptions` and migrate inherited `beta.chat.completions` calls to `chat.completions`.
+  - **Agents:** Upgrade directly installed `@openai/agents` alongside Guardrails and use Zod 4 for tool and structured-output schemas. Review directly used Agents APIs when moving from 0.1.x to 0.17.x.
 
-  Keep Agents preflight checks blocking before model dispatch. Preserve provider and workload-identity authentication for guardrail calls, and retain initialized guardrails and client option overrides when using `withOptions()` on OpenAI or Azure clients.
+  Follow the [0.2.1 → 0.3.0 upgrade guide](https://github.com/openai/openai-guardrails-js/blob/main/docs/sdk_migration.md) for installation commands, migration details, and verification steps. Update dependency overrides or resolutions that pin older SDKs. Pipeline JSON and the Guardrails factory entry points remain unchanged; inherited SDK methods are not automatically guarded.
+
+  Preserve built-in LLM output field instructions, independent PII configuration defaults, session-backed Agents history, blocking preflight checks, provider authentication, and initialized guarded clients returned by `withOptions()`.
 
 - b247695: **Breaking change:** Require Node.js 22.13 or later in the 22.x series, or Node.js 24 or newer (`^22.13.0 || >=24.0.0`). Support for Node.js 18 and 20 is removed; Node.js 22.0–22.12 and 23 are also unsupported. Upgrade applications on unsupported versions before installing this release. ([#92](https://github.com/openai/openai-guardrails-js/pull/92), [#82](https://github.com/openai/openai-guardrails-js/pull/82))
 - b247695: Allow passing per-request OpenAI options to responses and chat completion create methods. ([#63](https://github.com/openai/openai-guardrails-js/pull/63))
@@ -34,9 +42,6 @@
 
   Prevent validation-error logging from invoking Node's exception object inspector
   so that guardrail execution failures retain their diagnostics and token usage.
-
-  The minimum dependency versions are now OpenAI SDK 4.55.0 and Zod 3.23.8. Update
-  dependency overrides or resolutions that pin older versions.
 
 - 7c88658: Preserve LLM guardrail error results and available token usage when console logging throws, including when Node.js cannot inspect a validation error.
 - 6c13ba0: Make LOCATION PII matching run in linear time while preserving street-address detection and masking for plaintext and decoded content.
