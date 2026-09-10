@@ -57,6 +57,10 @@ OpenAI's `zodResponseFormat` helper supports Zod 4. Structured output schemas mu
 follow the API's required-field rules; use nullable fields for optional values.
 Built-in checks use this helper for the structured-output cases described above.
 
+The separate client used for guardrail checks retains SDK provider and workload-identity
+authentication. `withOptions()` returns an initialized guarded client with the requested
+SDK option overrides, including for Azure clients.
+
 ## Agents integration
 
 Upgrade your application's Agents SDK alongside Guardrails and use Zod 4 for
@@ -68,3 +72,6 @@ Guardrails resolves Runner and guardrail types through the public `@openai/agent
 entry point. Session-backed history no longer depends on npm hoisting the transitive
 `@openai/agents-core` dependency. Input and output guardrails retain conversation
 history when running the built CommonJS package with the matching Agents Runner.
+
+Generated `pre_flight` guardrails explicitly block model dispatch until they pass.
+The `input` stage retains the Agents SDK default execution behavior.

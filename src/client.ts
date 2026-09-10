@@ -6,7 +6,7 @@
  * applying guardrails to text-based methods that could benefit from validation.
  */
 
-import { AzureOpenAI, type ClientOptions, OpenAI } from 'openai';
+import { type AzureClientOptions, AzureOpenAI, type ClientOptions, OpenAI } from 'openai';
 import { GuardrailsBaseClient, type PipelineConfig } from './base-client';
 import type { Chat as GuardrailsChat } from './resources/chat';
 import type { Responses as GuardrailsResponses } from './resources/responses';
@@ -28,7 +28,7 @@ export { GuardrailResults, GuardrailsResponse } from './base-client';
  * All other methods pass through unchanged for full API compatibility.
  */
 export class GuardrailsOpenAI extends OpenAI {
-  private guardrailsClient: GuardrailsBaseClientImpl;
+  private guardrailsClient!: GuardrailsBaseClientImpl;
 
   // Retain OpenAI's original types for drop-in compatibility
   public override chat!: InstanceType<typeof OpenAI>['chat'];
@@ -41,17 +41,17 @@ export class GuardrailsOpenAI extends OpenAI {
   public override responses!: InstanceType<typeof OpenAI>['responses'];
 
   private constructor(
-    guardrailsClient: GuardrailsBaseClientImpl,
-    options?: ConstructorParameters<typeof OpenAI>[0]
+    options?: ConstructorParameters<typeof OpenAI>[0],
+    guardrailsClient?: GuardrailsBaseClientImpl
   ) {
     // Initialize OpenAI client first
     super(options);
 
-    // Store the initialized guardrails client
-    this.guardrailsClient = guardrailsClient;
-
-    // Override chat and responses after initialization
-    this.overrideResources();
+    // SDK withOptions constructs the clone before its initialized guards are attached.
+    if (guardrailsClient) {
+      this.guardrailsClient = guardrailsClient;
+      this.overrideResources();
+    }
   }
 
   /**
@@ -71,14 +71,22 @@ export class GuardrailsOpenAI extends OpenAI {
     raiseGuardrailErrors: boolean = false
   ): Promise<GuardrailsOpenAI> {
     // Create and initialize the guardrails client
-    const guardrailsClient = new GuardrailsBaseClientImpl(options?.apiKey);
+    const guardrailsClient = new GuardrailsBaseClientImpl();
     await guardrailsClient.initializeClient(config, options || {}, OpenAI);
 
     // Store the raiseGuardrailErrors setting
     guardrailsClient.raiseGuardrailErrors = raiseGuardrailErrors;
 
     // Create the instance with the initialized client
-    return new GuardrailsOpenAI(guardrailsClient, options);
+    return new GuardrailsOpenAI(options, guardrailsClient);
+  }
+
+  /** Clone SDK options while retaining the initialized guardrail pipeline. */
+  public override withOptions(options: Partial<ClientOptions>): this {
+    const clone = super.withOptions(options);
+    clone.guardrailsClient = this.guardrailsClient.withOptions(options);
+    clone.overrideResources();
+    return clone;
   }
 
   /**
@@ -118,7 +126,7 @@ export class GuardrailsOpenAI extends OpenAI {
  * Azure OpenAI subclass with automatic guardrail integration.
  */
 export class GuardrailsAzureOpenAI extends AzureOpenAI {
-  private guardrailsClient: GuardrailsBaseClientImplAzure;
+  private guardrailsClient!: GuardrailsBaseClientImplAzure;
 
   // Retain Azure OpenAI's original types for drop-in compatibility
   public override chat!: InstanceType<typeof AzureOpenAI>['chat'];
@@ -131,17 +139,17 @@ export class GuardrailsAzureOpenAI extends AzureOpenAI {
   };
 
   private constructor(
-    guardrailsClient: GuardrailsBaseClientImplAzure,
-    azureArgs: ConstructorParameters<typeof AzureOpenAI>[0]
+    azureArgs: ConstructorParameters<typeof AzureOpenAI>[0],
+    guardrailsClient?: GuardrailsBaseClientImplAzure
   ) {
     // Initialize Azure OpenAI client first
     super(azureArgs);
 
-    // Store the initialized guardrails client
-    this.guardrailsClient = guardrailsClient;
-
-    // Override chat and responses after initialization
-    this.overrideResources();
+    // SDK withOptions constructs the clone before its initialized guards are attached.
+    if (guardrailsClient) {
+      this.guardrailsClient = guardrailsClient;
+      this.overrideResources();
+    }
   }
 
   /**
@@ -168,7 +176,20 @@ export class GuardrailsAzureOpenAI extends AzureOpenAI {
     guardrailsClient.raiseGuardrailErrors = raiseGuardrailErrors;
 
     // Create the instance with the initialized client
-    return new GuardrailsAzureOpenAI(guardrailsClient, azureOptions);
+    return new GuardrailsAzureOpenAI(azureOptions, guardrailsClient);
+  }
+
+  /** Clone SDK options while retaining Azure routing and initialized guardrails. */
+  public override withOptions(options: Partial<AzureClientOptions>): this {
+    const azureOptions = {
+      apiVersion: this.apiVersion,
+      deployment: this.deploymentName,
+      ...options,
+    };
+    const clone = super.withOptions(azureOptions);
+    clone.guardrailsClient = this.guardrailsClient.withOptions(azureOptions);
+    clone.overrideResources();
+    return clone;
   }
 
   /**
@@ -206,27 +227,26 @@ export class GuardrailsAzureOpenAI extends AzureOpenAI {
  * Concrete implementation of GuardrailsBaseClient.
  */
 class GuardrailsBaseClientImpl extends GuardrailsBaseClient {
-  constructor(private readonly apiKey: ClientOptions['apiKey']) {
-    super();
-  }
-
   /**
    * Create default context with guardrail_llm client.
    */
   protected createDefaultContext(): GuardrailLLMContext {
-    // Create a separate client instance for guardrails (not the same as main client)
-    const guardrailClient = new OpenAI({
-      // The SDK's public apiKey is unresolved for callback credentials.
-      apiKey: typeof this.apiKey === 'function' ? this.apiKey : this._resourceClient.apiKey,
-      baseURL: this._resourceClient.baseURL,
-      organization: this._resourceClient.organization,
-      timeout: this._resourceClient.timeout,
-      maxRetries: this._resourceClient.maxRetries,
-    });
+    // Let the SDK preserve provider, workload identity, and callback credentials.
+    const guardrailClient = this._resourceClient.withOptions({});
 
     return {
       guardrailLlm: guardrailClient,
     };
+  }
+
+  public withOptions(options: Partial<ClientOptions>): GuardrailsBaseClientImpl {
+    const clone = new GuardrailsBaseClientImpl();
+    clone._resourceClient = this._resourceClient.withOptions(options);
+    clone.pipeline = this.pipeline;
+    clone.guardrails = this.guardrails;
+    clone.raiseGuardrailErrors = this.raiseGuardrailErrors;
+    clone.context = clone.createDefaultContext();
+    return clone;
   }
 
   /**
@@ -254,6 +274,18 @@ class GuardrailsBaseClientImplAzure extends GuardrailsBaseClient {
     return {
       guardrailLlm: guardrailClient,
     };
+  }
+
+  public withOptions(options: Partial<AzureClientOptions>): GuardrailsBaseClientImplAzure {
+    const clone = new GuardrailsBaseClientImplAzure();
+    const resource = this._resourceClient.withOptions(options);
+    clone._resourceClient = resource;
+    clone.pipeline = this.pipeline;
+    clone.guardrails = this.guardrails;
+    clone.raiseGuardrailErrors = this.raiseGuardrailErrors;
+    // Native Azure clones need the API version and deployment passed explicitly.
+    clone.context = { guardrailLlm: resource.withOptions(options) };
+    return clone;
   }
 
   /**

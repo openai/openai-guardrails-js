@@ -618,6 +618,7 @@ async function createInputGuardrailsFromStage(
 
   return guardrails.map((guardrail: ConfiguredGuardrail) => ({
     name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
+    ...(stageName === 'pre_flight' ? { runInParallel: false } : {}),
     execute: async (args: InputGuardrailFunctionArgs) => {
       const { input, context: agentContext } = args;
 

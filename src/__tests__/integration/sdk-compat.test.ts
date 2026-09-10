@@ -66,22 +66,18 @@ describe('published SDK compatibility', () => {
       if (!guardrailClient) throw new Error('Guardrail context was not captured');
       expect(guardrailClient).not.toBe(client);
       expect(guardrailClient.apiKey).toBeNull();
-      const guardrailFetch = vi.spyOn(guardrailClient, 'fetch').mockImplementation(fetch);
-      try {
-        await guardrailClient.chat.completions.create(params);
-        await guardrailClient.chat.completions.create(params);
-        expect(apiKey).toHaveBeenCalledTimes(3);
-        expect(
-          fetch.mock.calls.map(([, init]) => new Headers(init.headers).get('authorization'))
-        ).toEqual(['Bearer test-main', 'Bearer test-guardrail-1', 'Bearer test-guardrail-2']);
-        apiKey.mockRejectedValueOnce(new Error('credential unavailable'));
-        await expect(guardrailClient.chat.completions.create(params)).rejects.toThrow(
-          'credential unavailable'
-        );
-        expect(fetch).toHaveBeenCalledTimes(3);
-      } finally {
-        guardrailFetch.mockRestore();
-      }
+      expect(guardrailClient.fetch).toBe(fetch);
+      await guardrailClient.chat.completions.create(params);
+      await guardrailClient.chat.completions.create(params);
+      expect(apiKey).toHaveBeenCalledTimes(3);
+      expect(
+        fetch.mock.calls.map(([, init]) => new Headers(init.headers).get('authorization'))
+      ).toEqual(['Bearer test-main', 'Bearer test-guardrail-1', 'Bearer test-guardrail-2']);
+      apiKey.mockRejectedValueOnce(new Error('credential unavailable'));
+      await expect(guardrailClient.chat.completions.create(params)).rejects.toThrow(
+        'credential unavailable'
+      );
+      expect(fetch).toHaveBeenCalledTimes(3);
     } finally {
       defaultSpecRegistry.remove(name);
       vi.unstubAllEnvs();
