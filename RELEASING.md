@@ -33,11 +33,6 @@ and explicitly review whether the proposed version reflects the unreleased
 features before approving the release PR. Do not assume a generated patch bump
 has accounted for those changes.
 
-The versions in `pyproject.toml` and the root project entry in `uv.lock` describe
-the Python documentation tooling project. They remain consistent with each other
-and are not inputs to the npm package version or rendered documentation version;
-the Node release strategy does not update them.
-
 ## Normal release process
 
 1. Merge changes to `main` using Conventional Commit titles, such as `fix:` or
