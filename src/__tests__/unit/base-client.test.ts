@@ -420,7 +420,7 @@ describe('GuardrailsBaseClient helpers', () => {
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'All good' },
         ]),
-        false,
+        true,
         false
       );
       expect(

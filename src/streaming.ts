@@ -7,7 +7,7 @@
 
 import { GuardrailResult } from './types';
 import { GuardrailsResponse, GuardrailsBaseClient, OpenAIResponseType } from './base-client';
-import { GuardrailTripwireTriggered } from './exceptions';
+import { getGuardrailFailure } from './utils/guardrail-failure';
 import { mergeConversationWithItems, NormalizedConversationEntry } from './utils/conversation';
 
 /**
@@ -26,7 +26,8 @@ export class StreamingMixin {
     checkInterval: number = 100,
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
-    const choices = new Map<number, { text: string; chunkCount: number }>();
+    const choices = new Map<number, { text: string; chunkCount: number; lastStrictCheckedTextLength: number }>();
+    let hasMultipleChoices = false;
     const baseHistory = conversationHistory ? conversationHistory.map((entry) => ({ ...entry })) : [];
 
     for await (const chunk of llmStream) {
@@ -37,13 +38,16 @@ export class StreamingMixin {
           response: { ...responseChunk, choices: [choice] } as OpenAIResponseType,
         }))
         : [{ index: 0, response: responseChunk }];
+      if (alternatives.length > 1 || alternatives.some(({ index }) => index !== 0)) {
+        hasMultipleChoices = true;
+      }
       const periodicChecks: Promise<GuardrailResult[]>[] = [];
       for (const alternative of alternatives) {
         const chunkText = this.extractResponseText(alternative.response);
         if (!chunkText) {
           continue;
         }
-        const state = choices.get(alternative.index) ?? { text: '', chunkCount: 0 };
+        const state = choices.get(alternative.index) ?? { text: '', chunkCount: 0, lastStrictCheckedTextLength: 0 };
         state.text += chunkText;
         state.chunkCount += 1;
         choices.set(alternative.index, state);
@@ -52,24 +56,25 @@ export class StreamingMixin {
           const history = mergeConversationWithItems(baseHistory, [
             { role: 'assistant', content: state.text },
           ]);
-          periodicChecks.push(this.runStageGuardrails('output', state.text, history, suppressTripwire));
+          const checkedLength = state.text.length;
+          const strict = this.raiseGuardrailErrors;
+          periodicChecks.push(this.runStageGuardrails('output', state.text, history, true, false).then((results) => {
+            if (strict) state.lastStrictCheckedTextLength = checkedLength;
+            return results;
+          }));
         }
       }
 
-      try {
-        await Promise.all(periodicChecks);
-      } catch (error) {
-        if (error instanceof GuardrailTripwireTriggered) {
-          const finalResponse = this.createGuardrailsResponse(
-            chunk as OpenAIResponseType,
-            preflightResults,
-            inputResults,
-            [error.guardrailResult]
+      const periodicResults = (await Promise.all(periodicChecks)).flat();
+      const periodicFailure = getGuardrailFailure(periodicResults, suppressTripwire, this.raiseGuardrailErrors);
+      if (periodicFailure) {
+        if (periodicFailure.kind === 'tripwire') {
+          yield this.createGuardrailsResponse(
+            chunk as OpenAIResponseType, preflightResults, inputResults,
+            [periodicFailure.error.guardrailResult]
           );
-          yield finalResponse;
-          throw error;
         }
-        throw error;
+        throw periodicFailure.error;
       }
 
       const response = this.createGuardrailsResponse(
@@ -81,40 +86,30 @@ export class StreamingMixin {
       yield response;
     }
 
-    if (choices.size > 0) {
-      // Keep the existing final response shape; results cover every alternative.
+    const finalChoices = [...choices.entries()].sort(([a], [b]) => a - b).filter(([, state]) =>
+      hasMultipleChoices || !suppressTripwire ||
+      (this.raiseGuardrailErrors && state.text.length > state.lastStrictCheckedTextLength)
+    );
+    if (finalChoices.length > 0) {
       const accumulatedText = choices.get(0)?.text ?? '';
-      const settledChecks = await Promise.allSettled(
-        [...choices.entries()].sort(([a], [b]) => a - b).map(([, state]) => {
-          const history = mergeConversationWithItems(baseHistory, [
-            { role: 'assistant', content: state.text },
-          ]);
-          return this.runStageGuardrails('output', state.text, history, suppressTripwire);
-        })
-      );
-      const finalOutputResults: GuardrailResult[] = [];
-      for (const check of settledChecks) {
-        if (check.status === 'fulfilled') {
-          finalOutputResults.push(...check.value);
-        } else if (check.reason instanceof GuardrailTripwireTriggered) {
-          finalOutputResults.push(check.reason.guardrailResult);
-        }
+      const finalOutputResults = (await Promise.all(finalChoices.map(([, state]) => {
+        const history = mergeConversationWithItems(baseHistory, [
+          { role: 'assistant', content: state.text },
+        ]);
+        // Classify results before throwing: execution errors can themselves be tripwire errors.
+        return this.runStageGuardrails('output', state.text, history, true, false);
+      }))).flat();
+      const failure = getGuardrailFailure(finalOutputResults, suppressTripwire, this.raiseGuardrailErrors);
+      if (failure?.kind === 'execution') throw failure.error;
+      if (hasMultipleChoices || !suppressTripwire) {
+        yield this.createGuardrailsResponse(
+          { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
+          preflightResults, inputResults, finalOutputResults
+        );
       }
-      const failure = settledChecks.find((check) => check.status === 'rejected');
-      if (failure?.status === 'rejected' && !(failure.reason instanceof GuardrailTripwireTriggered)) {
-        throw failure.reason;
-      }
-      const finalResponse = this.createGuardrailsResponse(
-        { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-        preflightResults,
-        inputResults,
-        finalOutputResults
-      );
-      yield finalResponse;
-      if (failure?.status === 'rejected') {
-        throw failure.reason;
-      }
+      if (failure) throw failure.error;
     }
+
   }
 
   /**

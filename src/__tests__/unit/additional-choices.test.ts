@@ -172,11 +172,10 @@ describe('Chat choice validation', () => {
     const client = new ChoiceClient();
     let finishFirst!: (results: GuardrailResult[]) => void;
     let finishSecond!: (results: GuardrailResult[]) => void;
-    let rejectSecond!: (error: Error) => void;
     let secondStarted!: () => void;
     const started = new Promise<void>((resolve) => { secondStarted = resolve; });
     const first = new Promise<GuardrailResult[]>((resolve) => { finishFirst = resolve; });
-    const second = new Promise<GuardrailResult[]>((resolve, reject) => { finishSecond = resolve; rejectSecond = reject; });
+    const second = new Promise<GuardrailResult[]>((resolve) => { finishSecond = resolve; });
     const check = vi.spyOn(client, 'runStageGuardrails')
       .mockImplementationOnce(() => first)
       .mockImplementationOnce(() => { secondStarted(); return second; });
@@ -186,16 +185,15 @@ describe('Chat choice validation', () => {
     const next = iterator.next();
     const firstResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'first' } };
     const secondResult: GuardrailResult = { tripwireTriggered: tripwire, info: { text: 'second' } };
-    const error = new GuardrailTripwireTriggered(secondResult);
     try {
       await started;
       expect(check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'second choice']);
-      if (tripwire) { rejectSecond(error); } else { finishSecond([secondResult]); }
+      finishSecond([secondResult]);
       finishFirst([firstResult]);
       const final = (await next).value;
       expect(final.guardrail_results.output).toEqual([firstResult, secondResult]);
       if (tripwire) {
-        await expect(iterator.next()).rejects.toBe(error);
+        await expect(iterator.next()).rejects.toMatchObject({ guardrailResult: secondResult });
       } else {
         expect((await iterator.next()).done).toBe(true);
       }
@@ -204,6 +202,60 @@ describe('Chat choice validation', () => {
       finishSecond([]);
       await iterator.return(undefined);
     }
+  });
+
+
+  it('starts non-streaming choice checks concurrently and preserves result order', async () => {
+    const client = new ChoiceClient();
+    let finishFirst!: (results: GuardrailResult[]) => void;
+    const first = new Promise<GuardrailResult[]>((resolve) => { finishFirst = resolve; });
+    const firstResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'first' } };
+    const secondResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'second' } };
+    const check = vi.spyOn(client, 'runStageGuardrails')
+      .mockImplementationOnce(() => first)
+      .mockResolvedValueOnce([secondResult]);
+    const response = client.handle(completion(['first choice', 'second choice']));
+    try {
+      expect(check).toHaveBeenCalledTimes(2);
+      finishFirst([firstResult]);
+      expect((await response).guardrail_results.output).toEqual([firstResult, secondResult]);
+    } finally { finishFirst([]); }
+  });
+
+  it.each([false, true])('preserves strict multi-choice execution errors (streaming=%s)', async (streaming) => {
+    const client = new ChoiceClient();
+    client.raiseGuardrailErrors = true;
+    const error = new GuardrailTripwireTriggered({ tripwireTriggered: true, info: {} });
+    client.check.mockImplementation((_context, text) => {
+      if (text === 'second choice') throw error;
+      return { tripwireTriggered: false, info: {} };
+    });
+    if (!streaming) {
+      await expect(client.handle(completion(['first choice', 'second choice']), true)).rejects.toBe(error);
+    } else {
+      const iterator = StreamingMixin.streamWithGuardrailsSync(client, stream([
+        chunk([[0, 'first choice'], [1, 'second choice']]),
+      ]), [], [], [], true);
+      await iterator.next();
+      // An execution error that is itself a tripwire must not produce final diagnostics.
+      await expect(iterator.next()).rejects.toBe(error);
+    }
+  });
+
+
+  it('prioritizes a delayed strict execution error over an earlier tripwire', async () => {
+    const client = new ChoiceClient();
+    client.raiseGuardrailErrors = true;
+    const error = new Error('fixture execution failure');
+    let finishSecond!: (results: GuardrailResult[]) => void;
+    const second = new Promise<GuardrailResult[]>((resolve) => { finishSecond = resolve; });
+    const check = vi.spyOn(client, 'runStageGuardrails')
+      .mockResolvedValueOnce([{ tripwireTriggered: true, info: {} }])
+      .mockImplementationOnce(() => second);
+    const response = client.handle(completion(['first choice', 'second choice']));
+    expect(check.mock.calls.map((call) => call.slice(3))).toEqual([[true, false], [true, false]]);
+    finishSecond([{ tripwireTriggered: false, executionFailed: true, originalException: error, info: {} }]);
+    await expect(response).rejects.toBe(error);
   });
 
 });

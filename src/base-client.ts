@@ -637,16 +637,19 @@ export abstract class GuardrailsBaseClient {
     const responses = 'choices' in llmResponse && llmResponse.choices.length > 0
       ? llmResponse.choices.map((choice) => ({ ...llmResponse, choices: [choice] } as OpenAIResponseType))
       : [llmResponse];
-    const outputResults: GuardrailResult[] = [];
-    for (const response of responses) {
+    const resultsByChoice = await Promise.all(responses.map((response) => {
       const completeConversation = this.appendLlmResponseToConversation(normalizedHistory, response);
-      outputResults.push(...await this.runStageGuardrails(
+      return this.runStageGuardrails(
         'output',
         this.extractResponseText(response),
         completeConversation,
-        suppressTripwire
-      ));
-    }
+        true,
+        false
+      );
+    }));
+    const outputResults = resultsByChoice.flat();
+    const failure = getGuardrailFailure(outputResults, suppressTripwire, this.raiseGuardrailErrors);
+    if (failure) throw failure.error;
 
     return this.createGuardrailsResponse(
       llmResponse,
