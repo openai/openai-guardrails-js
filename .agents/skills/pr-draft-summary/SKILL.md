@@ -48,20 +48,22 @@ Before any push or PR update, complete the repository's
 branches and create PRs with explicit bases. Do not rewrite another author's
 branch, merge, or close a source PR merely because a replacement exists.
 
-Monitor CI on the current head of every submitted PR. The current CI workflow
-filters PR targets to main, so higher stack entries may have no automatic run.
-Inspect `.github/workflows/ci.yml`; when needed, dispatch its existing manual
-workflow on each stack branch and verify each run's head SHA matches the PR.
-Missing checks are not passing checks. Report an unavailable trigger or blocked
-run rather than weakening CI or modifying branch protection.
+Monitor CI and CodeQL on the current head of every submitted PR. Both workflows
+filter PR targets to main, so higher stack entries may have no automatic runs.
+Inspect `.github/workflows/ci.yml` and `.github/workflows/codeql.yml`; when
+needed, dispatch each workflow on each affected stack branch and verify that
+every run's head SHA matches the PR. Require both workflows to pass before
+reporting the head as green or requesting review. Missing checks are not passing
+checks. Report an unavailable trigger or blocked run rather than weakening CI
+or modifying branch protection.
 
 Fix and re-push only failures introduced/worsened by the change or narrowly
 necessary to its outcome, repeating the required review/checks before updates.
 Retry evidenced transient failures; report unrelated failures separately.
 Stop repeated retries when there is no new evidence or progress.
 
-Once current-head CI passes, request review in root `#sdk-reviews` as required by
-AGENTS.md and authorized for the task. For a stack, one message can list all PRs
+Once current-head CI and CodeQL pass, request review in root `#sdk-reviews` as
+required by AGENTS.md and authorized for the task. For a stack, one message can list all PRs
 in dependency order; do not post it as a thread reply. If messaging is unavailable,
 report the blocker and provide the prepared request without claiming it was sent.
 
