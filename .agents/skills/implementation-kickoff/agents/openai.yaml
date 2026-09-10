@@ -1,0 +1,3 @@
+interface:
+  display_name: "Implementation Kickoff"
+  short_description: "Start bounded implementation and PR takeover work"
