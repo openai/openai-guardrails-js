@@ -14,6 +14,8 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "moduleResolution": "node",
+    // Preserve CommonJS dependency identity until a separate module-resolution migration.
+    "ignoreDeprecations": "6.0",
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

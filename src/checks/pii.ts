@@ -9,6 +9,8 @@
  * The guardrail supports two modes of operation:
  * - **Masking mode** (block=false, default): Automatically masks PII with placeholder tokens without blocking
  * - **Blocking mode** (block=true): Triggers tripwire when PII is detected, blocking the request
+ * - With encoded detection enabled, exceeding its decoded-size limit triggers a tripwire
+ *   in either mode because the encoded content could not be fully inspected.
  *
  * **IMPORTANT: PII masking is only supported in the pre-flight stage.**
  * - Use `block=false` (masking mode) in pre-flight to automatically mask PII from user input
@@ -214,7 +216,10 @@ interface EncodedCandidate {
   type: 'base64' | 'hex' | 'url';
 }
 
+class EncodedPiiSizeError extends Error {}
+
 interface PiiDetectionResult {
+  encodedAnalysisError: EncodedPiiSizeError | undefined;
   normalizedText: string;
   plainMapping: Record<string, Set<string>>;
   encodedMapping: Record<string, Set<string>>;
@@ -416,15 +421,25 @@ function _detectPii(text: string, config: PIIConfig): PiiDetectionResult {
 
   let encodedMapping: Record<string, Set<string>> = {};
   let encodedSpans: ReplacementSpan[] = [];
+  let encodedAnalysisError: EncodedPiiSizeError | undefined;
 
   if (config.detect_encoded_pii) {
-    const encodedDetection = _detectEncodedPii(normalizedText, config);
-    encodedMapping = encodedDetection.mapping;
-    encodedSpans = encodedDetection.spans;
+    try {
+      const encodedDetection = _detectEncodedPii(normalizedText, config);
+      encodedMapping = encodedDetection.mapping;
+      encodedSpans = encodedDetection.spans;
+    } catch (error) {
+      if (!(error instanceof EncodedPiiSizeError)) {
+        throw error;
+      }
+      // Keep plaintext findings, but do not authorize content we could not inspect.
+      encodedAnalysisError = error;
+    }
   }
 
   return {
     normalizedText,
+    encodedAnalysisError,
     plainMapping: plainDetection.mapping,
     encodedMapping,
     spans: [...plainDetection.spans, ...encodedSpans],
@@ -744,12 +759,12 @@ function _tryDecodeBase64(text: string): string | null {
   try {
     const buffer = Buffer.from(sanitized, 'base64');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new Error(`Base64 decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(`Base64 decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Maximum allowed')) {
+    if (error instanceof EncodedPiiSizeError) {
       throw error;
     }
     return null;
@@ -763,12 +778,12 @@ function _tryDecodeHex(text: string): string | null {
   try {
     const buffer = Buffer.from(text, 'hex');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new Error(`Hex decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(`Hex decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Maximum allowed')) {
+    if (error instanceof EncodedPiiSizeError) {
       throw error;
     }
     return null;
@@ -786,11 +801,11 @@ function _tryDecodeUrl(text: string): string | null {
     const encoder = new TextEncoder();
     const length = encoder.encode(decoded).length;
     if (length > MAX_DECODED_BYTES) {
-      throw new Error(`URL decoded content too large (${length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(`URL decoded content too large (${length} bytes). Maximum allowed is 10KB.`);
     }
     return decoded;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Maximum allowed')) {
+    if (error instanceof EncodedPiiSizeError) {
       throw error;
     }
     return null;
@@ -847,8 +862,8 @@ function _asResult(
   const checkedText = hasPii ? _scrubPii(text, detection) : text;
 
   return {
-    // Only trigger tripwire if block=true AND PII is found
-    tripwireTriggered: config.block && hasPii,
+    // Incomplete encoded analysis must block even in masking mode.
+    tripwireTriggered: Boolean(detection.encodedAnalysisError) || (config.block && hasPii),
     info: {
       guardrail_name: name,
       detected_entities: detectedEntities,
@@ -856,6 +871,9 @@ function _asResult(
       checked_text: checkedText,
       block_mode: config.block,
       pii_detected: hasPii,
+      ...(detection.encodedAnalysisError
+        ? { encoded_analysis_incomplete: true, error: detection.encodedAnalysisError.message }
+        : {}),
     },
   };
 }

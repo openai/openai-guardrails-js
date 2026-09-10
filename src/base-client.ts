@@ -322,6 +322,12 @@ export abstract class GuardrailsBaseClient {
   }
 
   protected extractResponseText(response: OpenAIResponseType): string {
+    // Responses streams emit text deltas rather than completion objects. Only
+    // collect deltas: done/completed events repeat the text already collected.
+    if ('type' in response && response.type === 'response.output_text.delta') {
+      return 'delta' in response && typeof response.delta === 'string' ? response.delta : '';
+    }
+
     if ('output' in response) {
       return response.output_text || '';
     }

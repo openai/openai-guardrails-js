@@ -14,7 +14,7 @@ const DEFAULT_PORTS: Record<string, number> = {
   https: 443,
 };
 
-const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//;
+const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 const HOSTLESS_SCHEMES = new Set(['data', 'javascript', 'vbscript', 'mailto']);
 
 function normalizeAllowedSchemes(value: unknown): Set<string> {
@@ -402,7 +402,8 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
   const urlIpInt = urlIsIp ? ipToInt(urlHost) : null;
 
   for (const allowedEntry of allowList) {
-    const normalizedEntry = allowedEntry.toLowerCase().trim();
+    // Preserve case-sensitive resource components; normalize host and scheme after parsing.
+    const normalizedEntry = allowedEntry.trim();
     if (!normalizedEntry) {
       continue;
     }
