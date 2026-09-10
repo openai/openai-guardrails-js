@@ -61,19 +61,25 @@ describe('URL Filter control-bearing scheme prefixes', () => {
     expect(result.info?.blocked).toEqual([]);
   });
 
-  it.each(['example.com/docs/javascript\n:section', '192.0.2.1/docs/data\t:value'])(
-    'keeps scheme-like words inside bare URL paths: %j',
-    async (text) => {
-      const result = await urls(
-        {},
-        text,
-        UrlsConfig.parse({ url_allow_list: ['example.com', '192.0.2.1'] })
-      );
+  it.each([
+    'example.com/docs/javascript\n:section',
+    '192.0.2.1/docs/data\t:value',
+    'example.com?data\t:value',
+    'example.com?next=example.com#data\t:value',
+    'example.com#javascript\n:section',
+    'example.com:8080/docs/data\t:value',
+    'example.com:8080?data\t:value',
+    '192.0.2.1#data\t:value',
+  ])('keeps scheme-like words inside bare URL paths: %j', async (text) => {
+    const result = await urls(
+      {},
+      text,
+      UrlsConfig.parse({ url_allow_list: ['example.com', '192.0.2.1'] })
+    );
 
-      expect(result.tripwireTriggered).toBe(false);
-      expect(result.info?.blocked).toEqual([]);
-    }
-  );
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.blocked).toEqual([]);
+  });
 
   it.each([
     'HTTP\t: Hypertext Transfer Protocol',

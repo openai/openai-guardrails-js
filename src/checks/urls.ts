@@ -147,6 +147,7 @@ function detectUrls(text: string): string[] {
   ];
   for (const pattern of barePatterns) {
     let rangeIndex = 0;
+    let coveredEnd = 0;
     for (const candidate of text.matchAll(pattern)) {
       while (rangeIndex < schemeRanges.length && schemeRanges[rangeIndex].end <= candidate.index) {
         rangeIndex++;
@@ -164,7 +165,14 @@ function detectUrls(text: string): string[] {
       const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
       if (match) {
         detectedUrls.push(match);
-        urlRanges.push({ start: candidate.index, end });
+        if (candidate.index >= coveredEnd) {
+          // Extend containment only, leaving extraction and validation unchanged.
+          // Scan each token's query/fragment or port tail once per bare pattern,
+          // even when the same token contains further domain-like matches.
+          const tail = text.slice(end).match(/^(?:[?#]|:\d+(?=[/?#]))[^\s]*/);
+          coveredEnd = end + (tail?.[0].length ?? 0);
+          urlRanges.push({ start: candidate.index, end: coveredEnd });
+        }
       }
     }
   }
