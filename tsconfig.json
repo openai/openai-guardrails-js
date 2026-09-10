@@ -13,9 +13,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "moduleResolution": "node",
-    // Preserve CommonJS dependency identity until a separate module-resolution migration.
-    "ignoreDeprecations": "6.0",
+    // Keep CommonJS emit and dependency identity with TypeScript 7's supported resolver.
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
