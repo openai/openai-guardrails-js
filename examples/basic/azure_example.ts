@@ -7,9 +7,8 @@
  * Run with: npx tsx azure_example.ts
  */
 
-import * as readline from 'readline';
+import * as readline from 'node:readline';
 import { GuardrailsAzureOpenAI, GuardrailTripwireTriggered } from '../../src';
-
 
 // Pipeline configuration with preflight PII masking and input guardrails
 const PIPELINE_CONFIG = {
@@ -32,7 +31,7 @@ const PIPELINE_CONFIG = {
       {
         name: 'Custom Prompt Check',
         config: {
-          model: process.env.AZURE_DEPLOYMENT!,
+          model: process.env.AZURE_DEPLOYMENT ?? '',
           confidence_threshold: 0.7,
           system_prompt_details: 'Check if the text contains any math problems.',
         },
@@ -70,9 +69,14 @@ async function processInput(
   userInput: string,
   messages: ChatMessage[]
 ): Promise<string> {
+  const deployment = process.env.AZURE_DEPLOYMENT;
+  if (!deployment) {
+    throw new Error('AZURE_DEPLOYMENT environment variable is required.');
+  }
+
   // Pass user input inline WITHOUT mutating messages first
   const response = await guardrailsClient.guardrails.chat.completions.create({
-    model: process.env.AZURE_DEPLOYMENT!,
+    model: deployment,
     messages: [...messages, { role: 'user', content: userInput }],
   });
 
@@ -80,9 +84,7 @@ async function processInput(
 
   // Show guardrail results if any were run
   if (response.guardrail_results.allResults.length > 0) {
-    console.log(
-      `[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`
-    );
+    console.log(`[dim]Guardrails checked: ${response.guardrail_results.allResults.length}[/dim]`);
   }
 
   // Guardrails passed - now safe to add to conversation history
@@ -124,7 +126,9 @@ async function main(): Promise<void> {
 
   if (missingVars.length > 0) {
     console.log('❌ Missing required environment variables:');
-    missingVars.forEach((varName) => console.log(`   • ${varName}`));
+    missingVars.forEach((varName) => {
+      console.log(`   • ${varName}`);
+    });
     console.log('\nPlease set these in your .env file and try again.');
     return;
   }
@@ -133,9 +137,9 @@ async function main(): Promise<void> {
 
   // Initialize GuardrailsAzureOpenAI with our pipeline configuration
   const guardrailsClient = await GuardrailsAzureOpenAI.create(PIPELINE_CONFIG, {
-    endpoint: process.env.AZURE_ENDPOINT!,
-    apiKey: process.env.AZURE_API_KEY!,
-    apiVersion: process.env.AZURE_API_VERSION!,
+    endpoint: process.env.AZURE_ENDPOINT,
+    apiKey: process.env.AZURE_API_KEY,
+    apiVersion: process.env.AZURE_API_VERSION,
   });
 
   const rl = createReadlineInterface();
@@ -153,7 +157,6 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const userInput = await new Promise<string>((resolve) => {
         rl.question('Enter a message: ', resolve);

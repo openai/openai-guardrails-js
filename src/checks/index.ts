@@ -8,7 +8,8 @@
 // Export the LLM base functionality
 export * from './llm-base';
 
-// Export individual check modules as they are implemented
+// Preserve this sequence: evaluating these modules registers built-ins in catalog order.
+// Biome import organization is disabled for this barrel to keep that order stable.
 export * from './keywords';
 export * from './urls';
 export * from './moderation';

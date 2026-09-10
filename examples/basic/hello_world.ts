@@ -7,7 +7,7 @@
  * Run with: npx tsx hello_world.ts
  */
 
-import * as readline from 'readline';
+import * as readline from 'node:readline';
 import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
 
 // Pipeline configuration with preflight and input guardrails
@@ -129,7 +129,6 @@ async function main(): Promise<void> {
   process.on('SIGTERM', shutdown);
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const userInput = await new Promise<string>((resolve) => {
         rl.question('Enter a message: ', resolve);

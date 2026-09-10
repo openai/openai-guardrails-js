@@ -2,11 +2,11 @@
  * Focused guardrail tests covering keyword and URL detection behaviour.
  */
 
-import { describe, it, expect } from 'vitest';
-import { keywordsCheck, KeywordsConfig } from '../../../checks/keywords';
-import { urls, UrlsConfig } from '../../../checks/urls';
+import { describe, expect, it } from 'vitest';
 import { competitorsCheck } from '../../../checks/competitors';
-import { GuardrailResult } from '../../../types';
+import { KeywordsConfig, keywordsCheck } from '../../../checks/keywords';
+import { UrlsConfig, urls } from '../../../checks/urls';
+import type { GuardrailResult } from '../../../types';
 
 describe('keywords guardrail', () => {
   it.each([
@@ -298,9 +298,13 @@ describe('urls guardrail', () => {
     'retains the explicit %s scheme for policy validation',
     async (scheme) => {
       const candidate = `${scheme}://example.com/docs`;
-      const result = await urls({}, candidate, UrlsConfig.parse({
-        url_allow_list: ['example.com'],
-      }));
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: ['example.com'],
+        })
+      );
 
       expect(result.tripwireTriggered).toBe(true);
       expect(result.info?.detected).toEqual([candidate]);
@@ -314,9 +318,13 @@ describe('urls guardrail', () => {
   it.each(['-', '+', '.', '1', '...'])('retains schemes after the prefix %s', async (prefix) => {
     for (const scheme of ['http', 'custom', 'https']) {
       const candidate = `${scheme}://example.com/docs`;
-      const result = await urls({}, `${prefix}${candidate}`, UrlsConfig.parse({
-        url_allow_list: ['example.com'],
-      }));
+      const result = await urls(
+        {},
+        `${prefix}${candidate}`,
+        UrlsConfig.parse({
+          url_allow_list: ['example.com'],
+        })
+      );
 
       expect(result.info?.detected).toEqual([candidate]);
       expect(result.tripwireTriggered).toBe(scheme !== 'https');
@@ -324,18 +332,25 @@ describe('urls guardrail', () => {
     }
   });
 
-  it.each(['1', '2.', '-3'])('does not extract domains overlapping a prefixed dotted scheme %j', async (prefix) => {
-    const candidate = 'custom.foo://example.com/docs';
-    const result = await urls({}, `${prefix}${candidate}`, UrlsConfig.parse({
-      url_allow_list: ['example.com'],
-      allowed_schemes: ['custom.foo'],
-    }));
+  it.each(['1', '2.', '-3'])(
+    'does not extract domains overlapping a prefixed dotted scheme %j',
+    async (prefix) => {
+      const candidate = 'custom.foo://example.com/docs';
+      const result = await urls(
+        {},
+        `${prefix}${candidate}`,
+        UrlsConfig.parse({
+          url_allow_list: ['example.com'],
+          allowed_schemes: ['custom.foo'],
+        })
+      );
 
-    expect(result.info?.detected).toEqual([candidate]);
-    expect(result.info?.allowed).toEqual([candidate]);
-    expect(result.info?.blocked).toEqual([]);
-    expect(result.tripwireTriggered).toBe(false);
-  });
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.info?.allowed).toEqual([candidate]);
+      expect(result.info?.blocked).toEqual([]);
+      expect(result.tripwireTriggered).toBe(false);
+    }
+  );
 
   it.each([
     ['-', 'https'],
@@ -347,10 +362,14 @@ describe('urls guardrail', () => {
     const candidate = `${scheme}://example.com/docs`;
     const precedingIp = '192.0.2.1';
     for (const allowIp of [false, true]) {
-      const result = await urls({}, `${precedingIp}${separator}${candidate}`, UrlsConfig.parse({
-        url_allow_list: allowIp ? ['example.com', precedingIp] : ['example.com'],
-        allowed_schemes: [scheme],
-      }));
+      const result = await urls(
+        {},
+        `${precedingIp}${separator}${candidate}`,
+        UrlsConfig.parse({
+          url_allow_list: allowIp ? ['example.com', precedingIp] : ['example.com'],
+          allowed_schemes: [scheme],
+        })
+      );
 
       expect(result.info?.detected).toEqual([candidate, precedingIp]);
       expect(result.tripwireTriggered).toBe(!allowIp);
@@ -367,9 +386,13 @@ describe('urls guardrail', () => {
   ])('retains a bare URL enclosing an explicit URL after %j', async (prefix) => {
     const candidate = 'https://example.com/docs';
     const enclosing = `${prefix}${candidate}`;
-    const result = await urls({}, enclosing, UrlsConfig.parse({
-      url_allow_list: ['example.com'],
-    }));
+    const result = await urls(
+      {},
+      enclosing,
+      UrlsConfig.parse({
+        url_allow_list: ['example.com'],
+      })
+    );
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.allowed).toEqual([candidate]);
@@ -380,10 +403,14 @@ describe('urls guardrail', () => {
     'allows configured custom schemes without extracting fragments from %s',
     async (host) => {
       const candidate = `custom://${host}/docs/other.example?next=https://nested.example`;
-      const result = await urls({}, candidate, UrlsConfig.parse({
-        url_allow_list: [host],
-        allowed_schemes: ['custom'],
-      }));
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: [host],
+          allowed_schemes: ['custom'],
+        })
+      );
 
       expect(result.tripwireTriggered).toBe(false);
       expect(result.info?.detected).toEqual([candidate]);
@@ -391,25 +418,36 @@ describe('urls guardrail', () => {
     }
   );
 
-  it.each([true, false])('preserves block_userinfo=%s for custom schemes', async (blockUserinfo) => {
-    const candidate = 'custom://reader@example.com/docs';
-    const result = await urls({}, candidate, UrlsConfig.parse({
-      url_allow_list: ['example.com'],
-      allowed_schemes: ['custom'],
-      block_userinfo: blockUserinfo,
-    }));
+  it.each([true, false])(
+    'preserves block_userinfo=%s for custom schemes',
+    async (blockUserinfo) => {
+      const candidate = 'custom://reader@example.com/docs';
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: ['example.com'],
+          allowed_schemes: ['custom'],
+          block_userinfo: blockUserinfo,
+        })
+      );
 
-    expect(result.tripwireTriggered).toBe(blockUserinfo);
-    expect(result.info?.detected).toEqual([candidate]);
-    expect(result.info?.[blockUserinfo ? 'blocked' : 'allowed']).toEqual([candidate]);
-  });
+      expect(result.tripwireTriggered).toBe(blockUserinfo);
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.info?.[blockUserinfo ? 'blocked' : 'allowed']).toEqual([candidate]);
+    }
+  );
 
   it('preserves explicit scheme matching in allow list entries', async () => {
     const candidate = 'custom://example.com/docs';
-    const result = await urls({}, candidate, UrlsConfig.parse({
-      url_allow_list: ['https://example.com'],
-      allowed_schemes: ['custom', 'https'],
-    }));
+    const result = await urls(
+      {},
+      candidate,
+      UrlsConfig.parse({
+        url_allow_list: ['https://example.com'],
+        allowed_schemes: ['custom', 'https'],
+      })
+    );
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.blocked_reasons).toEqual([`${candidate}: Not in allow list`]);
@@ -429,10 +467,14 @@ describe('urls guardrail', () => {
 
   it('keeps standalone bare domains outside explicit URL spans', async () => {
     const candidate = 'custom://example.com/docs';
-    const result = await urls({}, `${candidate} separate.example`, UrlsConfig.parse({
-      url_allow_list: ['example.com', 'https://separate.example'],
-      allowed_schemes: ['custom'],
-    }));
+    const result = await urls(
+      {},
+      `${candidate} separate.example`,
+      UrlsConfig.parse({
+        url_allow_list: ['example.com', 'https://separate.example'],
+        allowed_schemes: ['custom'],
+      })
+    );
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.allowed).toEqual([candidate, 'separate.example']);
@@ -440,10 +482,14 @@ describe('urls guardrail', () => {
 
   it('validates separate same-host bare paths outside an explicit URL', async () => {
     const candidate = 'custom://example.com/allowed';
-    const result = await urls({}, `${candidate} example.com/blocked`, UrlsConfig.parse({
-      url_allow_list: ['custom://example.com/allowed'],
-      allowed_schemes: ['custom'],
-    }));
+    const result = await urls(
+      {},
+      `${candidate} example.com/blocked`,
+      UrlsConfig.parse({
+        url_allow_list: ['custom://example.com/allowed'],
+        allowed_schemes: ['custom'],
+      })
+    );
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.detected).toEqual([candidate, 'example.com/blocked']);
@@ -483,16 +529,12 @@ describe('urls guardrail', () => {
   });
 
   it('allows https URLs listed in the allow list', async () => {
-    const result = await urls(
-      {},
-      'Visit https://example.com/docs for docs.',
-      {
-        url_allow_list: ['example.com'],
-        allowed_schemes: new Set(['https']),
-        block_userinfo: true,
-        allow_subdomains: false,
-      }
-    );
+    const result = await urls({}, 'Visit https://example.com/docs for docs.', {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https']),
+      block_userinfo: true,
+      allow_subdomains: false,
+    });
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.allowed).toContain('https://example.com/docs');
@@ -519,21 +561,25 @@ describe('urls guardrail', () => {
       'https://user:pass@secure.example.com',
       'javascript:alert(1)',
     ]);
-    expect((result.info?.blocked_reasons as string[])?.some((reason: string) => reason.includes('Blocked scheme: http'))).toBe(true);
-    expect((result.info?.blocked_reasons as string[])?.some((reason: string) => reason.includes('Contains userinfo'))).toBe(true);
+    expect(
+      (result.info?.blocked_reasons as string[])?.some((reason: string) =>
+        reason.includes('Blocked scheme: http')
+      )
+    ).toBe(true);
+    expect(
+      (result.info?.blocked_reasons as string[])?.some((reason: string) =>
+        reason.includes('Contains userinfo')
+      )
+    ).toBe(true);
   });
 
   it('honours subdomain allowance settings', async () => {
-    const result = await urls(
-      {},
-      'Check https://sub.example.com and https://other.com',
-      {
-        url_allow_list: ['example.com'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: true,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, 'Check https://sub.example.com and https://other.com', {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: true,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toContain('https://sub.example.com');
     expect(result.info?.blocked).toContain('https://other.com');
@@ -547,22 +593,15 @@ describe('urls guardrail', () => {
       'https://api.example.com/v2',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['https://suntropy.es', 'https://api.example.com/v1'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['https://suntropy.es', 'https://api.example.com/v1'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
-      expect.arrayContaining([
-        'https://suntropy.es',
-        'https://api.example.com/v1/tools?id=2',
-      ])
+      expect.arrayContaining(['https://suntropy.es', 'https://api.example.com/v1/tools?id=2'])
     );
     expect(result.info?.blocked).toContain('https://api.example.com/v2');
   });
@@ -575,44 +614,30 @@ describe('urls guardrail', () => {
       'https://example.com/api-v2',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['https://example.com/api'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['https://example.com/api'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
-      expect.arrayContaining([
-        'https://example.com/api',
-        'https://example.com/api/users',
-      ])
+      expect.arrayContaining(['https://example.com/api', 'https://example.com/api/users'])
     );
     expect(result.info?.blocked).toEqual(
-      expect.arrayContaining([
-        'https://example.com/api2',
-        'https://example.com/api-v2',
-      ])
+      expect.arrayContaining(['https://example.com/api2', 'https://example.com/api-v2'])
     );
   });
 
   it('matches scheme-less allow list entries across configured schemes', async () => {
     const text = ['https://example.com', 'http://example.com'].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['example.com'],
-        allowed_schemes: new Set(['https', 'http']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https', 'http']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
       expect.arrayContaining(['https://example.com', 'http://example.com'])
@@ -623,16 +648,12 @@ describe('urls guardrail', () => {
   it('enforces explicit scheme matches when allow list entries include schemes', async () => {
     const text = ['https://bank.example.com', 'http://bank.example.com'].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['https://bank.example.com'],
-        allowed_schemes: new Set(['https', 'http']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['https://bank.example.com'],
+      allowed_schemes: new Set(['https', 'http']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(expect.arrayContaining(['https://bank.example.com']));
     expect(result.info?.blocked).toContain('http://bank.example.com');
@@ -662,9 +683,13 @@ describe('urls guardrail', () => {
       ['/api?view=one#intro', '/api?view=one#other', true],
     ])('matches %s against %s (blocked: %s)', async (restriction, resource, blocked) => {
       const candidate = `https://192.0.2.10${resource}`;
-      const result = await urls({}, candidate, UrlsConfig.parse({
-        url_allow_list: [`https://192.0.2.10${restriction}`],
-      }));
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: [`https://192.0.2.10${restriction}`],
+        })
+      );
 
       expect(result.tripwireTriggered).toBe(blocked);
       expect(result.info?.allowed).toEqual(blocked ? [] : [candidate]);
@@ -684,12 +709,16 @@ describe('urls guardrail', () => {
       ['https://192.0.2.10/api', 'https://192.0.2.10:8443/api', false],
       ['https://192.0.2.10/api', 'https://192.0.2.11/api', true],
     ])('preserves matching for %s and %s', async (entry, candidate, blocked) => {
-      const result = await urls({}, candidate, UrlsConfig.parse({
-        url_allow_list: [entry],
-        allowed_schemes: ['http', 'https'],
-        allow_subdomains: true,
-        block_userinfo: false,
-      }));
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: [entry],
+          allowed_schemes: ['http', 'https'],
+          allow_subdomains: true,
+          block_userinfo: false,
+        })
+      );
 
       expect(result.tripwireTriggered).toBe(blocked);
       expect(result.info?.allowed).toEqual(blocked ? [] : [candidate]);
@@ -698,9 +727,13 @@ describe('urls guardrail', () => {
 
     it('continues to later entries after a resource mismatch', async () => {
       const candidate = 'https://192.0.2.10/other';
-      const result = await urls({}, candidate, UrlsConfig.parse({
-        url_allow_list: ['https://192.0.2.10/api', 'https://192.0.2.10/other'],
-      }));
+      const result = await urls(
+        {},
+        candidate,
+        UrlsConfig.parse({
+          url_allow_list: ['https://192.0.2.10/api', 'https://192.0.2.10/other'],
+        })
+      );
 
       expect(result.tripwireTriggered).toBe(false);
       expect(result.info?.allowed).toEqual([candidate]);
@@ -717,16 +750,17 @@ describe('urls guardrail', () => {
       'https://api.internal.com:9000',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['10.0.0.0/8', '192.168.1.0/24', 'https://example.com:8443', 'api.internal.com'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: [
+        '10.0.0.0/8',
+        '192.168.1.0/24',
+        'https://example.com:8443',
+        'api.internal.com',
+      ],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
       expect.arrayContaining([
@@ -749,19 +783,12 @@ describe('urls guardrail', () => {
       'https://example.com/docs#outro',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: [
-          'https://example.com/search?q=test',
-          'https://example.com/docs#intro',
-        ],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['https://example.com/search?q=test', 'https://example.com/docs#intro'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
       expect.arrayContaining([
@@ -778,20 +805,18 @@ describe('urls guardrail', () => {
   });
 
   it('blocks URLs containing only a password in userinfo when configured', async () => {
-    const result = await urls(
-      {},
-      'https://:secret@example.com',
-      {
-        url_allow_list: ['example.com'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, 'https://:secret@example.com', {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.blocked).toContain('https://:secret@example.com');
     expect(
-      (result.info?.blocked_reasons as string[]).some((reason) => reason.includes('userinfo'))
+      (result.info?.blocked_reasons as string[] | undefined)?.some((reason) =>
+        reason.includes('userinfo')
+      )
     ).toBe(true);
   });
 
@@ -802,16 +827,12 @@ describe('urls guardrail', () => {
       'https://example.com:-1',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['example.com'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['example.com'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.blocked).toHaveLength(3);
@@ -827,22 +848,15 @@ describe('urls guardrail', () => {
       'https://example.com/other',
     ].join(' ');
 
-    const result = await urls(
-      {},
-      text,
-      {
-        url_allow_list: ['https://example.com/api/'],
-        allowed_schemes: new Set(['https']),
-        allow_subdomains: false,
-        block_userinfo: true,
-      }
-    );
+    const result = await urls({}, text, {
+      url_allow_list: ['https://example.com/api/'],
+      allowed_schemes: new Set(['https']),
+      allow_subdomains: false,
+      block_userinfo: true,
+    });
 
     expect(result.info?.allowed).toEqual(
-      expect.arrayContaining([
-        'https://example.com/api/users',
-        'https://example.com/api/v2/data',
-      ])
+      expect.arrayContaining(['https://example.com/api/users', 'https://example.com/api/v2/data'])
     );
     expect(result.info?.blocked).toContain('https://example.com/other');
   });
@@ -880,7 +894,7 @@ describe('urls guardrail', () => {
       allow_subdomains: false,
       block_userinfo: true,
     };
-    
+
     const text = 'Visit help-suntropy.es and help.suntropy.es';
     const result = await urls({}, text, config);
 
@@ -983,11 +997,9 @@ describe('urls guardrail', () => {
 
 describe('competitors guardrail', () => {
   it('reuses keywords check and annotates guardrail name', () => {
-    const result = competitorsCheck(
-      {},
-      'We prefer Acme Corp over others.',
-      { keywords: ['acme corp'] }
-    ) as GuardrailResult;
+    const result = competitorsCheck({}, 'We prefer Acme Corp over others.', {
+      keywords: ['acme corp'],
+    }) as GuardrailResult;
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.guardrail_name).toBe('Competitors');

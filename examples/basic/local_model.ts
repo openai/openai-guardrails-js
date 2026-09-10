@@ -2,9 +2,9 @@
  * Example: Guardrail bundle using Ollama's Gemma3 model with GuardrailsClient.
  */
 
+import * as readline from 'node:readline';
+import type { OpenAI } from 'openai';
 import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
-import * as readline from 'readline';
-import { OpenAI } from 'openai';
 
 // Define your pipeline configuration for Gemma3
 const GEMMA3_PIPELINE_CONFIG = {
@@ -76,7 +76,6 @@ async function main(): Promise<void> {
   const conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {

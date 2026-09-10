@@ -5,7 +5,7 @@
  * It provides a class for writing results to disk for further analysis or sharing.
  */
 
-import { GuardrailMetrics, ResultsReporter, SampleResult } from './types';
+import type { GuardrailMetrics, ResultsReporter, SampleResult } from './types';
 
 /**
  * Reports evaluation results in JSON format.
@@ -34,8 +34,8 @@ export class JsonResultsReporter implements ResultsReporter {
     }
 
     try {
-      const fs = await import('fs/promises');
-      const path = await import('path');
+      const fs = await import('node:fs/promises');
+      const path = await import('node:path');
 
       // Create output directory if it doesn't exist
       await fs.mkdir(outputDir, { recursive: true });
@@ -65,7 +65,7 @@ export class JsonResultsReporter implements ResultsReporter {
    * @param results - List of results to write
    */
   private async writeResults(filePath: string, results: SampleResult[]): Promise<void> {
-    const fs = await import('fs/promises');
+    const fs = await import('node:fs/promises');
 
     const lines = results.map((result) => JSON.stringify(result));
     await fs.writeFile(filePath, lines.join('\n'), 'utf-8');

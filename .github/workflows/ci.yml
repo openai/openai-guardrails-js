@@ -43,7 +43,7 @@ jobs:
       - name: Run tests
         run: npm run test -- --run
 
-      - name: Lint
+      - name: Check lint, formatting, and imports with Biome
         run: npm run lint
 
       - name: Build and check docs

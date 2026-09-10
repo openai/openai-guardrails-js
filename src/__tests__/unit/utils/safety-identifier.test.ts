@@ -5,8 +5,8 @@
  * supports the safety_identifier parameter in OpenAI API calls.
  */
 
-import { describe, it, expect } from 'vitest';
-import { supportsSafetyIdentifier, SAFETY_IDENTIFIER } from '../../../utils/safety-identifier';
+import { describe, expect, it } from 'vitest';
+import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../../../utils/safety-identifier';
 
 describe('Safety Identifier utilities', () => {
   describe('SAFETY_IDENTIFIER constant', () => {
@@ -22,7 +22,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         baseURL: undefined,
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(true);
     });
 
@@ -31,7 +31,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         baseURL: 'https://api.openai.com/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(true);
     });
 
@@ -54,7 +54,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'AzureOpenAI' },
         baseURL: 'https://example.openai.azure.com/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -63,7 +63,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'AsyncAzureOpenAI' },
         baseURL: 'https://example.openai.azure.com/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -72,7 +72,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         baseURL: 'http://localhost:11434/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -81,7 +81,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         baseURL: 'https://api.together.xyz/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -90,7 +90,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         baseURL: 'http://localhost:8000/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -114,7 +114,7 @@ describe('Safety Identifier utilities', () => {
           baseURL: 'http://localhost:11434/v1',
         },
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -123,7 +123,7 @@ describe('Safety Identifier utilities', () => {
         constructor: { name: 'OpenAI' },
         _baseURL: 'http://localhost:11434/v1',
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(false);
     });
 
@@ -134,7 +134,7 @@ describe('Safety Identifier utilities', () => {
           baseURL: 'https://api.openai.com/v1',
         },
       };
-      
+
       expect(supportsSafetyIdentifier(mockClient)).toBe(true);
     });
   });

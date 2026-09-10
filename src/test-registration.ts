@@ -43,4 +43,4 @@ if (keywordsSpec) {
   console.log(`  Config schema: ${keywordsSpec.configSchema ? 'Available' : 'None'}`);
 }
 
-export { allSpecs, allMetadata };
+export { allMetadata, allSpecs };

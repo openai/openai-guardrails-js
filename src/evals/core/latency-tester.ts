@@ -4,9 +4,9 @@
  * This module implements end-to-end guardrail latency testing for different models.
  */
 
-import { Context, Sample } from './types';
+import { type GuardrailBundle, instantiateGuardrails } from '../../runtime';
 import { AsyncRunEngine } from './async-engine';
-import { instantiateGuardrails, GuardrailBundle } from '../../runtime';
+import type { Context, Sample } from './types';
 
 /**
  * Tests end-to-end guardrail latency for different models.
@@ -36,7 +36,7 @@ export class LatencyTester {
     const p50 = this.percentile(sorted, 50);
     const p95 = this.percentile(sorted, 95);
     const mean = timesMs.reduce((a, b) => a + b, 0) / timesMs.length;
-    const variance = timesMs.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / timesMs.length;
+    const variance = timesMs.reduce((sum, val) => sum + (val - mean) ** 2, 0) / timesMs.length;
     const std = Math.sqrt(variance);
 
     return {
@@ -117,4 +117,3 @@ export class LatencyTester {
     return sorted[lower] * (1 - weight) + sorted[upper] * weight;
   }
 }
-

@@ -2,10 +2,9 @@
  * Chat completions with guardrails.
  */
 
-/* eslint-disable no-dupe-class-members */
-import { OpenAI } from 'openai';
-import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
-import { Message } from '../../types';
+import type { OpenAI } from 'openai';
+import type { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import type { Message } from '../../types';
 import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../../utils/safety-identifier';
 
 // Note: We need to filter out non-text content since guardrails only work with text
@@ -15,7 +14,7 @@ import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../../utils/safety-
  * Chat completions with guardrails.
  */
 export class Chat {
-  constructor(private client: GuardrailsBaseClient) { }
+  constructor(private client: GuardrailsBaseClient) {}
 
   get completions(): ChatCompletions {
     return new ChatCompletions(this.client);
@@ -26,11 +25,11 @@ export class Chat {
  * Chat completions interface with guardrails.
  */
 export class ChatCompletions {
-  constructor(private client: GuardrailsBaseClient) { }
+  constructor(private client: GuardrailsBaseClient) {}
 
   /**
    * Create chat completion with guardrails.
-   * 
+   *
    * Runs preflight first, then executes input guardrails concurrently with the LLM call.
    */
   // Overload: streaming
@@ -41,7 +40,7 @@ export class ChatCompletions {
       stream: true;
       suppressTripwire?: boolean;
     } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
-    options?: OpenAI.RequestOptions,
+    options?: OpenAI.RequestOptions
   ): Promise<AsyncIterableIterator<GuardrailsResponse>>;
 
   // Overload: non-streaming (default)
@@ -52,7 +51,7 @@ export class ChatCompletions {
       stream?: false;
       suppressTripwire?: boolean;
     } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
-    options?: OpenAI.RequestOptions,
+    options?: OpenAI.RequestOptions
   ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion>>;
 
   async create(
@@ -62,8 +61,11 @@ export class ChatCompletions {
       stream?: boolean;
       suppressTripwire?: boolean;
     } & Omit<OpenAI.Chat.Completions.ChatCompletionCreateParams, 'messages' | 'model' | 'stream'>,
-    options?: OpenAI.RequestOptions,
-  ): Promise<GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion> | AsyncIterableIterator<GuardrailsResponse>> {
+    options?: OpenAI.RequestOptions
+  ): Promise<
+    | GuardrailsResponse<OpenAI.Chat.Completions.ChatCompletion>
+    | AsyncIterableIterator<GuardrailsResponse>
+  > {
     const { messages, model, stream = false, suppressTripwire = false, ...kwargs } = params;
 
     // Extract latest user message text for guardrails (guardrails only work with text content)
@@ -80,16 +82,13 @@ export class ChatCompletions {
     );
 
     // Apply pre-flight modifications (PII masking, etc.)
-    const modifiedMessages = this.client.applyPreflightModifications(
-      messages,
-      preflightResults
-    );
+    const modifiedMessages = this.client.applyPreflightModifications(messages, preflightResults);
 
     // Run input guardrails and LLM call concurrently
     // Access protected _resourceClient - necessary for external resource classes
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // biome-ignore lint/suspicious/noExplicitAny: Resource adapters bridge protected SDK members without changing the public client API.
     const resourceClient = (this.client as any)._resourceClient;
-    
+
     // Build API call parameters
     const apiParams: Record<string, unknown> = {
       messages: modifiedMessages,
@@ -97,13 +96,12 @@ export class ChatCompletions {
       stream,
       ...kwargs,
     };
-    
+
     // Only include safety_identifier for official OpenAI API (not Azure or local providers)
     if (supportsSafetyIdentifier(resourceClient)) {
-      // @ts-ignore - safety_identifier is not defined in OpenAI types yet
       apiParams.safety_identifier = SAFETY_IDENTIFIER;
     }
-    
+
     const [inputResults, llmResponse] = await Promise.all([
       this.client.runStageGuardrails(
         'input',
@@ -128,7 +126,7 @@ export class ChatCompletions {
       );
     } else {
       // Access protected handleLlmResponse - necessary for external resource classes
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // biome-ignore lint/suspicious/noExplicitAny: Resource adapters bridge protected SDK members without changing the public client API.
       return (this.client as any).handleLlmResponse(
         llmResponse,
         preflightResults,

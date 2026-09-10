@@ -2,11 +2,11 @@
  * Tests for vector store utilities.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   createVectorStore,
-  VectorStoreConfig,
-  Document,
+  type Document,
+  type VectorStoreConfig,
 } from '../../../utils/vector-store';
 
 const sampleDocs: Document[] = [

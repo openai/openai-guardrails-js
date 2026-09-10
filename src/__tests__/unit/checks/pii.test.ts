@@ -2,8 +2,8 @@
  * Unit tests for the PII guardrail functionality.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { pii, PIIConfig, PIIEntity, _clearDeprecationWarnings } from '../../../checks/pii';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { _clearDeprecationWarnings, PIIConfig, PIIEntity, pii } from '../../../checks/pii';
 
 describe('pii guardrail', () => {
   it('masks detected PII when block=false', async () => {
@@ -16,8 +16,12 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual(['john@example.com']);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.US_SSN).toEqual(['111-22-3333']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual([
+      'john@example.com',
+    ]);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.US_SSN).toEqual([
+      '111-22-3333',
+    ]);
     expect(result.info?.checked_text).toBe('Contact <EMAIL_ADDRESS> SSN: <US_SSN>');
   });
 
@@ -30,7 +34,9 @@ describe('pii guardrail', () => {
     const result = await pii({}, 'Call me at (415) 123-4567', config);
 
     expect(result.tripwireTriggered).toBe(true);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER?.[0]).toContain('415');
+    expect(
+      (result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER?.[0]
+    ).toContain('415');
     expect(result.info?.checked_text).toContain('<PHONE_NUMBER>');
   });
 
@@ -87,7 +93,9 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual(['900101-1234567']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual([
+      '900101-1234567',
+    ]);
     expect(result.info?.checked_text).toBe('Korean RRN: <KR_RRN>');
   });
 
@@ -103,9 +111,15 @@ describe('pii guardrail', () => {
 
     expect(result.tripwireTriggered).toBe(false);
     expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toHaveLength(3);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain('850315-2345678');
-    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain('001231-3456789');
-    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain('750628-4123456');
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain(
+      '850315-2345678'
+    );
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain(
+      '001231-3456789'
+    );
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toContain(
+      '750628-4123456'
+    );
   });
 
   it('does not detect invalid KR_RRN patterns (false positives)', async () => {
@@ -118,7 +132,8 @@ describe('pii guardrail', () => {
     // - Invalid day (00, 32)
     // - Invalid gender digit (0, 5, 9)
     // - Random tracking numbers
-    const text = 'Invalid: 901301-1234567, 900100-1234567, 900132-1234567, 900101-0234567, 900101-5234567, 123456-7890123';
+    const text =
+      'Invalid: 901301-1234567, 900100-1234567, 900132-1234567, 900101-0234567, 900101-5234567, 123456-7890123';
 
     const result = await pii({}, text, config);
 
@@ -137,7 +152,9 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(true);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual(['900101-1234567']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.KR_RRN).toEqual([
+      '900101-1234567',
+    ]);
   });
 
   it('normalizes fullwidth characters for email detection', async () => {
@@ -150,7 +167,9 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual(['test@example.com']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.EMAIL_ADDRESS).toEqual([
+      'test@example.com',
+    ]);
     expect(result.info?.checked_text).toBe('Contact: <EMAIL_ADDRESS>');
   });
 
@@ -164,7 +183,9 @@ describe('pii guardrail', () => {
     const result = await pii({}, text, config);
 
     expect(result.tripwireTriggered).toBe(false);
-    expect((result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER).toEqual(['212-555-1234']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.PHONE_NUMBER).toEqual([
+      '212-555-1234',
+    ]);
     expect(result.info?.checked_text).toBe('Call <PHONE_NUMBER>');
   });
 
@@ -281,7 +302,9 @@ describe('pii guardrail', () => {
 
     const result = await pii({}, text, config);
 
-    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual(['CHASUS33']);
+    expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toEqual([
+      'CHASUS33',
+    ]);
     expect(result.info?.checked_text).toBe('Send funds to <BIC_SWIFT> by Friday.');
   });
 
@@ -300,7 +323,9 @@ describe('pii guardrail', () => {
 
     for (const text of texts) {
       const result = await pii({}, text, config);
-      expect((result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT).toBeUndefined();
+      expect(
+        (result.info?.detected_entities as Record<string, string[]>)?.BIC_SWIFT
+      ).toBeUndefined();
       expect(result.info?.pii_detected).toBe(false);
     }
   });
@@ -360,7 +385,9 @@ describe('pii guardrail', () => {
       const result = await pii({}, text, config);
 
       // Should not mask "New York" or "The User"
-      expect(result.info?.checked_text).toBe('Welcome to New York, The User can access the system.');
+      expect(result.info?.checked_text).toBe(
+        'Welcome to New York, The User can access the system.'
+      );
       expect((result.info?.detected_entities as Record<string, string[]>)?.PERSON).toBeUndefined();
     });
 
@@ -375,7 +402,9 @@ describe('pii guardrail', () => {
 
       const result = await pii({}, text, config);
 
-      expect((result.info?.detected_entities as Record<string, string[]>)?.NRP).toEqual(['hello world']);
+      expect((result.info?.detected_entities as Record<string, string[]>)?.NRP).toEqual([
+        'hello world',
+      ]);
       expect(result.info?.checked_text).toBe('<NRP>');
 
       consoleWarnSpy.mockRestore();
@@ -392,8 +421,12 @@ describe('pii guardrail', () => {
 
       const result = await pii({}, text, config);
 
-      expect((result.info?.detected_entities as Record<string, string[]>)?.PERSON).toContain('John Smith');
-      expect((result.info?.detected_entities as Record<string, string[]>)?.PERSON).toContain('New York');
+      expect((result.info?.detected_entities as Record<string, string[]>)?.PERSON).toContain(
+        'John Smith'
+      );
+      expect((result.info?.detected_entities as Record<string, string[]>)?.PERSON).toContain(
+        'New York'
+      );
 
       consoleWarnSpy.mockRestore();
     });

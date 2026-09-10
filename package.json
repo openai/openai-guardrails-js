@@ -20,9 +20,9 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:run": "vitest run",
-    "lint": "eslint src --ext .ts",
-    "lint:fix": "eslint src --ext .ts --fix",
-    "format": "prettier --write \"**/*.{cjs,cts,js,json,mjs,mts,ts}\"",
+    "lint": "biome check --error-on-warnings .",
+    "lint:fix": "biome check --write --error-on-warnings .",
+    "format": "biome format --write .",
     "prepublishOnly": "npm run clean && npm run build",
     "cli": "node dist/cli.js",
     "eval": "node dist/cli.js eval",
@@ -30,7 +30,8 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "docs:check": "eslint --no-ignore docs/.vitepress/config.mts docs/.vitepress/theme/index.ts scripts/docs.test.mjs && npm run docs:build && node --test scripts/docs.test.mjs"
+    "docs:check": "biome check --error-on-warnings docs/.vitepress/config.mts docs/.vitepress/theme/index.ts scripts/docs.test.mjs && npm run docs:build && node --test scripts/docs.test.mjs",
+    "format:check": "biome format ."
   },
   "keywords": [
     "guardrails",
@@ -56,15 +57,10 @@
     "zod": "^3.22.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.11",
     "@changesets/cli": "^2.31.1",
-    "@eslint/js": "^10.0.1",
     "@types/node": "^26.4.1",
-    "@typescript-eslint/eslint-plugin": "^8.69.0",
-    "@typescript-eslint/parser": "^8.69.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "eslint": "^10.9.1",
-    "globals": "^17.12.0",
-    "prettier": "^3.9.6",
     "rimraf": "^6.1.3",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",

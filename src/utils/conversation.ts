@@ -75,9 +75,7 @@ export function parseConversationInput(rawInput: unknown): unknown[] {
   return [];
 }
 
-export function normalizeConversation(
-  conversation: unknown
-): NormalizedConversationEntry[] {
+export function normalizeConversation(conversation: unknown): NormalizedConversationEntry[] {
   if (conversation == null) {
     return [];
   }
@@ -165,8 +163,8 @@ function normalizeMapping(item: Record<string, unknown>): NormalizedConversation
 
   if (itemType === 'function_call' || itemType === 'tool_call') {
     const fnSection =
-      item['function'] && typeof item['function'] === 'object'
-        ? (item['function'] as Record<string, unknown>)
+      item.function && typeof item.function === 'object'
+        ? (item.function as Record<string, unknown>)
         : null;
     const argsSource =
       'arguments' in item && item.arguments !== undefined ? item.arguments : fnSection?.arguments;
@@ -224,11 +222,13 @@ function normalizeToolCalls(toolCalls: unknown[]): NormalizedConversationEntry[]
         : ({ arguments: call } as Record<string, unknown>);
 
     const fnSection =
-      record['function'] && typeof record['function'] === 'object'
-        ? (record['function'] as Record<string, unknown>)
+      record.function && typeof record.function === 'object'
+        ? (record.function as Record<string, unknown>)
         : null;
     const argsSource =
-      'arguments' in record && record.arguments !== undefined ? record.arguments : fnSection?.arguments;
+      'arguments' in record && record.arguments !== undefined
+        ? record.arguments
+        : fnSection?.arguments;
 
     entries.push(
       createConversationEntry({
@@ -259,7 +259,8 @@ function normalizeModelResponse(response: unknown): NormalizedConversationEntry[
     const choices = obj.choices;
     if (Array.isArray(choices) && choices.length > 0) {
       const choice = choices[0];
-      const choiceRecord = typeof choice === 'object' && choice !== null ? (choice as Record<string, unknown>) : null;
+      const choiceRecord =
+        typeof choice === 'object' && choice !== null ? (choice as Record<string, unknown>) : null;
       const message = choiceRecord?.message ?? choice;
       return normalizeItem(message);
     }
@@ -281,8 +282,8 @@ function extractToolName(item: Record<string, unknown>): string | null {
   }
 
   const fnSection =
-    item['function'] && typeof item['function'] === 'object'
-      ? (item['function'] as Record<string, unknown>)
+    item.function && typeof item.function === 'object'
+      ? (item.function as Record<string, unknown>)
       : null;
   const fnName = fnSection?.name;
   if (typeof fnName === 'string') {
@@ -336,9 +337,7 @@ function stringify(value: unknown): string | null {
   }
 }
 
-function createConversationEntry(
-  entry: NormalizedConversationEntry
-): NormalizedConversationEntry {
+function createConversationEntry(entry: NormalizedConversationEntry): NormalizedConversationEntry {
   const result: NormalizedConversationEntry = {};
 
   if (entry.role) {

@@ -2,11 +2,11 @@
  * Example: Guardrail bundle with suppressed tripwire exception using GuardrailsClient.
  */
 
+import * as readline from 'node:readline';
 import { GuardrailsOpenAI } from '../../src';
-import * as readline from 'readline';
 
 // Define your pipeline configuration
-const PIPELINE_CONFIG: Record<string, any> = {
+const PIPELINE_CONFIG: Record<string, unknown> = {
   version: 1,
   input: {
     version: 1,
@@ -77,7 +77,6 @@ async function main(): Promise<void> {
   let responseId: string | null = null;
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {

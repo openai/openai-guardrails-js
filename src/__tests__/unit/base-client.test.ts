@@ -6,10 +6,20 @@
  * higher-level clients.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GuardrailsBaseClient, GuardrailResultsImpl, StageGuardrails } from '../../base-client';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  GuardrailResultsImpl,
+  GuardrailsBaseClient,
+  type StageGuardrails,
+} from '../../base-client';
 import { GuardrailTripwireTriggered } from '../../exceptions';
-import { GuardrailLLMContext, GuardrailResult, TextInput, Message, TextOnlyMessageArray } from '../../types';
+import type {
+  GuardrailLLMContext,
+  GuardrailResult,
+  Message,
+  TextInput,
+  TextOnlyMessageArray,
+} from '../../types';
 
 // Removed unused interface
 
@@ -49,13 +59,16 @@ class TestGuardrailsClient extends GuardrailsBaseClient {
 
 const createGuardrail = (
   name: string,
-  implementation: (ctx: GuardrailLLMContext, text: TextInput) => GuardrailResult | Promise<GuardrailResult>,
+  implementation: (
+    ctx: GuardrailLLMContext,
+    text: TextInput
+  ) => GuardrailResult | Promise<GuardrailResult>,
   metadata?: Record<string, unknown>
 ): unknown => ({
-  definition: { 
+  definition: {
     name,
     mediaType: 'text/plain', // Ensure test guardrails have proper media type
-    metadata: metadata || {}
+    metadata: metadata || {},
   },
   config: {},
   run: vi.fn(implementation),
@@ -115,11 +128,14 @@ describe('GuardrailsBaseClient helpers', () => {
           { role: 'user', content: 'earlier' },
           { role: 'assistant', content: [] },
           { role: 'user', content: [{ type: 'input_image', image_url: 'fixture' }] },
-          { role: 'user', content: [
-            { type, text: ' latest ' },
-            { type: 'input_image', image_url: 'fixture' },
-            { type, text: 'message ' },
-          ] },
+          {
+            role: 'user',
+            content: [
+              { type, text: ' latest ' },
+              { type: 'input_image', image_url: 'fixture' },
+              { type, text: 'message ' },
+            ],
+          },
           { role: 'user', content: '   ' },
           { role: 'user', content: [{ type: 'input_image', image_url: 'fixture' }] },
         ];
@@ -129,9 +145,7 @@ describe('GuardrailsBaseClient helpers', () => {
     );
 
     it('returns empty string when no user messages exist', () => {
-      const messages: Message[] = [
-        { role: 'assistant', content: 'hi' },
-      ];
+      const messages: Message[] = [{ role: 'assistant', content: 'hi' }];
       const [text, index] = client.extractLatestUserTextMessage(messages);
       expect(text).toBe('');
       expect(index).toBe(-1);
@@ -188,8 +202,12 @@ describe('GuardrailsBaseClient helpers', () => {
       const masked = client.applyPreflightModifications(messages, results) as Message[];
       const [, latestMessage] = masked;
 
-      expect((latestMessage.content as { type: string; text: string }[])[0].text).toBe('Call me at <PHONE>');
-      expect((latestMessage.content as { type: string; text: string }[])[1].text).toBe('or email <EMAIL>');
+      expect((latestMessage.content as { type: string; text: string }[])[0].text).toBe(
+        'Call me at <PHONE>'
+      );
+      expect((latestMessage.content as { type: string; text: string }[])[1].text).toBe(
+        'or email <EMAIL>'
+      );
       // Ensure assistant message unchanged
       expect(masked[0]).toEqual(messages[0]);
     });
@@ -209,7 +227,11 @@ describe('GuardrailsBaseClient helpers', () => {
 
     beforeEach(() => {
       client.setGuardrails({
-        pre_flight: [createGuardrail('Test Guard', async () => ({ ...baseResult })) as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
+        pre_flight: [
+          createGuardrail('Test Guard', async () => ({ ...baseResult })) as unknown as Parameters<
+            typeof client.setGuardrails
+          >[0]['pre_flight'][0],
+        ],
         input: [],
         output: [],
       });
@@ -285,11 +307,16 @@ describe('GuardrailsBaseClient helpers', () => {
         { usesConversationHistory: true }
       );
       client.setGuardrails({
-        pre_flight: [guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
+        pre_flight: [
+          guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0],
+        ],
         input: [],
         output: [],
       });
-      const spy = vi.spyOn(client as unknown as { createContextWithConversation: () => GuardrailLLMContext }, 'createContextWithConversation');
+      const spy = vi.spyOn(
+        client as unknown as { createContextWithConversation: () => GuardrailLLMContext },
+        'createContextWithConversation'
+      );
 
       await client.runStageGuardrails(
         'pre_flight',
@@ -317,7 +344,9 @@ describe('GuardrailsBaseClient helpers', () => {
       );
 
       client.setGuardrails({
-        pre_flight: [guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0]],
+        pre_flight: [
+          guardrail as unknown as Parameters<typeof client.setGuardrails>[0]['pre_flight'][0],
+        ],
         input: [],
         output: [],
       });
@@ -335,11 +364,11 @@ describe('GuardrailsBaseClient helpers', () => {
         getConversationHistory?: () => unknown[];
         conversationHistory?: unknown[];
       };
-      
+
       // Verify conversation history is accessible via method
       expect(typeof ctx.getConversationHistory).toBe('function');
       expect(Array.isArray(ctx.getConversationHistory?.())).toBe(true);
-      
+
       // Verify conversation history is also accessible via direct property access
       expect(Array.isArray(ctx.conversationHistory)).toBe(true);
       expect(ctx.conversationHistory).toEqual(ctx.getConversationHistory?.());
@@ -349,7 +378,10 @@ describe('GuardrailsBaseClient helpers', () => {
   describe('handleLlmResponse', () => {
     it('appends LLM response to conversation history and returns guardrail results', async () => {
       const conversation: TextOnlyMessageArray = [{ role: 'user', content: 'hi' }];
-      const outputResult: GuardrailResult = { tripwireTriggered: false, info: { message: 'All good' } };
+      const outputResult: GuardrailResult = {
+        tripwireTriggered: false,
+        info: { message: 'All good' },
+      };
       interface MockLLMResponse {
         choices: Array<{
           message: {
@@ -360,19 +392,26 @@ describe('GuardrailsBaseClient helpers', () => {
       }
 
       const runSpy = vi
-        .spyOn(client as unknown as { runStageGuardrails: () => Promise<GuardrailResult[]> }, 'runStageGuardrails')
+        .spyOn(
+          client as unknown as { runStageGuardrails: () => Promise<GuardrailResult[]> },
+          'runStageGuardrails'
+        )
         .mockResolvedValue([outputResult]);
 
       const llmResponse: MockLLMResponse = {
         choices: [{ message: { role: 'assistant', content: 'All good' } }],
       };
 
-      const response = await (client as unknown as { handleLlmResponse: (llmResponse: unknown, inputResults: GuardrailResult[], outputResults: GuardrailResult[], conversation: TextOnlyMessageArray) => Promise<unknown> }).handleLlmResponse(
-        llmResponse as unknown,
-        [],
-        [],
-        conversation
-      );
+      const response = await (
+        client as unknown as {
+          handleLlmResponse: (
+            llmResponse: unknown,
+            inputResults: GuardrailResult[],
+            outputResults: GuardrailResult[],
+            conversation: TextOnlyMessageArray
+          ) => Promise<unknown>;
+        }
+      ).handleLlmResponse(llmResponse as unknown, [], [], conversation);
 
       expect(runSpy).toHaveBeenCalledWith(
         'output',
@@ -384,8 +423,12 @@ describe('GuardrailsBaseClient helpers', () => {
         false,
         false
       );
-      expect((response as unknown as ResponseWithGuardrailResults).guardrail_results).toBeInstanceOf(GuardrailResultsImpl);
-      expect((response as unknown as ResponseWithGuardrailResults).guardrail_results.output).toEqual([outputResult]);
+      expect(
+        (response as unknown as ResponseWithGuardrailResults).guardrail_results
+      ).toBeInstanceOf(GuardrailResultsImpl);
+      expect(
+        (response as unknown as ResponseWithGuardrailResults).guardrail_results.output
+      ).toEqual([outputResult]);
     });
   });
 });

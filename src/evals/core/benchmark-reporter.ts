@@ -5,9 +5,9 @@
  * folders containing visualizations and detailed metrics.
  */
 
-import { SampleResult } from './types';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import type { SampleResult } from './types';
 
 /**
  * Reports benchmark results with specialized output format.
@@ -109,7 +109,7 @@ export class BenchmarkReporter {
       const row: string[] = [modelName];
       for (const key of metricKeys) {
         const value = modelMetrics[key];
-        if (value === undefined || isNaN(value)) {
+        if (value === undefined || Number.isNaN(value)) {
           row.push('N/A');
         } else {
           row.push(value.toFixed(4));
@@ -133,14 +133,18 @@ export class BenchmarkReporter {
     for (const [modelName, modelLatency] of Object.entries(latencyResults)) {
       const row: string[] = [modelName];
 
-      if ('ttc' in modelLatency && typeof modelLatency.ttc === 'object' && modelLatency.ttc !== null) {
+      if (
+        'ttc' in modelLatency &&
+        typeof modelLatency.ttc === 'object' &&
+        modelLatency.ttc !== null
+      ) {
         const ttcData = modelLatency.ttc as Record<string, unknown>;
         const p50 = ttcData.p50;
         const p95 = ttcData.p95;
 
         row.push(
-          typeof p50 === 'number' && !isNaN(p50) ? p50.toFixed(1) : 'N/A',
-          typeof p95 === 'number' && !isNaN(p95) ? p95.toFixed(1) : 'N/A'
+          typeof p50 === 'number' && !Number.isNaN(p50) ? p50.toFixed(1) : 'N/A',
+          typeof p95 === 'number' && !Number.isNaN(p95) ? p95.toFixed(1) : 'N/A'
         );
       } else {
         row.push('N/A', 'N/A');
@@ -172,9 +176,7 @@ export class BenchmarkReporter {
     // Format rows
     const lines: string[] = [];
     for (const row of table) {
-      const formattedRow = row
-        .map((cell, i) => (cell || '').padEnd(widths[i] || 0))
-        .join('  ');
+      const formattedRow = row.map((cell, i) => (cell || '').padEnd(widths[i] || 0)).join('  ');
       lines.push(formattedRow);
     }
 
@@ -193,15 +195,15 @@ export class BenchmarkReporter {
       const latencyTable = this.createLatencyTable(latencyResults);
 
       let content = 'BENCHMARK SUMMARY TABLES\n';
-      content += '='.repeat(80) + '\n\n';
+      content += `${'='.repeat(80)}\n\n`;
 
       content += 'PERFORMANCE METRICS\n';
-      content += '-'.repeat(80) + '\n';
+      content += `${'-'.repeat(80)}\n`;
       content += perfTable.length > 0 ? this.formatTable(perfTable) : 'No data available';
       content += '\n\n';
 
       content += 'LATENCY RESULTS (Time to Completion)\n';
-      content += '-'.repeat(80) + '\n';
+      content += `${'-'.repeat(80)}\n`;
       content += latencyTable.length > 0 ? this.formatTable(latencyTable) : 'No data available';
       content += '\n\n';
 
@@ -261,7 +263,7 @@ export class BenchmarkReporter {
     for (const [modelName, metrics] of Object.entries(metricsByModel)) {
       content += `\n${modelName}:\n`;
       for (const [metricName, value] of Object.entries(metrics)) {
-        if (typeof value === 'number' && !isNaN(value)) {
+        if (typeof value === 'number' && !Number.isNaN(value)) {
           content += `  ${metricName}: ${value}\n`;
         } else {
           content += `  ${metricName}: N/A\n`;
@@ -288,4 +290,3 @@ export class BenchmarkReporter {
     await fs.writeFile(filepath, content, 'utf-8');
   }
 }
-

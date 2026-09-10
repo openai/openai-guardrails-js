@@ -18,12 +18,12 @@
  * - Set OPENAI_API_KEY in your environment
  */
 
-import * as readline from 'readline';
+import * as readline from 'node:readline';
 import {
-  GuardrailResult,
-  GuardrailTripwireTriggered,
+  type GuardrailResult,
   GuardrailsOpenAI,
-  GuardrailsResponse,
+  type GuardrailsResponse,
+  GuardrailTripwireTriggered,
 } from '../../src';
 
 type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
@@ -108,10 +108,7 @@ function logPiiInOutput(result: GuardrailResult): void {
   console.log('Entities :', formatEntitySummary(detected));
 }
 
-function inspectGuardrailResults(
-  response: GuardrailsResponse,
-  originalInput: string
-): void {
+function inspectGuardrailResults(response: GuardrailsResponse, originalInput: string): void {
   const results = response.guardrail_results;
 
   if (results.preflight.length > 0) {
@@ -194,7 +191,10 @@ async function main(): Promise<void> {
         );
         console.log(JSON.stringify(error.guardrailResult, null, 2));
       } else {
-        console.error('\n❌ Error processing request:', error instanceof Error ? error.message : error);
+        console.error(
+          '\n❌ Error processing request:',
+          error instanceof Error ? error.message : error
+        );
       }
     }
 

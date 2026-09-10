@@ -7,20 +7,20 @@
  * guardrail check functions leveraging LLMs.
  */
 
-import { z, ZodTypeAny } from 'zod';
-import { OpenAI } from 'openai';
+import type { OpenAI } from 'openai';
+import { type ZodTypeAny, z } from 'zod';
+import { defaultSpecRegistry } from '../registry';
 import {
-  CheckFn,
-  GuardrailResult,
-  GuardrailLLMContext,
-  GuardrailLLMContextWithHistory,
-  TokenUsage,
+  type CheckFn,
   extractTokenUsage,
+  type GuardrailLLMContext,
+  type GuardrailLLMContextWithHistory,
+  type GuardrailResult,
+  type TokenUsage,
   tokenUsageToDict,
 } from '../types';
-import { defaultSpecRegistry } from '../registry';
+import type { NormalizedConversationEntry } from '../utils/conversation';
 import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
-import { NormalizedConversationEntry } from '../utils/conversation';
 
 /**
  * Default maximum number of conversation turns to include for multi-turn analysis.
@@ -288,7 +288,9 @@ Analyze the following text according to the instructions above.
  * @param ctx - Context object that may contain conversation history.
  * @returns Array of conversation entries, or empty array if unavailable.
  */
-export function extractConversationHistory(ctx: GuardrailLLMContext): NormalizedConversationEntry[] {
+export function extractConversationHistory(
+  ctx: GuardrailLLMContext
+): NormalizedConversationEntry[] {
   const candidate = (ctx as GuardrailLLMContextWithHistory).getConversationHistory;
   if (typeof candidate !== 'function') {
     return [];
@@ -427,14 +429,13 @@ export async function runLLM<TOutput extends ZodTypeAny>(
       temperature: temperature,
       response_format: { type: 'json_object' },
     };
-    
+
     // Only include safety_identifier for official OpenAI API (not Azure or local providers)
     if (supportsSafetyIdentifier(client)) {
-      // @ts-ignore - safety_identifier is not defined in OpenAI types yet
       params.safety_identifier = SAFETY_IDENTIFIER;
     }
 
-    // @ts-ignore - safety_identifier is not in the OpenAI types yet
+    // @ts-expect-error - safety_identifier is not in the OpenAI types yet
     const response = await client.chat.completions.create(params);
 
     // Extract token usage immediately after API call so it's available even if parsing fails

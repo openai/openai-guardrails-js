@@ -33,8 +33,8 @@
  * ```
  */
 
-import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, createLLMCheckFn } from './llm-base';
+import type { CheckFn, GuardrailLLMContext } from '../types';
+import { createLLMCheckFn, LLMConfig } from './llm-base';
 
 /**
  * Context requirements for the NSFW guardrail.

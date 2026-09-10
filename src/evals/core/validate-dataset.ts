@@ -5,7 +5,7 @@
  * It checks that each sample conforms to the expected schema and reports errors for invalid entries.
  */
 
-import { Sample, RawSample } from './types';
+import type { RawSample, Sample } from './types';
 
 /**
  * Normalize a raw sample to the standard Sample format.
@@ -40,7 +40,7 @@ function normalizeSample(rawSample: RawSample): Sample {
  * @throws {Error} If there are any file I/O errors
  */
 export async function validateDataset(datasetPath: string): Promise<[boolean, string[]]> {
-  const fs = await import('fs/promises');
+  const fs = await import('node:fs/promises');
 
   try {
     await fs.stat(datasetPath);

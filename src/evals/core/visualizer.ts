@@ -6,8 +6,8 @@
  * This is a stub implementation that matches the Python interface.
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 
 /**
  * Generates visualizations for guardrail benchmark results.
@@ -65,4 +65,3 @@ export class BenchmarkVisualizer {
     return savedFiles;
   }
 }
-

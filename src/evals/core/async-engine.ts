@@ -5,10 +5,18 @@
  * It supports batch processing, error handling, and progress reporting for large-scale evaluation workflows.
  */
 
-import { Context, RunEngine, Sample, SampleResult } from './types';
-import { ConfiguredGuardrail } from '../../runtime';
-import { GuardrailLLMContextWithHistory, GuardrailResult, GuardrailLLMContext } from '../../types';
-import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../../utils/conversation';
+import type { ConfiguredGuardrail } from '../../runtime';
+import type {
+  GuardrailLLMContext,
+  GuardrailLLMContextWithHistory,
+  GuardrailResult,
+} from '../../types';
+import {
+  type NormalizedConversationEntry,
+  normalizeConversation,
+  parseConversationInput,
+} from '../../utils/conversation';
+import type { Context, RunEngine, Sample, SampleResult } from './types';
 
 /**
  * Extract plain text from message content, handling multi-part structures.
@@ -146,7 +154,8 @@ export class AsyncRunEngine implements RunEngine {
           triggered[name] = false;
           details[name] = {
             input_text: sample.data,
-            error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
+            error:
+              guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
           };
         }
       }
@@ -177,7 +186,7 @@ export class AsyncRunEngine implements RunEngine {
     sampleData: string
   ): Promise<GuardrailResult> {
     const usesConversationHistory = this.guardrailUsesConversationHistory(guardrail);
-    
+
     // Run incrementally if the guardrail uses conversation history and multi-turn is enabled
     const shouldRunIncremental = usesConversationHistory && this.multiTurn;
 
@@ -226,10 +235,7 @@ export class AsyncRunEngine implements RunEngine {
   ): Promise<GuardrailResult> {
     const conversation = normalizeConversation(parseConversationInput(sampleData));
     const guardrailContext = this.createConversationContext(context, conversation);
-    return await guardrail.run(
-      guardrailContext as GuardrailLLMContextWithHistory,
-      sampleData
-    );
+    return await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
   }
 
   private async runIncrementalConversationGuardrail(
@@ -241,10 +247,7 @@ export class AsyncRunEngine implements RunEngine {
 
     if (conversation.length === 0) {
       const guardrailContext = this.createConversationContext(context, []);
-      return await guardrail.run(
-        guardrailContext as GuardrailLLMContextWithHistory,
-        sampleData
-      );
+      return await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, sampleData);
     }
 
     let finalResult: GuardrailResult | null = null;
@@ -258,7 +261,10 @@ export class AsyncRunEngine implements RunEngine {
       const serializedHistory = safeStringify(historySlice, sampleData);
       const payload = this.extractLatestInput(latestMessage, serializedHistory);
 
-      const result = await guardrail.run(guardrailContext as GuardrailLLMContextWithHistory, payload);
+      const result = await guardrail.run(
+        guardrailContext as GuardrailLLMContextWithHistory,
+        payload
+      );
 
       finalResult = result;
       this.annotateIncrementalResult(result, turnIndex, latestMessage);

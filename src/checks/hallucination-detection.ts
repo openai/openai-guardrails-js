@@ -8,7 +8,7 @@
  * **IMPORTANT: A valid OpenAI vector store must be created before using this guardrail.**
  *
  * To create an OpenAI vector store, you can:
- * 
+ *
  * 1. **Use the Guardrails Wizard**: Configure the guardrail through the [Guardrails Wizard](https://guardrails.openai.com/), which provides an option to create a vector store if you don't already have one.
  * 2. **Use the OpenAI Dashboard**: Create a vector store directly in the [OpenAI Dashboard](https://platform.openai.com/storage/vector_stores/).
  * 3. **Follow OpenAI Documentation**: Refer to the "Create a vector store and upload a file" section of the [File Search documentation](https://platform.openai.com/docs/guides/tools-file-search) for detailed instructions.
@@ -18,16 +18,16 @@
  */
 
 import { z } from 'zod';
+import { defaultSpecRegistry } from '../registry';
 import {
-  CheckFn,
-  GuardrailResult,
-  GuardrailLLMContext,
-  TokenUsage,
+  type CheckFn,
   extractTokenUsage,
+  type GuardrailLLMContext,
+  type GuardrailResult,
+  type TokenUsage,
   tokenUsageToDict,
 } from '../types';
-import { defaultSpecRegistry } from '../registry';
-import { createErrorResult, LLMErrorOutput } from './llm-base';
+import { createErrorResult, type LLMErrorOutput } from './llm-base';
 
 /**
  * Configuration schema for hallucination detection.
@@ -196,7 +196,7 @@ export const hallucination_detection: CheckFn<
   string,
   HallucinationDetectionConfig
 > = async (ctx, candidate, config): Promise<GuardrailResult> => {
-  if (!config.knowledge_source || !config.knowledge_source.startsWith('vs_')) {
+  if (!config.knowledge_source?.startsWith('vs_')) {
     throw new Error("knowledge_source must be a valid vector store ID starting with 'vs_'");
   }
 
@@ -210,7 +210,7 @@ export const hallucination_detection: CheckFn<
   try {
     // Determine whether to include reasoning
     const includeReasoning = config.include_reasoning ?? false;
-    
+
     // Create the validation query with the appropriate prompt
     const validationPrompt = buildValidationPrompt(includeReasoning);
     const validationQuery = `${validationPrompt}\n\nText to validate:\n${candidate}`;
@@ -246,7 +246,7 @@ export const hallucination_detection: CheckFn<
     }
 
     // Parse the JSON response
-    let parsedJson;
+    let parsedJson: unknown;
     try {
       parsedJson = JSON.parse(jsonText);
     } catch (error) {
@@ -255,9 +255,11 @@ export const hallucination_detection: CheckFn<
       const errorOutput: LLMErrorOutput = {
         flagged: false,
         confidence: 0.0,
-        info: { error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}` },
+        info: {
+          error_message: `JSON parsing failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
       };
-      
+
       // Only include reasoning fields in error if reasoning was requested
       const additionalInfo: Record<string, unknown> = {
         threshold: config.confidence_threshold,
@@ -268,12 +270,14 @@ export const hallucination_detection: CheckFn<
         additionalInfo.hallucinated_statements = null;
         additionalInfo.verified_statements = null;
       }
-      
+
       return createErrorResult('Hallucination Detection', errorOutput, additionalInfo, tokenUsage);
     }
 
     // Validate with the appropriate schema
-    const selectedSchema = includeReasoning ? HallucinationDetectionOutput : HallucinationDetectionBaseOutput;
+    const selectedSchema = includeReasoning
+      ? HallucinationDetectionOutput
+      : HallucinationDetectionBaseOutput;
     const analysis = selectedSchema.parse(parsedJson);
 
     // Determine if tripwire should be triggered
@@ -309,7 +313,7 @@ export const hallucination_detection: CheckFn<
       confidence: 0.0,
       info: { error_message: error instanceof Error ? error.message : String(error) },
     };
-    
+
     // Only include reasoning fields in error if reasoning was requested
     const includeReasoning = config.include_reasoning ?? false;
     const additionalInfo: Record<string, unknown> = {
@@ -321,7 +325,7 @@ export const hallucination_detection: CheckFn<
       additionalInfo.hallucinated_statements = null;
       additionalInfo.verified_statements = null;
     }
-    
+
     return createErrorResult('Hallucination Detection', errorOutput, additionalInfo, tokenUsage);
   }
 };

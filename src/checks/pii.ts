@@ -59,8 +59,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import type { CheckFn, GuardrailResult } from '../types';
 
 const ZERO_WIDTH_CHARACTERS = /(?:\u200B|\u200C|\u200D|\u2060|\uFEFF)/g;
 const BASE64_PATTERN = /(?:data:[^,]+,)?(?:base64,)?([A-Za-z0-9+/]{16,}={0,2})/g;
@@ -314,11 +314,13 @@ const KNOWN_BIC_REGEX = new RegExp(
 const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
   [PIIEntity.CREDIT_CARD]: [{ regex: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g }],
   [PIIEntity.CRYPTO]: [{ regex: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/g }],
-  [PIIEntity.DATE_TIME]: [{ regex: /\b(0[1-9]|1[0-2])[/-](0[1-9]|[12]\d|3[01])[/-](19|20)\d{2}\b/g }],
+  [PIIEntity.DATE_TIME]: [
+    { regex: /\b(0[1-9]|1[0-2])[/-](0[1-9]|[12]\d|3[01])[/-](19|20)\d{2}\b/g },
+  ],
   [PIIEntity.EMAIL_ADDRESS]: [
     { regex: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g },
     {
-      regex: new RegExp('(?<=[?&=/])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}', 'g'),
+      regex: /(?<=[?&=/])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
     },
   ],
   [PIIEntity.IBAN_CODE]: [{ regex: /\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b/g }],
@@ -334,7 +336,9 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
     },
   ],
   [PIIEntity.PERSON]: [{ regex: /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g }],
-  [PIIEntity.PHONE_NUMBER]: [{ regex: /\b(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g }],
+  [PIIEntity.PHONE_NUMBER]: [
+    { regex: /\b(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g },
+  ],
   [PIIEntity.MEDICAL_LICENSE]: [{ regex: /\b[A-Z]{2}\d{6}\b/g }],
   [PIIEntity.URL]: [
     {
@@ -348,10 +352,7 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
       group: 1,
     },
   ],
-  [PIIEntity.BIC_SWIFT]: [
-    { regex: BIC_WITH_CONTEXT_REGEX, group: 1 },
-    { regex: KNOWN_BIC_REGEX },
-  ],
+  [PIIEntity.BIC_SWIFT]: [{ regex: BIC_WITH_CONTEXT_REGEX, group: 1 }, { regex: KNOWN_BIC_REGEX }],
 
   // USA
   [PIIEntity.US_BANK_NUMBER]: [{ regex: /\b\d{8,17}\b/g }],
@@ -467,7 +468,7 @@ function _collectPlainDetections(
 
   for (const entity of entities) {
     const definitions = DEFAULT_PII_PATTERNS[entity];
-    if (!definitions || !definitions.length) {
+    if (!definitions?.length) {
       continue;
     }
 
@@ -510,7 +511,7 @@ function _collectPlainDetections(
         if (!mapping[entity]) {
           mapping[entity] = new Set();
         }
-        mapping[entity]!.add(extracted);
+        mapping[entity].add(extracted);
 
         spans.push({
           start,
@@ -552,7 +553,7 @@ function _detectEncodedPii(
     const detection = _collectPlainDetections(normalized, config.entities);
 
     const matchedEntities = Object.entries(detection.mapping)
-      .filter(([, values]) => values && values.size)
+      .filter(([, values]) => values?.size)
       .map(([entity]) => entity);
 
     if (!matchedEntities.length) {
@@ -563,7 +564,7 @@ function _detectEncodedPii(
       if (!mapping[entity]) {
         mapping[entity] = new Set();
       }
-      mapping[entity]!.add(candidate.encodedText);
+      mapping[entity].add(candidate.encodedText);
     }
 
     const preferredEntity = _selectPreferredEntity(matchedEntities, config.entities);
@@ -640,7 +641,7 @@ function _findEncodedCandidates(text: string): EncodedCandidate[] {
     if (raw.length < 9) {
       continue;
     }
-    let start = match.index;
+    const start = match.index;
     let end = start + raw.length;
     while (end < text.length && /[A-Za-z0-9._@-]/.test(text[end])) {
       end += 1;
@@ -686,7 +687,7 @@ function _mergeDetectionSets(
       merged[entity] = new Set();
     }
     for (const value of values) {
-      merged[entity]!.add(value);
+      merged[entity].add(value);
     }
   }
 
@@ -724,7 +725,9 @@ function _dedupeReplacements(replacements: ReplacementSpan[]): ReplacementSpan[]
   const accepted: ReplacementSpan[] = [];
 
   for (const span of sorted) {
-    const overlaps = accepted.some((existing) => span.start < existing.end && span.end > existing.start);
+    const overlaps = accepted.some(
+      (existing) => span.start < existing.end && span.end > existing.start
+    );
     if (!overlaps) {
       accepted.push(span);
     }
@@ -759,7 +762,9 @@ function _tryDecodeBase64(text: string): string | null {
   try {
     const buffer = Buffer.from(sanitized, 'base64');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new EncodedPiiSizeError(`Base64 decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(
+        `Base64 decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`
+      );
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
@@ -778,7 +783,9 @@ function _tryDecodeHex(text: string): string | null {
   try {
     const buffer = Buffer.from(text, 'hex');
     if (buffer.length > MAX_DECODED_BYTES) {
-      throw new EncodedPiiSizeError(`Hex decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(
+        `Hex decoded content too large (${buffer.length} bytes). Maximum allowed is 10KB.`
+      );
     }
     const decoder = new TextDecoder('utf-8', { fatal: true });
     return decoder.decode(buffer);
@@ -801,7 +808,9 @@ function _tryDecodeUrl(text: string): string | null {
     const encoder = new TextEncoder();
     const length = encoder.encode(decoded).length;
     if (length > MAX_DECODED_BYTES) {
-      throw new EncodedPiiSizeError(`URL decoded content too large (${length} bytes). Maximum allowed is 10KB.`);
+      throw new EncodedPiiSizeError(
+        `URL decoded content too large (${length} bytes). Maximum allowed is 10KB.`
+      );
     }
     return decoded;
   } catch (error) {

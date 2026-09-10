@@ -7,8 +7,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, createLLMCheckFn } from './llm-base';
+import type { CheckFn, GuardrailLLMContext } from '../types';
+import { createLLMCheckFn, LLMConfig } from './llm-base';
 
 /**
  * Configuration schema for user-defined LLM moderation checks.
@@ -17,7 +17,9 @@ import { LLMConfig, createLLMCheckFn } from './llm-base';
  */
 export const UserDefinedConfig = LLMConfig.omit({ system_prompt_details: true }).extend({
   /** Free-form instructions describing content moderation requirements */
-  system_prompt_details: z.string().describe('Free-form instructions describing content moderation requirements'),
+  system_prompt_details: z
+    .string()
+    .describe('Free-form instructions describing content moderation requirements'),
 });
 
 export type UserDefinedConfig = z.infer<typeof UserDefinedConfig>;

@@ -5,7 +5,7 @@
  * It provides a calculator class for aggregating metrics across samples.
  */
 
-import { GuardrailMetrics, MetricsCalculator, SampleResult } from './types';
+import type { GuardrailMetrics, MetricsCalculator, SampleResult } from './types';
 
 /**
  * Calculates evaluation metrics from results.

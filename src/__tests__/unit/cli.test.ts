@@ -5,7 +5,7 @@
  * exercising the evaluation subcommand (out of scope).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const loadConfigBundleFromFile = vi.fn();
 const instantiateGuardrails = vi.fn();
@@ -44,12 +44,18 @@ describe('CLI main', () => {
     runEvaluationCLI.mockReset();
 
     exitCalls = [];
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation((code?: string | number | null | undefined) => {
-      exitCalls.push(typeof code === 'number' ? code : 0);
-      return undefined as never;
-    }) as unknown as ReturnType<typeof vi.spyOn>;
-    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.spyOn>;
-    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.spyOn>;
+    exitSpy = vi
+      .spyOn(process, 'exit')
+      .mockImplementation((code?: string | number | null | undefined) => {
+        exitCalls.push(typeof code === 'number' ? code : 0);
+        return undefined as never;
+      }) as unknown as ReturnType<typeof vi.spyOn>;
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as unknown as ReturnType<
+      typeof vi.spyOn
+    >;
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as unknown as ReturnType<
+      typeof vi.spyOn
+    >;
 
     await importMain();
   });
@@ -83,13 +89,21 @@ describe('CLI main', () => {
     expect(exitSpy.mock.calls[0]?.[0]).toBe(0);
 
     expect(loadConfigBundleFromFile).toHaveBeenCalledWith('config.json');
-    expect(logSpy.mock.calls.some(([message]) => String(message).includes('Config valid: 2 guardrails loaded'))).toBe(true);
+    expect(
+      logSpy.mock.calls.some(([message]) =>
+        String(message).includes('Config valid: 2 guardrails loaded')
+      )
+    ).toBe(true);
   });
 
   it('errors when configuration file is missing for validation', async () => {
     await runMain(['node', 'cli', 'validate']);
     expect(exitSpy.mock.calls[0]?.[0]).toBe(2);
-    expect(errorSpy.mock.calls.some(([message]) => String(message).includes('Configuration file path is required'))).toBe(true);
+    expect(
+      errorSpy.mock.calls.some(([message]) =>
+        String(message).includes('Configuration file path is required')
+      )
+    ).toBe(true);
   });
 
   it('runs dataset validation subcommand', async () => {

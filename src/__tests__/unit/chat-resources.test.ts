@@ -5,9 +5,9 @@
  * streaming vs non-streaming behaviour delegates appropriately.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GuardrailsBaseClient } from '../../base-client';
-import { Message } from '../../types';
+import type { Message } from '../../types';
 
 const streamSyncMock = vi.fn();
 
@@ -93,12 +93,15 @@ describe('Chat resource', () => {
       false,
       false
     );
-    expect(client._resourceClient.chat.completions.create).toHaveBeenCalledWith({
-      messages,
-      model: 'gpt-4',
-      stream: false,
-      safety_identifier: 'openai-guardrails-js',
-    }, undefined);
+    expect(client._resourceClient.chat.completions.create).toHaveBeenCalledWith(
+      {
+        messages,
+        model: 'gpt-4',
+        stream: false,
+        safety_identifier: 'openai-guardrails-js',
+      },
+      undefined
+    );
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'chat-response' },
       [{ stage: 'preflight' }],
@@ -108,7 +111,6 @@ describe('Chat resource', () => {
     );
     expect(result).toEqual({ result: 'handled' });
   });
-
 });
 
 describe('Responses resource', () => {
@@ -128,7 +130,9 @@ describe('Responses resource', () => {
       .mockResolvedValueOnce([{ stage: 'preflight' }])
       .mockResolvedValueOnce([{ stage: 'input' }]);
 
-    const responses = new Responses(client as unknown as ConstructorParameters<typeof Responses>[0]);
+    const responses = new Responses(
+      client as unknown as ConstructorParameters<typeof Responses>[0]
+    );
 
     const payload = await responses.create({
       input: 'Tell me something',
@@ -153,13 +157,16 @@ describe('Responses resource', () => {
       false,
       false
     );
-    expect(client._resourceClient.responses.create).toHaveBeenCalledWith({
-      input: 'Tell me something',
-      model: 'gpt-4o',
-      stream: false,
-      tools: undefined,
-      safety_identifier: 'openai-guardrails-js',
-    }, undefined);
+    expect(client._resourceClient.responses.create).toHaveBeenCalledWith(
+      {
+        input: 'Tell me something',
+        model: 'gpt-4o',
+        stream: false,
+        tools: undefined,
+        safety_identifier: 'openai-guardrails-js',
+      },
+      undefined
+    );
     expect(client.handleLlmResponse).toHaveBeenCalledWith(
       { id: 'responses-api' },
       [{ stage: 'preflight' }],
@@ -169,7 +176,6 @@ describe('Responses resource', () => {
     );
     expect(payload).toEqual({ result: 'handled' });
   });
-
 });
 
 // Keep selection and masking real; only guardrail results and transport are mocked.
@@ -184,14 +190,19 @@ describe.each(['chat', 'responses'] as const)('%s preflight masking', (api) => {
       client.applyPreflightModifications.mockImplementation(
         GuardrailsBaseClient.prototype.applyPreflightModifications
       );
-      client.runStageGuardrails.mockResolvedValueOnce([{
-        tripwireTriggered: false,
-        info: { detected_entities: { EMAIL: ['alice@example.com'] } },
-      }]).mockResolvedValueOnce([]);
+      client.runStageGuardrails
+        .mockResolvedValueOnce([
+          {
+            tripwireTriggered: false,
+            info: { detected_entities: { EMAIL: ['alice@example.com'] } },
+          },
+        ])
+        .mockResolvedValueOnce([]);
       const image = { type: 'input_image', image_url: 'fixture' };
-      const content = type === 'string'
-        ? 'Contact alice@example.com'
-        : [{ type, text: 'Contact alice@example.com' }, image];
+      const content =
+        type === 'string'
+          ? 'Contact alice@example.com'
+          : [{ type, text: 'Contact alice@example.com' }, image];
       const messages: Message[] = [
         { role: 'user', content: 'Earlier alice@example.com' },
         { role: 'assistant', content: [] },
@@ -201,26 +212,37 @@ describe.each(['chat', 'responses'] as const)('%s preflight masking', (api) => {
       ];
       const original = structuredClone(messages);
       const expected = [...messages];
-      expected[3] = { role: 'user', content: type === 'string'
-        ? 'Contact <EMAIL>' : [{ type, text: 'Contact <EMAIL>' }, image] };
+      expected[3] = {
+        role: 'user',
+        content: type === 'string' ? 'Contact <EMAIL>' : [{ type, text: 'Contact <EMAIL>' }, image],
+      };
 
       if (api === 'chat') {
         const { Chat } = await import('../../resources/chat/chat');
         const chat = new Chat(client as unknown as ConstructorParameters<typeof Chat>[0]);
         await chat.completions.create({ messages, model: 'gpt-4o' });
         expect(client._resourceClient.chat.completions.create).toHaveBeenCalledWith(
-          expect.objectContaining({ messages: expected }), undefined
+          expect.objectContaining({ messages: expected }),
+          undefined
         );
       } else {
         const { Responses } = await import('../../resources/responses/responses');
-        const responses = new Responses(client as unknown as ConstructorParameters<typeof Responses>[0]);
+        const responses = new Responses(
+          client as unknown as ConstructorParameters<typeof Responses>[0]
+        );
         await responses.create({ input: messages, model: 'gpt-4o' });
         expect(client._resourceClient.responses.create).toHaveBeenCalledWith(
-          expect.objectContaining({ input: expected }), undefined
+          expect.objectContaining({ input: expected }),
+          undefined
         );
       }
       expect(client.runStageGuardrails).toHaveBeenNthCalledWith(
-        1, 'pre_flight', 'Contact alice@example.com', expect.any(Array), false, false
+        1,
+        'pre_flight',
+        'Contact alice@example.com',
+        expect.any(Array),
+        false,
+        false
       );
       expect(messages).toEqual(original);
     }

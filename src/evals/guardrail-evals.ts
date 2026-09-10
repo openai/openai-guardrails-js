@@ -4,25 +4,25 @@
  * This script provides a command-line interface and class for running guardrail evaluations on datasets.
  */
 
-import { Context, Sample, SampleResult } from './core/types';
-import { JsonlDatasetLoader } from './core/jsonl-loader';
-import { AsyncRunEngine } from './core/async-engine';
-import { GuardrailMetricsCalculator } from './core/calculator';
-import { JsonResultsReporter } from './core/json-reporter';
-import { BenchmarkMetricsCalculator } from './core/benchmark-calculator';
-import { BenchmarkReporter } from './core/benchmark-reporter';
-import { BenchmarkVisualizer } from './core/visualizer';
-import { LatencyTester } from './core/latency-tester';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { OpenAI } from 'openai';
 import {
+  type GuardrailBundle,
   instantiateGuardrails,
   loadPipelineBundles,
-  PipelineConfig,
-  GuardrailBundle,
+  type PipelineConfig,
 } from '../runtime';
-import { OpenAI } from 'openai';
-import * as os from 'os';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import { AsyncRunEngine } from './core/async-engine';
+import { BenchmarkMetricsCalculator } from './core/benchmark-calculator';
+import { BenchmarkReporter } from './core/benchmark-reporter';
+import { GuardrailMetricsCalculator } from './core/calculator';
+import { JsonResultsReporter } from './core/json-reporter';
+import { JsonlDatasetLoader } from './core/jsonl-loader';
+import { LatencyTester } from './core/latency-tester';
+import type { Context, Sample, SampleResult } from './core/types';
+import { BenchmarkVisualizer } from './core/visualizer';
 
 // Default models for benchmark mode
 const DEFAULT_BENCHMARK_MODELS = ['gpt-5', 'gpt-5-mini', 'gpt-4.1', 'gpt-4.1-mini'];
@@ -172,12 +172,21 @@ export class GuardrailEval {
    * @param chunkSize - Optional maximum chunk size to enforce
    * @returns Generator yielding slices of the provided samples
    */
-  static *_chunkSamples(samples: Sample[], chunkSize?: number | null): Generator<Sample[], void, unknown> {
+  static *_chunkSamples(
+    samples: Sample[],
+    chunkSize?: number | null
+  ): Generator<Sample[], void, unknown> {
     if (chunkSize !== null && chunkSize !== undefined && chunkSize <= 0) {
       throw new Error('chunkSize must be positive when provided');
     }
 
-    if (!samples || samples.length === 0 || chunkSize === null || chunkSize === undefined || chunkSize >= samples.length) {
+    if (
+      !samples ||
+      samples.length === 0 ||
+      chunkSize === null ||
+      chunkSize === undefined ||
+      chunkSize >= samples.length
+    ) {
       yield samples;
       return;
     }
@@ -212,7 +221,9 @@ export class GuardrailEval {
       throw new Error('No valid stages found in configuration');
     }
 
-    console.info(`event="evaluation_start" stages="${stagesToEvaluate.join(', ')}" mode="evaluate"`);
+    console.info(
+      `event="evaluation_start" stages="${stagesToEvaluate.join(', ')}" mode="evaluate"`
+    );
 
     const loader = new JsonlDatasetLoader();
     const samples = await loader.load(this.datasetPath);
@@ -283,7 +294,9 @@ export class GuardrailEval {
       );
     }
 
-    console.info(`event="benchmark_target" duration_ms=0 guardrail="${guardrailName}" stage="${stageToTest}"`);
+    console.info(
+      `event="benchmark_target" duration_ms=0 guardrail="${guardrailName}" stage="${stageToTest}"`
+    );
 
     const loader = new JsonlDatasetLoader();
     const samples = await loader.load(this.datasetPath);
@@ -320,7 +333,9 @@ export class GuardrailEval {
     );
 
     // Create visualizations
-    console.info(`event="benchmark_visualization_start" duration_ms=0 guardrail="${guardrailName}"`);
+    console.info(
+      `event="benchmark_visualization_start" duration_ms=0 guardrail="${guardrailName}"`
+    );
     const visualizer = new BenchmarkVisualizer(path.join(benchmarkDir, 'graphs'));
     const visualizationFiles = await visualizer.createAllVisualizations(
       resultsByModel,
@@ -331,11 +346,13 @@ export class GuardrailEval {
     );
 
     console.info(`event="benchmark_complete" duration_ms=0 output="${benchmarkDir}"`);
-    console.info(`event="benchmark_visualization_complete" duration_ms=0 count=${visualizationFiles.length}`);
+    console.info(
+      `event="benchmark_visualization_complete" duration_ms=0 count=${visualizationFiles.length}`
+    );
   }
 
   private _hasModelConfiguration(stageBundle: GuardrailBundle | undefined): boolean {
-    if (!stageBundle || !stageBundle.guardrails || stageBundle.guardrails.length === 0) {
+    if (!stageBundle?.guardrails || stageBundle.guardrails.length === 0) {
       return false;
     }
 
@@ -396,7 +413,7 @@ export class GuardrailEval {
 
       // Note: Azure OpenAI client creation would need AzureOpenAI import
       // For now, fall back to regular OpenAI with base URL
-    const openaiClient = new OpenAI({
+      const openaiClient = new OpenAI({
         apiKey: apiKey,
         baseURL: `https://${this.azureEndpoint.replace(/^https?:\/\//, '')}/openai/deployments`,
       });
@@ -430,17 +447,20 @@ export class GuardrailEval {
   private _isValidStage(pipelineBundles: PipelineConfig, stage: string): boolean {
     const bundles = pipelineBundles as Record<string, GuardrailBundle | undefined>;
     const stageBundle = bundles[stage];
-    return stageBundle !== undefined && stageBundle !== null && stageBundle.guardrails && stageBundle.guardrails.length > 0;
+    return Boolean(stageBundle?.guardrails && stageBundle.guardrails.length > 0);
   }
 
   /**
    * Create a modified copy of a stage bundle with model-specific configuration.
-   * 
+   *
    * @param stageBundle - Original stage bundle
    * @param model - Model name to inject into guardrail configs
    * @returns Modified stage bundle with updated model configuration
    */
-  private _createModelSpecificStageBundle(stageBundle: GuardrailBundle, model: string): GuardrailBundle {
+  private _createModelSpecificStageBundle(
+    stageBundle: GuardrailBundle,
+    model: string
+  ): GuardrailBundle {
     // Deep copy the bundle using structuredClone for better performance
     // Fall back to JSON parse/stringify for compatibility
     let modifiedBundle: GuardrailBundle;
@@ -510,7 +530,12 @@ export class GuardrailEval {
 
       const engine = new AsyncRunEngine(guardrails, this.multiTurn);
 
-      const stageResults = await engine.run(context, samples, this.batchSize, `Evaluating ${stage} stage`);
+      const stageResults = await engine.run(
+        context,
+        samples,
+        this.batchSize,
+        `Evaluating ${stage} stage`
+      );
 
       const stageMetrics = calculator.calculate(stageResults);
 
@@ -521,7 +546,10 @@ export class GuardrailEval {
     }
   }
 
-  private _getBenchmarkTarget(pipelineBundles: PipelineConfig): { stageToTest: string; guardrailName: string } {
+  private _getBenchmarkTarget(pipelineBundles: PipelineConfig): {
+    stageToTest: string;
+    guardrailName: string;
+  } {
     let stageToTest: string;
     if (this.stages && this.stages.length > 0) {
       stageToTest = this.stages[0];
@@ -530,7 +558,8 @@ export class GuardrailEval {
       }
     } else {
       // Find first valid stage
-      stageToTest = Array.from(VALID_STAGES).find((stage) => this._isValidStage(pipelineBundles, stage)) || '';
+      stageToTest =
+        Array.from(VALID_STAGES).find((stage) => this._isValidStage(pipelineBundles, stage)) || '';
       if (!stageToTest) {
         throw new Error('No valid stage found for benchmarking');
       }
@@ -592,7 +621,9 @@ export class GuardrailEval {
       await acquire();
 
       const startTime = performance.now();
-      console.info(`event="benchmark_model_start" duration_ms=0 model="${model}" position=${index} total=${this.models.length} active=${running}/${maxActive}`);
+      console.info(
+        `event="benchmark_model_start" duration_ms=0 model="${model}" position=${index} total=${this.models.length} active=${running}/${maxActive}`
+      );
 
       try {
         const modifiedStageBundle = this._createModelSpecificStageBundle(stageBundle, model);
@@ -612,17 +643,23 @@ export class GuardrailEval {
         if (modelResults) {
           resultsByModel[model] = modelResults.results;
           metricsByModel[model] = modelResults.metrics;
-          console.info(`event="benchmark_model_complete" duration_ms=${elapsedMs.toFixed(2)} model="${model}" status="success"`);
+          console.info(
+            `event="benchmark_model_complete" duration_ms=${elapsedMs.toFixed(2)} model="${model}" status="success"`
+          );
         } else {
           resultsByModel[model] = [];
           metricsByModel[model] = {};
-          console.warn(`event="benchmark_model_empty" duration_ms=${elapsedMs.toFixed(2)} model="${model}" status="no_results"`);
+          console.warn(
+            `event="benchmark_model_empty" duration_ms=${elapsedMs.toFixed(2)} model="${model}" status="no_results"`
+          );
         }
       } catch (error) {
         const elapsedMs = performance.now() - startTime;
         resultsByModel[model] = [];
         metricsByModel[model] = {};
-        console.error(`event="benchmark_model_failure" duration_ms=${elapsedMs.toFixed(2)} model="${model}" error="${error}"`);
+        console.error(
+          `event="benchmark_model_failure" duration_ms=${elapsedMs.toFixed(2)} model="${model}" error="${error}"`
+        );
       } finally {
         release();
       }
@@ -633,13 +670,23 @@ export class GuardrailEval {
     await Promise.all(tasks);
 
     // Log summary
-    const successfulModels = this.models.filter((model) => resultsByModel[model] && resultsByModel[model].length > 0);
-    const failedModels = this.models.filter((model) => !resultsByModel[model] || resultsByModel[model].length === 0);
+    const successfulModels = this.models.filter(
+      (model) => resultsByModel[model] && resultsByModel[model].length > 0
+    );
+    const failedModels = this.models.filter(
+      (model) => !resultsByModel[model] || resultsByModel[model].length === 0
+    );
 
-    console.info(`event="benchmark_summary" duration_ms=0 successful=${successfulModels.length} failed=${failedModels.length}`);
-    console.info(`event="benchmark_successful_models" duration_ms=0 models="${successfulModels.join(', ') || 'None'}"`);
+    console.info(
+      `event="benchmark_summary" duration_ms=0 successful=${successfulModels.length} failed=${failedModels.length}`
+    );
+    console.info(
+      `event="benchmark_successful_models" duration_ms=0 models="${successfulModels.join(', ') || 'None'}"`
+    );
     if (failedModels.length > 0) {
-      console.warn(`event="benchmark_failed_models" duration_ms=0 models="${failedModels.join(', ')}"`);
+      console.warn(
+        `event="benchmark_failed_models" duration_ms=0 models="${failedModels.join(', ')}"`
+      );
     }
     console.info(`event="benchmark_total_models" duration_ms=0 total=${this.models.length}`);
 
@@ -657,10 +704,11 @@ export class GuardrailEval {
   ): Promise<{ results: SampleResult[]; metrics: Record<string, number> } | null> {
     try {
       const guardrails = await instantiateGuardrails(stageBundle);
-    const engine = new AsyncRunEngine(guardrails, this.multiTurn);
-      const chunkTotal = this.benchmarkChunkSize && samples.length > 0
-        ? Math.max(1, Math.ceil(samples.length / this.benchmarkChunkSize))
-        : 1;
+      const engine = new AsyncRunEngine(guardrails, this.multiTurn);
+      const chunkTotal =
+        this.benchmarkChunkSize && samples.length > 0
+          ? Math.max(1, Math.ceil(samples.length / this.benchmarkChunkSize))
+          : 1;
 
       const modelResults: SampleResult[] = [];
       let chunkIndex = 1;

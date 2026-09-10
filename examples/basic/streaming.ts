@@ -3,8 +3,8 @@
  * Streams output using console logging.
  */
 
+import * as readline from 'node:readline';
 import { GuardrailsOpenAI, GuardrailTripwireTriggered, totalGuardrailTokenUsage } from '../../src';
-import * as readline from 'readline';
 
 // Define your pipeline configuration
 // Pipeline configuration with preflight PII masking and input guardrails
@@ -101,7 +101,7 @@ async function processInput(
         typeof chunk.response === 'object' &&
         'id' in chunk.response
       ) {
-        responseIdToReturn = (chunk.response).id as string;
+        responseIdToReturn = chunk.response.id as string;
       }
     }
 
@@ -134,7 +134,6 @@ async function main(): Promise<void> {
   let responseId: string | null = null;
 
   try {
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const prompt = await new Promise<string>((resolve) => {

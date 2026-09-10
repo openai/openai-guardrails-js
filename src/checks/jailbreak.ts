@@ -8,8 +8,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
+import type { CheckFn, GuardrailLLMContext } from '../types';
+import { createLLMCheckFn, LLMConfig, LLMOutput } from './llm-base';
 
 /**
  * Configuration schema for jailbreak detection.

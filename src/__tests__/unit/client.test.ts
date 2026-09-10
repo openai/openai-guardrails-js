@@ -2,7 +2,7 @@
  * Tests for GuardrailsOpenAI and GuardrailsAzureOpenAI wrappers.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock interfaces for better type safety
 interface MockOpenAIOptions {
@@ -107,9 +107,15 @@ describe('Guardrails clients', () => {
         });
       });
 
-    const instance = await GuardrailsOpenAI.create({ input: { guardrails: [] } }, { apiKey: 'key-123', timeout: 5000 }, true);
+    const instance = await GuardrailsOpenAI.create(
+      { input: { guardrails: [] } },
+      { apiKey: 'key-123', timeout: 5000 },
+      true
+    );
 
-    const guardrailsClient = (instance as unknown as TestGuardrailsOpenAI).guardrailsClient ?? (instance.guardrails.chat as unknown as TestChat).client as MockGuardrailsClient;
+    const guardrailsClient =
+      (instance as unknown as TestGuardrailsOpenAI).guardrailsClient ??
+      ((instance.guardrails.chat as unknown as TestChat).client as MockGuardrailsClient);
     expect(guardrailsClient.raiseGuardrailErrors).toBe(true);
 
     const resourceClient = guardrailsClient._resourceClient;
@@ -134,7 +140,10 @@ describe('Guardrails clients', () => {
     const { GuardrailsAzureOpenAI } = await import('../../client');
 
     const overrideSpy = vi
-      .spyOn(GuardrailsAzureOpenAI.prototype as unknown as TestGuardrailsOpenAI, 'overrideResources')
+      .spyOn(
+        GuardrailsAzureOpenAI.prototype as unknown as TestGuardrailsOpenAI,
+        'overrideResources'
+      )
       .mockImplementation(function () {
         const client = this.guardrailsClient;
         Object.defineProperty(this, 'chat', {
@@ -154,9 +163,15 @@ describe('Guardrails clients', () => {
         });
       });
 
-    const instance = await GuardrailsAzureOpenAI.create({ output: { guardrails: [] } }, { apiKey: 'azure-key' }, false);
+    const instance = await GuardrailsAzureOpenAI.create(
+      { output: { guardrails: [] } },
+      { apiKey: 'azure-key' },
+      false
+    );
 
-    const guardrailsClient = (instance as unknown as TestGuardrailsOpenAI).guardrailsClient ?? (instance.guardrails.chat as unknown as TestChat).client as MockGuardrailsClient;
+    const guardrailsClient =
+      (instance as unknown as TestGuardrailsOpenAI).guardrailsClient ??
+      ((instance.guardrails.chat as unknown as TestChat).client as MockGuardrailsClient);
     expect(guardrailsClient.raiseGuardrailErrors).toBe(false);
 
     const resourceClient = guardrailsClient._resourceClient;

@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import type { CheckFn } from '../types';
 
 const DEFAULT_PORTS: Record<string, number> = {
   http: 80,
@@ -106,7 +106,8 @@ function detectUrls(text: string): string[] {
   // Pattern 1: URLs with schemes (highest priority)
   // Consume non-letter prefixes at token boundaries without retrying every
   // suffix of a long scheme-like token. The capture retains only the URL.
-  const schemePattern = /(?<![a-z0-9+.-])[0-9+.-]*((?:[a-z][a-z0-9+.-]*:\/\/|data:|javascript:|vbscript:)[^\s<>"{}|\\^`[\]]+)/gi;
+  const schemePattern =
+    /(?<![a-z0-9+.-])[0-9+.-]*((?:[a-z][a-z0-9+.-]*:\/\/|data:|javascript:|vbscript:)[^\s<>"{}|\\^`[\]]+)/gi;
   const schemeRanges: { start: number; schemeEnd: number; end: number }[] = [];
   for (const candidate of text.matchAll(schemePattern)) {
     // Exclude only the captured URL, leaving discarded prefixes available
@@ -136,7 +137,10 @@ function detectUrls(text: string): string[] {
       const range = schemeRanges[rangeIndex];
       // A prefixed dotted scheme can look like a bare domain. Exclude that
       // fragment, but retain enclosing bare paths containing an explicit URL.
-      if (range && (range.start <= candidate.index || (range.start < end && end <= range.schemeEnd))) {
+      if (
+        range &&
+        (range.start <= candidate.index || (range.start < end && end <= range.schemeEnd))
+      ) {
         continue;
       }
       const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
@@ -206,7 +210,11 @@ function validateUrlSecurity(
     }
 
     if (config.block_userinfo && (parsedUrl.username || parsedUrl.password)) {
-      return { parsedUrl: null, reason: 'Contains userinfo (potential credential injection)', hadScheme };
+      return {
+        parsedUrl: null,
+        reason: 'Contains userinfo (potential credential injection)',
+        hadScheme,
+      };
     }
 
     // Everything else (IPs, localhost, private IPs) goes through allow list logic
@@ -215,7 +223,11 @@ function validateUrlSecurity(
     // Provide specific error information for debugging
     const errorName = error instanceof Error ? error.name : 'Error';
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return { parsedUrl: null, reason: `URL parsing error: ${errorName}: ${errorMessage}`, hadScheme: false };
+    return {
+      parsedUrl: null,
+      reason: `URL parsing error: ${errorName}: ${errorMessage}`,
+      hadScheme: false,
+    };
   }
 }
 
@@ -271,17 +283,18 @@ function shouldBlockDueToPortMismatch(
   allowedScheme: string
 ): boolean {
   // Only enforce port matching when allow list entry explicitly specifies a non-default port
-  const allowedHasNonDefaultPort = allowedParsed.port && 
-    (allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS]);
-  
+  const allowedHasNonDefaultPort =
+    allowedParsed.port &&
+    allowedPort !== DEFAULT_PORTS[allowedScheme as keyof typeof DEFAULT_PORTS];
+
   if (!allowedHasNonDefaultPort) {
     return false; // No port restriction when allow list has no non-default port
   }
-  
+
   // Allow list has explicit non-default port, so URL must match exactly
-  const urlHasNonDefaultPort = urlParsed.port && 
-    (urlPort !== DEFAULT_PORTS[urlScheme as keyof typeof DEFAULT_PORTS]);
-  
+  const urlHasNonDefaultPort =
+    urlParsed.port && urlPort !== DEFAULT_PORTS[urlScheme as keyof typeof DEFAULT_PORTS];
+
   return !urlHasNonDefaultPort || allowedPort !== urlPort;
 }
 
@@ -293,7 +306,12 @@ function shouldBlockDueToPortMismatch(
  * @param allowSubdomains - Whether to allow subdomains
  * @param hadScheme - Whether the original URL had an explicit scheme
  */
-function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: boolean, hadScheme: boolean): boolean {
+function isUrlAllowed(
+  parsedUrl: URL,
+  allowList: string[],
+  allowSubdomains: boolean,
+  hadScheme: boolean
+): boolean {
   if (allowList.length === 0) {
     return false;
   }
@@ -306,7 +324,8 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
   const urlDomain = urlHost.replace(/^www\./, '');
   const schemeLower = parsedUrl.protocol ? parsedUrl.protocol.replace(/:$/, '').toLowerCase() : '';
   const urlPort = safeGetPort(parsedUrl, schemeLower);
-  const hostIndicatesPort = Boolean(parsedUrl.host) && parsedUrl.host.includes(':') && !parsedUrl.host.startsWith('[');
+  const hostIndicatesPort =
+    Boolean(parsedUrl.host) && parsedUrl.host.includes(':') && !parsedUrl.host.startsWith('[');
   if (urlPort === null && hostIndicatesPort) {
     return false;
   }
@@ -384,9 +403,14 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       continue;
     }
 
-    const allowedScheme = hasExplicitScheme ? parsedAllowed.protocol.replace(/:$/, '').toLowerCase() : '';
+    const allowedScheme = hasExplicitScheme
+      ? parsedAllowed.protocol.replace(/:$/, '').toLowerCase()
+      : '';
     const allowedPort = safeGetPort(parsedAllowed, allowedScheme);
-    const allowIndicatesPort = Boolean(parsedAllowed.host) && parsedAllowed.host.includes(':') && !parsedAllowed.host.startsWith('[');
+    const allowIndicatesPort =
+      Boolean(parsedAllowed.host) &&
+      parsedAllowed.host.includes(':') &&
+      !parsedAllowed.host.startsWith('[');
     if (allowedPort === null && allowIndicatesPort) {
       continue;
     }
@@ -399,7 +423,16 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     const allowedDomain = allowedHost.replace(/^www\./, '');
 
     // Port matching: only enforce when allow list entry explicitly specifies a non-default port
-    if (shouldBlockDueToPortMismatch(urlPort, parsedUrl, allowedPort, parsedAllowed, schemeLower, allowedScheme)) {
+    if (
+      shouldBlockDueToPortMismatch(
+        urlPort,
+        parsedUrl,
+        allowedPort,
+        parsedAllowed,
+        schemeLower,
+        allowedScheme
+      )
+    ) {
       continue;
     }
 
@@ -423,8 +456,11 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       // so we check "/api/" not "/api//" when matching "/api/users"
       const normalizedAllowedPath = allowedPath.replace(/\/+$/, '');
       const normalizedUrlPath = urlPath.replace(/\/+$/, '');
-      
-      if (normalizedUrlPath !== normalizedAllowedPath && !normalizedUrlPath.startsWith(`${normalizedAllowedPath}/`)) {
+
+      if (
+        normalizedUrlPath !== normalizedAllowedPath &&
+        !normalizedUrlPath.startsWith(`${normalizedAllowedPath}/`)
+      ) {
         continue;
       }
     }

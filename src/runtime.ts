@@ -5,9 +5,9 @@
  * guardrail validation.
  */
 
-import { GuardrailSpec } from './spec';
-import { GuardrailResult, TContext, TIn, TextInput } from './types';
 import { defaultSpecRegistry } from './registry';
+import type { GuardrailSpec } from './spec';
+import type { GuardrailResult, TContext, TextInput, TIn } from './types';
 
 /**
  * Configuration for a single guardrail instance.
@@ -201,7 +201,10 @@ export async function instantiateGuardrails(
       // Validate configuration against schema if available
       let validatedConfig: Record<string, unknown> = guardrailConfig.config;
       if (spec.configSchema) {
-        validatedConfig = spec.configSchema.parse(guardrailConfig.config) as Record<string, unknown>;
+        validatedConfig = spec.configSchema.parse(guardrailConfig.config) as Record<
+          string,
+          unknown
+        >;
       }
 
       const guardrail = spec.instantiate(validatedConfig);
@@ -227,12 +230,12 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
     const parsed = JSON.parse(jsonString);
 
     // Handle nested structure (input.guardrails) or direct structure (guardrails)
-    let guardrailsArray: unknown[] | undefined;
+    let guardrailsArray: unknown[];
 
     if (parsed.guardrails && Array.isArray(parsed.guardrails)) {
       // Direct structure
       guardrailsArray = parsed.guardrails;
-    } else if (parsed.input && parsed.input.guardrails && Array.isArray(parsed.input.guardrails)) {
+    } else if (parsed.input?.guardrails && Array.isArray(parsed.input.guardrails)) {
       // Nested structure
       guardrailsArray = parsed.input.guardrails;
     } else {
@@ -242,7 +245,7 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
     }
 
     // Validate each guardrail config
-    for (const guardrail of guardrailsArray!) {
+    for (const guardrail of guardrailsArray) {
       const guardrailObj = guardrail as Record<string, unknown>;
       if (!guardrailObj.name || typeof guardrailObj.name !== 'string') {
         throw new Error('Invalid guardrail config: missing or invalid name');
@@ -256,7 +259,7 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
     return {
       version: parsed.version,
       stageName: parsed.stageName,
-      guardrails: guardrailsArray!,
+      guardrails: guardrailsArray,
     } as GuardrailBundle;
   } catch (error) {
     if (error instanceof SyntaxError) {
@@ -276,7 +279,7 @@ export function loadConfigBundle(jsonString: string): GuardrailBundle {
  */
 export async function loadConfigBundleFromFile(filePath: string): Promise<GuardrailBundle> {
   // Dynamic import to avoid bundling issues
-  const fs = await import('fs/promises');
+  const fs = await import('node:fs/promises');
   const content = await fs.readFile(filePath, 'utf-8');
   return loadConfigBundle(content);
 }
@@ -294,7 +297,7 @@ export async function loadPipelineBundles(
     // Check if it's a file path (contains .json extension or path separators)
     if (config.includes('.json') || config.includes('/') || config.includes('\\')) {
       // Dynamic import to avoid bundling issues
-      const fs = await import('fs/promises');
+      const fs = await import('node:fs/promises');
       const content = await fs.readFile(config, 'utf-8');
       return JSON.parse(content) as PipelineConfig;
     } else {

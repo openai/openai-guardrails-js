@@ -5,29 +5,25 @@
  * async and sync guardrails clients.
  */
 
-import { OpenAI, AzureOpenAI } from 'openai';
+import type { AzureOpenAI, OpenAI } from 'openai';
+import { type ConfiguredGuardrail, type GuardrailBundle, instantiateGuardrails } from './runtime';
 import {
-  GuardrailResult,
-  GuardrailLLMContext,
-  GuardrailLLMContextWithHistory,
-  Message,
-  ContentPart,
-  TextContentPart,
-  TokenUsageSummary,
   aggregateTokenUsageFromInfos,
+  type ContentPart,
+  type GuardrailLLMContext,
+  type GuardrailLLMContextWithHistory,
+  type GuardrailResult,
+  type Message,
+  type TextContentPart,
+  type TokenUsageSummary,
 } from './types';
 import { ContentUtils } from './utils/content';
-import { getGuardrailFailure } from './utils/guardrail-failure';
-import {
-  GuardrailBundle,
-  ConfiguredGuardrail,
-  instantiateGuardrails,
-} from './runtime';
 import {
   appendAssistantResponse,
+  type NormalizedConversationEntry,
   normalizeConversation,
-  NormalizedConversationEntry,
 } from './utils/conversation';
+import { getGuardrailFailure } from './utils/guardrail-failure';
 
 const ZERO_WIDTH_CHARACTERS = /(?:\u200B|\u200C|\u200D|\u2060|\uFEFF)/g;
 
@@ -40,7 +36,10 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return null;
 }
 
-function getRecord(record: Record<string, unknown> | null, key: string): Record<string, unknown> | null {
+function getRecord(
+  record: Record<string, unknown> | null,
+  key: string
+): Record<string, unknown> | null {
   if (!record) {
     return null;
   }
@@ -519,7 +518,11 @@ export abstract class GuardrailsBaseClient {
   public async loadConversationHistoryFromPreviousResponse(
     previousResponseId?: string | null
   ): Promise<NormalizedConversationEntry[]> {
-    if (!previousResponseId || typeof previousResponseId !== 'string' || previousResponseId.trim() === '') {
+    if (
+      !previousResponseId ||
+      typeof previousResponseId !== 'string' ||
+      previousResponseId.trim() === ''
+    ) {
       return [];
     }
 
@@ -561,7 +564,10 @@ export abstract class GuardrailsBaseClient {
 
     if (conversationId && listConversationItems) {
       try {
-        const pageResult = await listConversationItems(conversationId, { order: 'asc', limit: 100 });
+        const pageResult = await listConversationItems(conversationId, {
+          order: 'asc',
+          limit: 100,
+        });
         if (isAsyncIterable(pageResult)) {
           for await (const entry of pageResult) {
             items.push(entry);
@@ -623,7 +629,10 @@ export abstract class GuardrailsBaseClient {
       conversationHistory !== undefined && conversationHistory !== null
         ? this.normalizeConversationHistory(conversationHistory)
         : [];
-    const completeConversation = this.appendLlmResponseToConversation(normalizedHistory, llmResponse);
+    const completeConversation = this.appendLlmResponseToConversation(
+      normalizedHistory,
+      llmResponse
+    );
 
     const responseText = this.extractResponseText(llmResponse);
     const outputResults = await this.runStageGuardrails(
@@ -634,6 +643,11 @@ export abstract class GuardrailsBaseClient {
       this.raiseGuardrailErrors
     );
 
-    return this.createGuardrailsResponse(llmResponse, preflightResults, inputResults, outputResults);
+    return this.createGuardrailsResponse(
+      llmResponse,
+      preflightResults,
+      inputResults,
+      outputResults
+    );
   }
 }
