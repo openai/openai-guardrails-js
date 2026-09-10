@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { it } from 'vitest';
 
@@ -10,7 +11,10 @@ it('accepts migrated public schemas and client types in a consumer', () => {
   execFileSync(
     process.execPath,
     [
-      require.resolve('typescript/bin/tsc'),
+      resolve(
+        dirname(require.resolve('typescript/package.json')),
+        require('typescript/package.json').bin.tsc
+      ),
       '--ignoreConfig',
       '--noEmit',
       '--strict',
