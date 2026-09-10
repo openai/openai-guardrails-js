@@ -66,3 +66,34 @@ Treat customer issues as evidence of a problem, not as an approved implementatio
 - Never automatically reset, stash, rebase, switch, or discard changes in any
   other checkout.
 <!-- codex-managed:worktree-policy:end -->
+
+## Changesets and changelog entries
+
+Add a `.changeset/*.md` release note when a change materially affects users of
+the published `@openai/guardrails` package. Follow the
+[release guide](.changeset/README.md) for examples and commands.
+
+- Include user-facing features, bug fixes, API or type changes, breaking changes,
+  deprecations, and meaningful runtime performance or security changes.
+- Include dependency, build, or packaging changes when they affect what users
+  install, supported environments, or package behavior. Judge the user impact,
+  not just which files changed.
+- Do not add entries for internal tooling, CI, release automation, tests,
+  documentation-only edits, or refactoring with no user-visible effect.
+- Describe the observable change and any action users need to take. Avoid
+  internal implementation details that do not help package users.
+- Commit the changeset with the code. Let Changesets generate `CHANGELOG.md`
+  and version bumps through the release PR; do not edit them manually for an
+  ordinary code change.
+
+## Code review
+
+During every code review, check whether the diff materially changes the published
+package for end users. If it does, require a matching changeset before approval
+and flag a missing or inaccurate entry as a review finding. Verify that the note
+describes the user impact, covers migration steps when needed, and selects an
+appropriate patch, minor, or major bump.
+
+Do not request a changeset for internal-only changes listed above. Generated
+release PRs consume changesets into the changelog; review their versions and
+changelog rather than asking for another changeset.

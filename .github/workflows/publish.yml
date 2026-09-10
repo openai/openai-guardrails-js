@@ -3,21 +3,28 @@ name: Publish Package
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 permissions: {}
 
 jobs:
   publish:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+      pull-requests: write
       id-token: write # Required for npm trusted publishing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
@@ -26,8 +33,16 @@ jobs:
 
       # Ensure npm 11.5.1 or later is installed
       - name: Update npm
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
       - run: npm ci
       - run: npm run build --if-present
       - run: npm run test -- --run
-      - run: npm publish
+      - run: npm run lint
+      - name: Create release PR or publish
+        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: npm run version-packages
+          publish: npm run release
+          title: 'chore: release @openai/guardrails'
+          commit: 'chore: release @openai/guardrails'
