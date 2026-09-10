@@ -7,8 +7,14 @@ releases.
 ## Contributing a release note
 
 For a user-visible SDK change, run `npm run changeset`, choose the appropriate
-patch, minor, or major bump, and write a short description of the change. Commit
+patch or minor bump, and write a short description of the change. Commit
 the generated `.changeset/*.md` file with the code.
+
+Keep `@openai/guardrails` pre-1.0 until an explicit stable-release decision. While
+the package is on `0.x`, use minor bumps for features and breaking changes, and
+patch bumps for compatible fixes. Clearly describe breaking changes and required
+migration steps in the release note. A major changeset selects `1.0.0` and should
+only be used when the stable release is explicitly approved.
 
 Add an entry for changes that materially affect package users: new features,
 bug fixes, public APIs or types, deprecations, breaking changes, and meaningful
@@ -89,7 +95,7 @@ Changesets continues the same `v<version>` naming for this single-package repo.
 Historical release notes remain in GitHub Releases; the generated changelog starts
 with the first Changesets release. The initial changesets cover the unreleased
 RequestOptions feature, twelve runtime fixes, and the breaking move to Node.js
-`^22.13.0 || >=24.0.0` since `v0.2.1`. The major changeset proposes version `1.0.0`; CI, tests,
+`^22.13.0 || >=24.0.0` since `v0.2.1`. The pending minor changesets propose version `0.3.0`; CI, tests,
 chores, documentation, and TypeScript cleanup are excluded from release notes.
 
 Pushing a tag no longer triggers npm publishing. Publishing and tag creation now
