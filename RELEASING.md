@@ -18,7 +18,8 @@ for contributor instructions, first-release notes, and recovery procedures.
 No manual tag push, release-please configuration, or GitHub App is required.
 Existing release tags and GitHub Releases remain unchanged. The package stays at
 `0.2.1` until the first Changesets version PR is merged; the pending notes propose
-`1.0.0` because Node.js 18 and 20 support was removed in favor of Node.js 22+.
+`1.0.0` because supported Node.js versions are now `^22.13.0 || >=24.0.0`,
+including removal of Node.js 18 and 20 support.
 
 ## Repository setup
 
