@@ -345,6 +345,65 @@ describe('pii guardrail', () => {
     expect(result.info?.checked_text).toBe('Ship to <LOCATION> for delivery.');
   });
 
+  describe.each([false, true])('LOCATION matching with block=%s', (block) => {
+    it.each([
+      ['Ship to 12 Oak St.', 'Ship to <LOCATION>.'],
+      ['At 45 7th Avenue!', 'At <LOCATION>!'],
+      ['12 Oak St and 34 Pine Rd', '<LOCATION>'],
+      ['12 Oak St; 34 Pine Rd', '<LOCATION>; <LOCATION>'],
+      ['12 Oak, Small Town, TX.', '<LOCATION>.'],
+      ['12 Oak,   Small Town  , TX.', '<LOCATION>.'],
+      ['12 Oak, , TX.', '<LOCATION>.'],
+      ['12 Oak, Town, TX; 34 Pine, City, CA', '<LOCATION>; <LOCATION>'],
+      ['12 Oak, Town, TX 34 Pine, City, CA', '<LOCATION> <LOCATION>'],
+      ['_12 Oak St; 34 Pine Rd', '_12 Oak St; <LOCATION>'],
+      ['１２ Oak St', '<LOCATION>'],
+    ])('preserves replacement spans for %s', async (text, expected) => {
+      const result = await pii(
+        {},
+        text,
+        PIIConfig.parse({ entities: [PIIEntity.LOCATION], block })
+      );
+
+      expect(result.tripwireTriggered).toBe(block);
+      expect(result.info?.checked_text).toBe(expected);
+      expect(result.info?.pii_detected).toBe(true);
+    });
+
+    it.each([
+      '12 apples and 34 pears',
+      '1234567 Oak St',
+      '_12 Oak St',
+      '12 Oak Street_extra',
+      '12 Oak, Town, Texas',
+      '12 Oak, Town',
+      '12 Oak,, TX',
+      '12 Oak, 7 Town, TX',
+    ])('leaves non-address text intact: %s', async (text) => {
+      const result = await pii(
+        {},
+        text,
+        PIIConfig.parse({ entities: [PIIEntity.LOCATION], block })
+      );
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.info?.checked_text).toBe(text);
+      expect(result.info?.detected_entities).toEqual({});
+    });
+
+    it('applies LOCATION matching to decoded text', async () => {
+      const encoded = Buffer.from('782 Maple Ridge Ave').toString('base64');
+      const result = await pii(
+        {},
+        `Address: ${encoded}`,
+        PIIConfig.parse({ entities: [PIIEntity.LOCATION], block, detect_encoded_pii: true })
+      );
+
+      expect(result.tripwireTriggered).toBe(block);
+      expect(result.info?.checked_text).toBe('Address: <LOCATION_ENCODED>');
+    });
+  });
+
   describe('NRP and PERSON deprecation (Issue #47)', () => {
     beforeEach(() => {
       // Clear deprecation warnings before each test to ensure clean state
