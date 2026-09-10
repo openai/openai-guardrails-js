@@ -294,6 +294,37 @@ describe('UrlsConfig', () => {
 });
 
 describe('urls guardrail', () => {
+  describe.each([
+    ['https://EXAMPLE.com', 'https://example.com', false],
+    ['  HtTpS://EXAMPLE.com', 'https://example.com', false],
+    ['EXAMPLE.com', 'example.com', false],
+    ['HTTPS://EXAMPLE.com', 'https://sub.example.com', true],
+  ])('resource case with allowlist prefix %s', (entryPrefix, urlPrefix, allowSubdomains) => {
+    it.each([
+      ['/Docs', '/Docs/Guide', '/docs'],
+      ['/search?Key=Value', '/search?Key=Value', '/search?key=Value'],
+      ['/search?key=Value', '/search?key=Value', '/search?key=value'],
+      ['/docs#Intro', '/docs#Intro', '/docs#intro'],
+      ['/Docs?Key=Value#Intro', '/Docs?Key=Value#Intro', '/docs?key=value#intro'],
+    ])('preserves configured resource %s', async (resource, allowedResource, blockedResource) => {
+      const allowedUrl = `${urlPrefix}${allowedResource}`;
+      const blockedUrl = `${urlPrefix}${blockedResource}`;
+      const config = UrlsConfig.parse({
+        url_allow_list: [`${entryPrefix}${resource}  `],
+        allow_subdomains: allowSubdomains,
+      });
+      const result = await urls({}, `${allowedUrl} ${blockedUrl}`, config);
+
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.info?.allowed).toEqual([allowedUrl]);
+      expect(result.info?.blocked).toEqual([blockedUrl]);
+      expect(result.info?.config).toEqual({
+        ...config,
+        allowed_schemes: ['https'],
+      });
+    });
+  });
+
   it('allows https URLs listed in the allow list', async () => {
     const result = await urls(
       {},
