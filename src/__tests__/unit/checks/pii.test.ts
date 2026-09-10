@@ -6,6 +6,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { _clearDeprecationWarnings, PIIConfig, PIIEntity, pii } from '../../../checks/pii';
 
 describe('pii guardrail', () => {
+  it('keeps defaults independent when a parsed config or result metadata is mutated', async () => {
+    const first = PIIConfig.parse({});
+    const second = PIIConfig.parse({});
+    const defaults = [...second.entities];
+    expect(first.entities).not.toBe(second.entities);
+
+    first.entities.splice(0);
+    expect(second.entities).toEqual(defaults);
+    const result = await pii({}, 'Contact john@example.com', second);
+    const checked = result.info.entity_types_checked as PIIEntity[];
+    checked.splice(0);
+    expect(PIIConfig.parse({}).entities).toEqual(defaults);
+  });
+
   it('masks detected PII when block=false', async () => {
     const config = PIIConfig.parse({
       entities: [PIIEntity.EMAIL_ADDRESS, PIIEntity.US_SSN],

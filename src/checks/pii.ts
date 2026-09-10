@@ -164,7 +164,7 @@ const DEFAULT_PII_ENTITIES: PIIEntity[] = Object.values(PIIEntity).filter(
 );
 
 export const PIIConfig = z.object({
-  entities: z.array(z.nativeEnum(PIIEntity)).default(() => DEFAULT_PII_ENTITIES),
+  entities: z.array(z.nativeEnum(PIIEntity)).default(() => [...DEFAULT_PII_ENTITIES]),
   block: z
     .boolean()
     .default(false)

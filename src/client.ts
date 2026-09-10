@@ -6,7 +6,7 @@
  * applying guardrails to text-based methods that could benefit from validation.
  */
 
-import { AzureOpenAI, OpenAI } from 'openai';
+import { AzureOpenAI, type ClientOptions, OpenAI } from 'openai';
 import { GuardrailsBaseClient, type PipelineConfig } from './base-client';
 import type { Chat as GuardrailsChat } from './resources/chat';
 import type { Responses as GuardrailsResponses } from './resources/responses';
@@ -71,7 +71,7 @@ export class GuardrailsOpenAI extends OpenAI {
     raiseGuardrailErrors: boolean = false
   ): Promise<GuardrailsOpenAI> {
     // Create and initialize the guardrails client
-    const guardrailsClient = new GuardrailsBaseClientImpl();
+    const guardrailsClient = new GuardrailsBaseClientImpl(options?.apiKey);
     await guardrailsClient.initializeClient(config, options || {}, OpenAI);
 
     // Store the raiseGuardrailErrors setting
@@ -206,13 +206,18 @@ export class GuardrailsAzureOpenAI extends AzureOpenAI {
  * Concrete implementation of GuardrailsBaseClient.
  */
 class GuardrailsBaseClientImpl extends GuardrailsBaseClient {
+  constructor(private readonly apiKey: ClientOptions['apiKey']) {
+    super();
+  }
+
   /**
    * Create default context with guardrail_llm client.
    */
   protected createDefaultContext(): GuardrailLLMContext {
     // Create a separate client instance for guardrails (not the same as main client)
     const guardrailClient = new OpenAI({
-      apiKey: this._resourceClient.apiKey,
+      // The SDK's public apiKey is unresolved for callback credentials.
+      apiKey: typeof this.apiKey === 'function' ? this.apiKey : this._resourceClient.apiKey,
       baseURL: this._resourceClient.baseURL,
       organization: this._resourceClient.organization,
       timeout: this._resourceClient.timeout,
