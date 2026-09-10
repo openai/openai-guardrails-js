@@ -216,6 +216,7 @@ describe('Responses streaming with the real text extractor', () => {
         'output',
         'Hello world',
         [...history, { role: 'assistant', content: 'Hello world' }],
+        false,
         false
       );
       expect(responses).toHaveLength(events.length + 1);
@@ -254,7 +255,8 @@ describe('Responses streaming with the real text extractor', () => {
         'output',
         'Hello world',
         [{ role: 'assistant', content: 'Hello world' }],
-        suppressTripwire
+        suppressTripwire,
+        false
       );
     }
   );
@@ -279,6 +281,7 @@ describe('Responses streaming with the real text extractor', () => {
       'output',
       'ordinary fixture',
       [{ role: 'assistant', content: 'ordinary fixture' }],
+      false,
       false
     );
     expect(received.at(-1)?.guardrail_results.output).toEqual([tripwire.guardrailResult]);
@@ -299,6 +302,7 @@ describe('Responses streaming with the real text extractor', () => {
       'output',
       'Hello world',
       [{ role: 'assistant', content: 'Hello world' }],
+      false,
       false
     );
   });
