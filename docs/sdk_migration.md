@@ -29,8 +29,10 @@ See the [Zod migration guide](https://zod.dev/v4/changelog) for other changes.
 Schema**. Its contents now follow Zod 4 (`type` discriminators instead of Zod 3
 `typeName` values). Consumers that inspect that definition must migrate too.
 
-Built-in LLM checks continue to request JSON objects and validate responses
-locally. Custom fields in their prompt instructions now use Zod 4 wrapper
+Built-in LLM checks use structured outputs for standard output schemas on the
+official OpenAI GPT-4.1 models and their supported snapshots. Other models,
+providers, and custom output schemas retain JSON-object mode. All responses are
+validated locally. Custom fields in prompt instructions now use Zod 4 wrapper
 handling, including preserving array field types.
 
 ## OpenAI and Azure clients
@@ -53,7 +55,7 @@ for all inherited API changes. The Guardrails wrappers still expose their existi
 
 OpenAI's `zodResponseFormat` helper supports Zod 4. Structured output schemas must
 follow the API's required-field rules; use nullable fields for optional values.
-This is separate from the JSON-object mode used by built-in LLM checks.
+Built-in checks use this helper for the structured-output cases described above.
 
 ## Agents integration
 
