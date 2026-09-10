@@ -483,6 +483,12 @@ describe('urls guardrail', () => {
 
   describe('IPv4 resource restrictions', () => {
     it.each([
+      ['/API', '/API', false],
+      ['/API', '/api', true],
+      ['/?token=ABC', '/?token=ABC', false],
+      ['/?token=ABC', '/?token=abc', true],
+      ['/#Intro', '/#Intro', false],
+      ['/#Intro', '/#intro', true],
       ['/api', '/api', false],
       ['/api/', '/api/items', false],
       ['/api', '/api/', false],
