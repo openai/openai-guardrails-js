@@ -79,7 +79,8 @@ remain enabled; Biome does not replace `npm run build`.
 
 Narrow exceptions preserve existing static class APIs and constructors with
 compatibility parameters, plus the regex `exec` assignment loops in the keyword and
-PII checks. Resource adapters retain documented, local exceptions for accessing
+PII checks. Import organization is disabled for `src/checks/index.ts` because its
+export sequence determines built-in registration and catalog order. Resource adapters retain documented, local exceptions for accessing
 protected SDK members without changing the public client API. Do not broaden these
 exceptions to bypass new violations.
 

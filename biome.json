@@ -90,6 +90,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/checks/index.ts"],
+      "assist": {
+        "actions": {
+          "source": {
+            "organizeImports": "off"
+          }
+        }
+      }
     }
   ]
 }

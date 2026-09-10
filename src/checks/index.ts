@@ -5,18 +5,20 @@
  * validation scenarios like content moderation, PII detection, and more.
  */
 
-export * from './competitors';
-export * from './hallucination-detection';
-export * from './jailbreak';
-// Export individual check modules as they are implemented
-export * from './keywords';
 // Export the LLM base functionality
 export * from './llm-base';
+
+// Preserve this sequence: evaluating these modules registers built-ins in catalog order.
+// Biome import organization is disabled for this barrel to keep that order stable.
+export * from './keywords';
+export * from './urls';
 export * from './moderation';
-export * from './nsfw';
 export * from './pii';
-export * from './prompt_injection_detection';
+export * from './nsfw';
+export * from './hallucination-detection';
+export * from './competitors';
+export * from './jailbreak';
 export * from './secret-keys';
 export * from './topical-alignment';
-export * from './urls';
 export * from './user-defined-llm';
+export * from './prompt_injection_detection';
