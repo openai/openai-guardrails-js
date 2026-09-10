@@ -4,6 +4,8 @@ Identifies attempts to bypass AI safety measures such as prompt injection, role-
 
 **Multi-turn Support**: This guardrail is conversation-aware and automatically analyzes conversation history to detect multi-turn escalation patterns, where adversarial attempts gradually build across multiple conversation turns.
 
+**Message roles**: System and developer messages are excluded from Jailbreak's analysis history before applying `max_turns`. User messages are evaluated with assistant messages and tool results retained as context. This does not change the messages sent to your application model or the history available to other guardrails. Keep untrusted user input in user messages rather than system or developer messages. Text supplied directly to the check is still evaluated.
+
 ## Jailbreak Definition
 
 Detects attempts to bypass safety or policy constraints via manipulation. Focuses on adversarial intent to elicit restricted outputs, not on general harmful content itself.
