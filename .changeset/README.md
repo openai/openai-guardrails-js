@@ -55,13 +55,20 @@ are intentionally available on every main-branch release workflow run, including
 runs that prepare a version PR and manual reruns on `main`.
 
 The Changesets version PR controls the normal version/changelog release process;
-it is not a separate credential-approval gate. No release environment approval is
-required. Maintain branch protections, code-owner review, required checks, and the
+it is not a separate credential-approval gate. The `publish` environment allows
+only the exact `main` branch and has no required reviewers. SDK-team review of
+the release PR is the human approval gate. Maintain branch protections,
+code-owner review, required checks, and the
 merge queue, and restrict access to any administrative bypasses.
 
 The workflow uses npm trusted publishing (OIDC) with Node 24 and its bundled npm. Keep the
 npm trusted publisher configured for `openai/openai-guardrails-js` and the workflow
-filename `publish.yml`. No npm token is needed. GitHub Actions must be allowed to
+filename `publish.yml`, with the environment set to `publish`. When introducing
+this binding, merge the workflow environment change and wait for all publish
+runs using the old workflow to finish before restricting the npm publisher to
+that environment. For recovery afterward, start a new workflow run on current
+`main` rather than rerunning a pre-change workflow revision.
+No npm token is needed. GitHub Actions must be allowed to
 create pull requests in the repository settings.
 
 Changesets uses the repository's `GITHUB_TOKEN` for version PRs, Git tags, and
