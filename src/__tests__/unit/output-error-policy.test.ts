@@ -10,7 +10,10 @@ import { StreamingMixin } from '../../streaming';
 import type { GuardrailLLMContext, GuardrailResult } from '../../types';
 
 class OutputTestClient extends GuardrailsBaseClient {
-  constructor(check: () => GuardrailResult | Promise<GuardrailResult>, strict: boolean | undefined) {
+  constructor(
+    check: () => GuardrailResult | Promise<GuardrailResult>,
+    strict: boolean | undefined
+  ) {
     super();
     const registry = new GuardrailRegistry();
     registry.register('Output fixture', vi.fn(check), 'Inert output check');
@@ -300,20 +303,39 @@ describe('output execution-error policy', () => {
   it('does not mark a pending check strict when its result is accepted non-strictly', async () => {
     const error = new Error('Inert pending check failure');
     const result: GuardrailResult = {
-      tripwireTriggered: false, executionFailed: true, originalException: error, info: {},
+      tripwireTriggered: false,
+      executionFailed: true,
+      originalException: error,
+      info: {},
     };
     let finish!: (result: GuardrailResult) => void;
-    const pending = new Promise<GuardrailResult>((resolve) => { finish = resolve; });
+    const pending = new Promise<GuardrailResult>((resolve) => {
+      finish = resolve;
+    });
     let started!: () => void;
-    const checkStarted = new Promise<void>((resolve) => { started = resolve; });
-    const check = vi.fn<() => GuardrailResult | Promise<GuardrailResult>>()
-      .mockImplementationOnce(() => { started(); return pending; })
+    const checkStarted = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const check = vi
+      .fn<() => GuardrailResult | Promise<GuardrailResult>>()
+      .mockImplementationOnce(() => {
+        started();
+        return pending;
+      })
       .mockReturnValue(result);
     const client = new OutputTestClient(check, true);
     async function* chunks() {
       yield { type: 'response.output_text.delta', delta: 'Hello' };
     }
-    const iterator = new StreamingMixin().streamWithGuardrails.call(client, chunks(), [], [], [], 1, true);
+    const iterator = new StreamingMixin().streamWithGuardrails.call(
+      client,
+      chunks(),
+      [],
+      [],
+      [],
+      1,
+      true
+    );
     const next = iterator.next();
     try {
       await checkStarted;
@@ -328,5 +350,4 @@ describe('output execution-error policy', () => {
       await iterator.return(undefined);
     }
   });
-
 });

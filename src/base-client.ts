@@ -634,19 +634,27 @@ export abstract class GuardrailsBaseClient {
         ? this.normalizeConversationHistory(conversationHistory)
         : [];
     // Alternatives are separate assistant responses, not consecutive conversation turns.
-    const responses = 'choices' in llmResponse && llmResponse.choices.length > 0
-      ? llmResponse.choices.map((choice) => ({ ...llmResponse, choices: [choice] } as OpenAIResponseType))
-      : [llmResponse];
-    const resultsByChoice = await Promise.all(responses.map((response) => {
-      const completeConversation = this.appendLlmResponseToConversation(normalizedHistory, response);
-      return this.runStageGuardrails(
-        'output',
-        this.extractResponseText(response),
-        completeConversation,
-        true,
-        false
-      );
-    }));
+    const responses =
+      'choices' in llmResponse && llmResponse.choices.length > 0
+        ? llmResponse.choices.map(
+            (choice) => ({ ...llmResponse, choices: [choice] }) as OpenAIResponseType
+          )
+        : [llmResponse];
+    const resultsByChoice = await Promise.all(
+      responses.map((response) => {
+        const completeConversation = this.appendLlmResponseToConversation(
+          normalizedHistory,
+          response
+        );
+        return this.runStageGuardrails(
+          'output',
+          this.extractResponseText(response),
+          completeConversation,
+          true,
+          false
+        );
+      })
+    );
     const outputResults = resultsByChoice.flat();
     const failure = getGuardrailFailure(outputResults, suppressTripwire, this.raiseGuardrailErrors);
     if (failure) throw failure.error;
