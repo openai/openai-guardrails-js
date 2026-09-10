@@ -1,6 +1,9 @@
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
 import { expect, it } from 'vitest';
+
+// Load the compiler's CommonJS API without Vite's default-export interop.
+const ts = createRequire(import.meta.url)('typescript') as typeof import('typescript');
 
 it('accepts migrated public schemas and client types in a consumer', () => {
   const program = ts.createProgram(

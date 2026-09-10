@@ -14,6 +14,7 @@ const { zodResponseFormat } = require('openai/helpers/zod') as typeof import('op
 
 describe('published SDK compatibility', () => {
   it('runs real Agents input and output guardrails with session history', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'test-key');
     const seen: Array<{ text: string; history: unknown }> = [];
     const name = 'SDK migration history';
     defaultSpecRegistry.register(
@@ -71,6 +72,7 @@ describe('published SDK compatibility', () => {
       model.assertComplete();
     } finally {
       defaultSpecRegistry.remove(name);
+      vi.unstubAllEnvs();
     }
   });
 
