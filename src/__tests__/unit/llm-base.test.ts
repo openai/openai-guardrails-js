@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { OpenAI } from 'openai';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildAnalysisPayload,
   buildFullPrompt,
@@ -8,6 +9,7 @@ import {
   LLMConfig,
   LLMOutput,
   LLMReasoningOutput,
+  runLLM,
 } from '../../checks/llm-base';
 import { defaultSpecRegistry } from '../../registry';
 import type { GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../../types';
@@ -22,6 +24,91 @@ vi.mock('../../registry', () => ({
 describe('LLM Base', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('error recovery when logging throws', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    const usage = { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 };
+    const noUsage = {
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      unavailable_reason: 'LLM call failed before usage could be recorded',
+    };
+
+    it.each([
+      {
+        name: 'malformed JSON',
+        content: 'NOT JSON',
+        rejection: undefined,
+        flagged: false,
+        message: 'LLM returned non-JSON or malformed JSON.',
+      },
+      {
+        name: 'schema validation',
+        content: '{"flagged":false,"confidence":"invalid"}',
+        rejection: undefined,
+        flagged: false,
+        message: 'LLM response validation failed.',
+      },
+      {
+        name: 'provider content filter',
+        content: undefined,
+        rejection: 'content_filter',
+        flagged: true,
+        message: 'content_filter',
+      },
+      {
+        name: 'API failure',
+        content: undefined,
+        rejection: new Error('Provider unavailable'),
+        flagged: false,
+        message: 'Error: Provider unavailable',
+      },
+    ])('preserves $name results', async ({ content, rejection, flagged, message }) => {
+      const create = vi.fn();
+      if (rejection !== undefined) {
+        create.mockRejectedValue(rejection);
+      } else {
+        create.mockResolvedValue({ choices: [{ message: { content } }], usage });
+      }
+      const client = { chat: { completions: { create } } } as unknown as OpenAI;
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const warnLog = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const run = () => runLLM('test text', 'Test system prompt', client, 'gpt-4', LLMOutput);
+      const expected = await run();
+
+      expect(expected).toEqual([
+        {
+          flagged,
+          confidence: flagged ? 1 : 0,
+          info: expect.objectContaining({ error_message: message }),
+        },
+        rejection === undefined ? usage : noUsage,
+      ]);
+      if (content?.includes('invalid')) {
+        expect(expected[0].info.zod_issues).toEqual([
+          expect.objectContaining({ code: 'invalid_type', path: ['confidence'] }),
+        ]);
+      }
+      if (flagged) {
+        expect(expected[0].info.third_party_filter).toBe(true);
+      }
+
+      const failLogging = () => {
+        throw new Error('Logging failed');
+      };
+      errorLog.mockImplementation(failLogging);
+      await expect(run()).resolves.toEqual(expected);
+      errorLog.mockImplementation(() => undefined);
+      warnLog.mockImplementation(failLogging);
+      await expect(run()).resolves.toEqual(expected);
+      errorLog.mockImplementation(failLogging);
+      await expect(run()).resolves.toEqual(expected);
+    });
   });
 
   describe('buildFullPrompt', () => {

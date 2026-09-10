@@ -361,6 +361,14 @@ function stripJsonCodeFence(text: string): string {
   return candidate;
 }
 
+function logLLMError(level: 'error' | 'warn', ...args: unknown[]): void {
+  try {
+    console[level](...args);
+  } catch {
+    // Error inspection or logging must not interrupt guardrail error recovery.
+  }
+}
+
 /**
  * Run an LLM analysis for a given prompt and user input.
  *
@@ -457,11 +465,11 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     const cleanedResult = stripJsonCodeFence(result);
     return [outputModel.parse(JSON.parse(cleanedResult)), tokenUsage];
   } catch (error) {
-    console.error('LLM guardrail failed for prompt:', systemPrompt, error);
+    logLLMError('error', 'LLM guardrail failed for prompt:', systemPrompt, error);
 
     // Check if this is a content filter error - Azure OpenAI
     if (error && typeof error === 'string' && error.includes('content_filter')) {
-      console.warn('Content filter triggered by provider:', error);
+      logLLMError('warn', 'Content filter triggered by provider:', error);
       return [
         LLMErrorOutput.parse({
           flagged: true,
@@ -478,7 +486,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     // Use tokenUsage here since API call succeeded but response parsing failed
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
-      console.warn('LLM returned non-JSON or malformed JSON.', error);
+      logLLMError('warn', 'LLM returned non-JSON or malformed JSON.', error);
       return [
         LLMErrorOutput.parse({
           flagged: false,
@@ -494,7 +502,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     // Use tokenUsage here since API call succeeded but schema validation failed
     if (error instanceof z.ZodError) {
-      console.warn('LLM response validation failed.', error);
+      logLLMError('warn', 'LLM response validation failed.', error);
       return [
         LLMErrorOutput.parse({
           flagged: false,
