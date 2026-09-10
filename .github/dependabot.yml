@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Includes SDK dependencies and the VitePress documentation tooling.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    # Routine version updates wait eight days; security updates are exempt.
+    cooldown:
+      default-days: 8
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 8
