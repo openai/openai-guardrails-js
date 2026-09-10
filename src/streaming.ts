@@ -26,44 +26,76 @@ export class StreamingMixin {
     checkInterval: number = 100,
     suppressTripwire: boolean = false
   ): AsyncIterableIterator<GuardrailsResponse> {
-    let accumulatedText = '';
-    let chunkCount = 0;
-    let lastStrictCheckedTextLength = 0;
+    const choices = new Map<
+      number,
+      { text: string; chunkCount: number; lastStrictCheckedTextLength: number }
+    >();
+    let hasMultipleChoices = false;
     const baseHistory = conversationHistory
       ? conversationHistory.map((entry) => ({ ...entry }))
       : [];
 
     for await (const chunk of llmStream) {
-      const chunkText = this.extractResponseText(chunk as OpenAIResponseType);
-      if (chunkText) {
-        accumulatedText += chunkText;
-        chunkCount += 1;
+      const responseChunk = chunk as OpenAIResponseType;
+      const alternatives =
+        'choices' in responseChunk
+          ? responseChunk.choices.map((choice) => ({
+              index: choice.index ?? 0,
+              response: { ...responseChunk, choices: [choice] } as OpenAIResponseType,
+            }))
+          : [{ index: 0, response: responseChunk }];
+      if (alternatives.length > 1 || alternatives.some(({ index }) => index !== 0)) {
+        hasMultipleChoices = true;
+      }
+      const periodicChecks: Promise<GuardrailResult[]>[] = [];
+      const periodicCheckpoints: {
+        state: { lastStrictCheckedTextLength: number };
+        length: number;
+      }[] = [];
+      for (const alternative of alternatives) {
+        const chunkText = this.extractResponseText(alternative.response);
+        if (!chunkText && !('choices' in responseChunk)) {
+          continue;
+        }
+        const state = choices.get(alternative.index) ?? {
+          text: '',
+          chunkCount: 0,
+          lastStrictCheckedTextLength: 0,
+        };
+        choices.set(alternative.index, state);
+        if (!chunkText) {
+          continue;
+        }
+        state.text += chunkText;
+        state.chunkCount += 1;
 
-        if (chunkCount % checkInterval === 0) {
+        if (state.chunkCount % checkInterval === 0) {
           const history = mergeConversationWithItems(baseHistory, [
-            { role: 'assistant', content: accumulatedText },
+            { role: 'assistant', content: state.text },
           ]);
-          // Collect results first: the original execution error may itself be a tripwire error.
-          const results = await this.runStageGuardrails(
-            'output',
-            accumulatedText,
-            history,
-            true,
-            false
+          periodicCheckpoints.push({ state, length: state.text.length });
+          periodicChecks.push(this.runStageGuardrails('output', state.text, history, true, false));
+        }
+      }
+
+      const periodicResults = (await Promise.all(periodicChecks)).flat();
+      const strict = this.raiseGuardrailErrors;
+      const periodicFailure = getGuardrailFailure(periodicResults, suppressTripwire, strict);
+      if (periodicFailure) {
+        if (periodicFailure.kind === 'tripwire') {
+          yield this.createGuardrailsResponse(
+            chunk as OpenAIResponseType,
+            preflightResults,
+            inputResults,
+            [periodicFailure.error.guardrailResult]
           );
-          const failure = getGuardrailFailure(results, suppressTripwire, this.raiseGuardrailErrors);
-          if (failure) {
-            if (failure.kind === 'tripwire') {
-              yield this.createGuardrailsResponse(
-                chunk as OpenAIResponseType,
-                preflightResults,
-                inputResults,
-                [failure.error.guardrailResult]
-              );
-            }
-            throw failure.error;
-          }
-          if (this.raiseGuardrailErrors) lastStrictCheckedTextLength = accumulatedText.length;
+        }
+        throw periodicFailure.error;
+      }
+
+      if (strict) {
+        for (const checkpoint of periodicCheckpoints) {
+          checkpoint.state.lastStrictCheckedTextLength = checkpoint.length;
         }
       }
 
@@ -76,36 +108,35 @@ export class StreamingMixin {
       yield response;
     }
 
-    const needsStrictFinalCheck =
-      this.raiseGuardrailErrors && accumulatedText.length > lastStrictCheckedTextLength;
-    if ((!suppressTripwire || needsStrictFinalCheck) && accumulatedText) {
-      const history = mergeConversationWithItems(baseHistory, [
-        { role: 'assistant', content: accumulatedText },
-      ]);
-      const finalOutputResults = await this.runStageGuardrails(
-        'output',
-        accumulatedText,
-        history,
-        true,
-        false
+    const finalChoices = [...choices.entries()]
+      .sort(([a], [b]) => a - b)
+      .filter(
+        ([, state]) =>
+          state.chunkCount === 0 ||
+          hasMultipleChoices ||
+          !suppressTripwire ||
+          (this.raiseGuardrailErrors && state.text.length > state.lastStrictCheckedTextLength)
       );
+    if (finalChoices.length > 0) {
+      const accumulatedText = choices.get(0)?.text ?? '';
+      const finalOutputResults = (
+        await Promise.all(
+          finalChoices.map(([, state]) => {
+            const history = mergeConversationWithItems(baseHistory, [
+              { role: 'assistant', content: state.text },
+            ]);
+            // Classify results before throwing: execution errors can themselves be tripwire errors.
+            return this.runStageGuardrails('output', state.text, history, true, false);
+          })
+        )
+      ).flat();
       const failure = getGuardrailFailure(
         finalOutputResults,
         suppressTripwire,
         this.raiseGuardrailErrors
       );
-      if (failure) {
-        if (failure.kind === 'tripwire') {
-          yield this.createGuardrailsResponse(
-            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-            preflightResults,
-            inputResults,
-            [failure.error.guardrailResult]
-          );
-        }
-        throw failure.error;
-      }
-      if (!suppressTripwire) {
+      if (failure?.kind === 'execution') throw failure.error;
+      if (hasMultipleChoices || !suppressTripwire) {
         yield this.createGuardrailsResponse(
           { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
           preflightResults,
@@ -113,6 +144,7 @@ export class StreamingMixin {
           finalOutputResults
         );
       }
+      if (failure) throw failure.error;
     }
   }
 

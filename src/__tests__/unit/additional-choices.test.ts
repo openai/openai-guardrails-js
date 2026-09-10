@@ -1,0 +1,544 @@
+/** Inert, mocked-provider regressions for validation of Chat alternatives. */
+
+import { OpenAI } from 'openai';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import {
+  GuardrailsBaseClient,
+  type GuardrailsResponse,
+  type OpenAIResponseType,
+} from '../../base-client';
+import { GuardrailTripwireTriggered } from '../../exceptions';
+import { GuardrailSpec } from '../../spec';
+import { StreamingMixin } from '../../streaming';
+import type {
+  GuardrailLLMContext,
+  GuardrailLLMContextWithHistory,
+  GuardrailResult,
+} from '../../types';
+
+class ChoiceClient extends GuardrailsBaseClient {
+  readonly check = vi.fn(
+    (context: GuardrailLLMContext, text: string): GuardrailResult => ({
+      tripwireTriggered: text === 'second choice',
+      info: {
+        text,
+        history: (context as GuardrailLLMContextWithHistory).getConversationHistory?.(),
+      },
+    })
+  );
+
+  constructor() {
+    super();
+    this.context = this.createDefaultContext();
+    this.guardrails = {
+      pre_flight: [],
+      input: [],
+      output: [
+        new GuardrailSpec(
+          'Inert check',
+          'Choice fixture',
+          'text/plain',
+          z.object({}),
+          (context, text) => this.check(context as GuardrailLLMContext, text),
+          z.object({}),
+          { usesConversationHistory: true }
+        ).instantiate({}),
+      ],
+    };
+  }
+
+  protected createDefaultContext(): GuardrailLLMContext {
+    return { guardrailLlm: new OpenAI({ apiKey: 'test' }) };
+  }
+
+  protected overrideResources(): void {
+    /* No transport needed for shared-handler tests. */
+  }
+
+  handle(response: OpenAIResponseType, suppressTripwire = false) {
+    return this.handleLlmResponse(
+      response,
+      [],
+      [],
+      [{ role: 'user', content: 'question' }],
+      suppressTripwire
+    );
+  }
+}
+
+const completion = (contents: Array<string | null>) =>
+  ({
+    id: 'fixture',
+    object: 'chat.completion',
+    created: 0,
+    model: 'fixture',
+    choices: contents.map((content, index) => ({
+      index,
+      message: { role: 'assistant', content, refusal: null },
+      finish_reason: 'stop',
+      logprobs: null,
+    })),
+  }) as OpenAI.Chat.Completions.ChatCompletion;
+
+const chunk = (parts: Array<[number, string | null]>) =>
+  ({
+    id: 'fixture',
+    object: 'chat.completion.chunk',
+    created: 0,
+    model: 'fixture',
+    choices: parts.map(([index, content]) => ({
+      index,
+      delta: { content },
+      finish_reason: null,
+      logprobs: null,
+    })),
+  }) as OpenAI.Chat.Completions.ChatCompletionChunk;
+
+async function* stream(chunks: OpenAI.Chat.Completions.ChatCompletionChunk[]) {
+  yield* chunks;
+}
+async function collect(iterator: AsyncIterableIterator<GuardrailsResponse>) {
+  const results: GuardrailsResponse[] = [];
+  for await (const response of iterator) {
+    results.push(response);
+  }
+  return results;
+}
+
+describe('Chat choice validation', () => {
+  it('applies the tripwire to a later choice', async () => {
+    const client = new ChoiceClient();
+    await expect(
+      client.handle(completion(['first choice', 'second choice']))
+    ).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+    expect(client.check.mock.calls.map(([, text]) => text)).toEqual([
+      'first choice',
+      'second choice',
+    ]);
+  });
+
+  it('keeps alternatives and their conversation contexts separate in suppressed mode', async () => {
+    const client = new ChoiceClient();
+    const original = completion(['first choice', 'second choice', 'third choice']);
+    const response = await client.handle(original, true);
+    expect(response).toHaveProperty('choices', original.choices);
+    expect(response.guardrail_results.output.map((result) => result.tripwireTriggered)).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    for (const [context, text] of client.check.mock.calls) {
+      expect((context as GuardrailLLMContextWithHistory).getConversationHistory?.()).toEqual([
+        { role: 'user', content: 'question' },
+        { role: 'assistant', content: text },
+      ]);
+    }
+  });
+
+  it('preserves single-choice and textless response handling', async () => {
+    const client = new ChoiceClient();
+    const response = await client.handle(completion(['first choice']));
+    expect(response.guardrail_results.output).toHaveLength(1);
+    await client.handle(completion([null, 'third choice']));
+    await expect(client.handle(completion([]))).resolves.toHaveProperty('choices', []);
+    expect(client.check.mock.calls.map(([, text]) => text)).toEqual([
+      'first choice',
+      '',
+      'third choice',
+      '',
+    ]);
+  });
+
+  it.each([false, true])(
+    'tracks reordered, interleaved streamed choices independently (suppressed=%s)',
+    async (suppressed) => {
+      const client = new ChoiceClient();
+      client.check.mockImplementation((context, text) => ({
+        tripwireTriggered: false,
+        info: {
+          text,
+          history: (context as GuardrailLLMContextWithHistory).getConversationHistory?.(),
+        },
+      }));
+      const chunks = [
+        chunk([
+          [1, 'other'],
+          [0, 'first'],
+        ]),
+        chunk([[0, ' choice']]),
+        chunk([[1, ' answer']]),
+        chunk([]),
+        chunk([[0, null]]),
+      ];
+      const responses = await collect(
+        StreamingMixin.prototype.streamWithGuardrails.call(
+          client,
+          stream(chunks),
+          [],
+          [],
+          [{ role: 'user', content: 'question' }],
+          2,
+          suppressed
+        )
+      );
+      expect(client.check.mock.calls.map(([, text]) => text)).toEqual([
+        'first choice',
+        'other answer',
+        'first choice',
+        'other answer',
+      ]);
+      for (const [context, text] of client.check.mock.calls) {
+        expect((context as GuardrailLLMContextWithHistory).getConversationHistory?.()).toEqual([
+          { role: 'user', content: 'question' },
+          { role: 'assistant', content: text },
+        ]);
+      }
+      responses.slice(0, chunks.length).forEach((response, index) => {
+        expect(response).toHaveProperty('choices', chunks[index].choices);
+      });
+      expect(responses.at(-1)).toMatchObject({ type: 'final', accumulated_text: 'first choice' });
+      expect(responses.at(-1)?.guardrail_results.output.map((result) => result.info.text)).toEqual([
+        'first choice',
+        'other answer',
+      ]);
+    }
+  );
+
+  it.each([1, 100])('triggers on a later streamed choice at interval %s', async (interval) => {
+    const client = new ChoiceClient();
+    const iterator = StreamingMixin.prototype.streamWithGuardrails.call(
+      client,
+      stream([
+        chunk([
+          [0, 'first choice'],
+          [1, 'second choice'],
+        ]),
+      ]),
+      [],
+      [],
+      [],
+      interval,
+      false
+    );
+    await expect(collect(iterator)).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+    expect(client.check.mock.calls.map(([, text]) => text)).toEqual([
+      'first choice',
+      'second choice',
+    ]);
+  });
+
+  it('returns final results for every choice in a short suppressed stream', async () => {
+    const client = new ChoiceClient();
+    const responses = await collect(
+      StreamingMixin.streamWithGuardrailsSync(
+        client,
+        stream([
+          chunk([
+            [0, 'first choice'],
+            [1, 'second choice'],
+          ]),
+        ]),
+        [],
+        [],
+        [],
+        true
+      )
+    );
+    expect(
+      responses.at(-1)?.guardrail_results.output.map((result) => result.tripwireTriggered)
+    ).toEqual([false, true]);
+  });
+
+  it('handles a textless first choice and usage-only chunks', async () => {
+    const client = new ChoiceClient();
+    const responses = await collect(
+      StreamingMixin.streamWithGuardrailsSync(
+        client,
+        stream([
+          chunk([
+            [0, null],
+            [1, 'second choice'],
+          ]),
+          chunk([]),
+        ]),
+        [],
+        [],
+        [],
+        true
+      )
+    );
+    expect(client.check.mock.calls.map(([, text]) => text)).toEqual(['', 'second choice']);
+    expect(responses.at(-1)?.guardrail_results.tripwiresTriggered).toBe(true);
+  });
+
+  it('retains earlier final results and token usage when a later choice trips', async () => {
+    const client = new ChoiceClient();
+    client.check.mockImplementation((_context, text) => ({
+      tripwireTriggered: text === 'second choice',
+      info: { text, token_usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } },
+    }));
+    const responses: GuardrailsResponse[] = [];
+    const iterator = StreamingMixin.streamWithGuardrailsSync(
+      client,
+      stream([
+        chunk([
+          [1, 'second choice'],
+          [0, 'first choice'],
+        ]),
+      ]),
+      [],
+      [],
+      []
+    );
+    await expect(async () => {
+      for await (const response of iterator) {
+        responses.push(response);
+      }
+    }).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+    const final = responses.at(-1);
+    expect(final).toMatchObject({ type: 'final', accumulated_text: 'first choice' });
+    expect(final?.guardrail_results.output.map((result) => result.info.text)).toEqual([
+      'first choice',
+      'second choice',
+    ]);
+    expect(final?.guardrail_results.totalTokenUsage).toMatchObject({ total_tokens: 10 });
+  });
+
+  it('starts all periodic choice checks before waiting for any to finish', async () => {
+    const client = new ChoiceClient();
+    let finishFirst!: (results: GuardrailResult[]) => void;
+    let finishSecond!: (results: GuardrailResult[]) => void;
+    let secondStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      secondStarted = resolve;
+    });
+    const first = new Promise<GuardrailResult[]>((resolve) => {
+      finishFirst = resolve;
+    });
+    const second = new Promise<GuardrailResult[]>((resolve) => {
+      finishSecond = resolve;
+    });
+    const check = vi
+      .spyOn(client, 'runStageGuardrails')
+      .mockImplementationOnce(() => first)
+      .mockImplementationOnce(() => {
+        secondStarted();
+        return second;
+      });
+    const original = chunk([
+      [0, 'first choice'],
+      [1, 'other choice'],
+    ]);
+    const iterator = StreamingMixin.prototype.streamWithGuardrails.call(
+      client,
+      stream([original]),
+      [],
+      [],
+      [],
+      1,
+      false
+    );
+    const next = iterator.next();
+    try {
+      await started;
+      expect(check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'other choice']);
+      finishSecond([]);
+      finishFirst([]);
+      expect((await next).value).toHaveProperty('choices', original.choices);
+    } finally {
+      finishFirst([]);
+      finishSecond([]);
+      await iterator.return(undefined);
+    }
+  });
+
+  it.each([false, true])(
+    'settles final checks concurrently in choice order (tripwire=%s)',
+    async (tripwire) => {
+      const client = new ChoiceClient();
+      let finishFirst!: (results: GuardrailResult[]) => void;
+      let finishSecond!: (results: GuardrailResult[]) => void;
+      let secondStarted!: () => void;
+      const started = new Promise<void>((resolve) => {
+        secondStarted = resolve;
+      });
+      const first = new Promise<GuardrailResult[]>((resolve) => {
+        finishFirst = resolve;
+      });
+      const second = new Promise<GuardrailResult[]>((resolve) => {
+        finishSecond = resolve;
+      });
+      const check = vi
+        .spyOn(client, 'runStageGuardrails')
+        .mockImplementationOnce(() => first)
+        .mockImplementationOnce(() => {
+          secondStarted();
+          return second;
+        });
+      const original = chunk([
+        [1, 'second choice'],
+        [0, 'first choice'],
+      ]);
+      const iterator = StreamingMixin.streamWithGuardrailsSync(
+        client,
+        stream([original]),
+        [],
+        [],
+        []
+      );
+      await iterator.next();
+      const next = iterator.next();
+      const firstResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'first' } };
+      const secondResult: GuardrailResult = {
+        tripwireTriggered: tripwire,
+        info: { text: 'second' },
+      };
+      try {
+        await started;
+        expect(check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'second choice']);
+        finishSecond([secondResult]);
+        finishFirst([firstResult]);
+        const final = (await next).value;
+        expect(final.guardrail_results.output).toEqual([firstResult, secondResult]);
+        if (tripwire) {
+          await expect(iterator.next()).rejects.toMatchObject({ guardrailResult: secondResult });
+        } else {
+          expect((await iterator.next()).done).toBe(true);
+        }
+      } finally {
+        finishFirst([]);
+        finishSecond([]);
+        await iterator.return(undefined);
+      }
+    }
+  );
+
+  it('starts non-streaming choice checks concurrently and preserves result order', async () => {
+    const client = new ChoiceClient();
+    let finishFirst!: (results: GuardrailResult[]) => void;
+    const first = new Promise<GuardrailResult[]>((resolve) => {
+      finishFirst = resolve;
+    });
+    const firstResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'first' } };
+    const secondResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'second' } };
+    const check = vi
+      .spyOn(client, 'runStageGuardrails')
+      .mockImplementationOnce(() => first)
+      .mockResolvedValueOnce([secondResult]);
+    const response = client.handle(completion(['first choice', 'second choice']));
+    try {
+      expect(check).toHaveBeenCalledTimes(2);
+      finishFirst([firstResult]);
+      expect((await response).guardrail_results.output).toEqual([firstResult, secondResult]);
+    } finally {
+      finishFirst([]);
+    }
+  });
+
+  it.each([false, true])(
+    'preserves strict multi-choice execution errors (streaming=%s)',
+    async (streaming) => {
+      const client = new ChoiceClient();
+      client.raiseGuardrailErrors = true;
+      const error = new GuardrailTripwireTriggered({ tripwireTriggered: true, info: {} });
+      client.check.mockImplementation((_context, text) => {
+        if (text === 'second choice') throw error;
+        return { tripwireTriggered: false, info: {} };
+      });
+      if (!streaming) {
+        await expect(
+          client.handle(completion(['first choice', 'second choice']), true)
+        ).rejects.toBe(error);
+      } else {
+        const iterator = StreamingMixin.streamWithGuardrailsSync(
+          client,
+          stream([
+            chunk([
+              [0, 'first choice'],
+              [1, 'second choice'],
+            ]),
+          ]),
+          [],
+          [],
+          [],
+          true
+        );
+        await iterator.next();
+        // An execution error that is itself a tripwire must not produce final diagnostics.
+        await expect(iterator.next()).rejects.toBe(error);
+      }
+    }
+  );
+
+  it('prioritizes a delayed strict execution error over an earlier tripwire', async () => {
+    const client = new ChoiceClient();
+    client.raiseGuardrailErrors = true;
+    const error = new Error('fixture execution failure');
+    let finishSecond!: (results: GuardrailResult[]) => void;
+    const second = new Promise<GuardrailResult[]>((resolve) => {
+      finishSecond = resolve;
+    });
+    const check = vi
+      .spyOn(client, 'runStageGuardrails')
+      .mockResolvedValueOnce([{ tripwireTriggered: true, info: {} }])
+      .mockImplementationOnce(() => second);
+    const response = client.handle(completion(['first choice', 'second choice']));
+    expect(check.mock.calls.map((call) => call.slice(3))).toEqual([
+      [true, false],
+      [true, false],
+    ]);
+    finishSecond([
+      { tripwireTriggered: false, executionFailed: true, originalException: error, info: {} },
+    ]);
+    await expect(response).rejects.toBe(error);
+  });
+
+  it.each([false, true])(
+    'validates textless alternatives with empty-output guardrails (suppressed=%s)',
+    async (suppressed) => {
+      const client = new ChoiceClient();
+      client.check.mockImplementation((_context, text) => ({
+        tripwireTriggered: text === '',
+        info: { text },
+      }));
+      const iterator = StreamingMixin.streamWithGuardrailsSync(
+        client,
+        stream([
+          chunk([
+            [1, null],
+            [0, 'first choice'],
+          ]),
+          chunk([[1, '']]),
+          chunk([]),
+        ]),
+        [],
+        [],
+        [],
+        suppressed
+      );
+      if (suppressed) {
+        const responses = await collect(iterator);
+        expect(
+          responses.at(-1)?.guardrail_results.output.map((result) => result.info.text)
+        ).toEqual(['first choice', '']);
+        expect(responses.at(-1)?.guardrail_results.tripwiresTriggered).toBe(true);
+      } else {
+        await expect(collect(iterator)).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+      }
+      expect(client.check.mock.calls.map(([, text]) => text)).toEqual(['first choice', '']);
+    }
+  );
+
+  it('validates a single textless Chat choice at EOF', async () => {
+    const client = new ChoiceClient();
+    client.check.mockImplementation((_context, text) => ({
+      tripwireTriggered: text === '',
+      info: {},
+    }));
+    await expect(
+      collect(StreamingMixin.streamWithGuardrailsSync(client, stream([chunk([[0, null]])]), [], []))
+    ).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+    expect(client.check).toHaveBeenCalledTimes(1);
+  });
+});
