@@ -94,35 +94,6 @@ function ipToInt(ip: string): number {
   return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
 }
 
-function extractHostCandidate(url: string): string | null {
-  if (!url.includes('://')) {
-    return null;
-  }
-
-  const [, rest] = url.split('://', 2);
-  if (!rest) {
-    return null;
-  }
-
-  const hostAndRest = rest.split(/[/?#]/, 1)[0];
-  const withoutCreds = hostAndRest.includes('@')
-    ? hostAndRest.split('@').pop() ?? ''
-    : hostAndRest;
-  if (!withoutCreds) {
-    return null;
-  }
-
-  if (withoutCreds.startsWith('[')) {
-    const closingIndex = withoutCreds.indexOf(']');
-    if (closingIndex !== -1) {
-      return withoutCreds.slice(0, closingIndex + 1);
-    }
-    return withoutCreds;
-  }
-
-  return withoutCreds.split(':', 1)[0];
-}
-
 /**
  * Detect URLs in text using robust regex patterns.
  */
@@ -133,104 +104,49 @@ function detectUrls(text: string): string[] {
   const detectedUrls: string[] = [];
 
   // Pattern 1: URLs with schemes (highest priority)
-  const schemePatterns = [
-    /https?:\/\/[^\s<>"{}|\\^`[\]]+/gi,
-    /ftp:\/\/[^\s<>"{}|\\^`[\]]+/gi,
-    /data:[^\s<>"{}|\\^`[\]]+/gi,
-    /javascript:[^\s<>"{}|\\^`[\]]+/gi,
-    /vbscript:[^\s<>"{}|\\^`[\]]+/gi,
-  ];
+  // Consume non-letter prefixes at token boundaries without retrying every
+  // suffix of a long scheme-like token. The capture retains only the URL.
+  const schemePattern = /(?<![a-z0-9+.-])[0-9+.-]*((?:[a-z][a-z0-9+.-]*:\/\/|data:|javascript:|vbscript:)[^\s<>"{}|\\^`[\]]+)/gi;
+  const schemeRanges: { start: number; schemeEnd: number; end: number }[] = [];
+  for (const candidate of text.matchAll(schemePattern)) {
+    // Exclude only the captured URL, leaving discarded prefixes available
+    // for independent domain/IP validation.
+    const end = candidate.index + candidate[0].length;
+    const start = end - candidate[1].length;
+    schemeRanges.push({ start, schemeEnd: start + candidate[1].indexOf(':'), end });
+    const match = candidate[1].replace(PUNCTUATION_CLEANUP, '');
+    if (match) {
+      detectedUrls.push(match);
+    }
+  }
 
-  const schemeUrls = new Set<string>();
-  for (const pattern of schemePatterns) {
-    const matches = text.match(pattern) || [];
-    for (let match of matches) {
-      // Clean trailing punctuation
-      match = match.replace(PUNCTUATION_CLEANUP, '');
+  // Scan bare domains and IPs only outside explicit URL tokens. Matches and
+  // ranges are ordered, so each pass advances through the ranges just once.
+  const barePatterns = [
+    /\b(?:www\.)?[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s]*)?/gi,
+    /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?(?:\/[^\s]*)?/g,
+  ];
+  for (const pattern of barePatterns) {
+    let rangeIndex = 0;
+    for (const candidate of text.matchAll(pattern)) {
+      while (rangeIndex < schemeRanges.length && schemeRanges[rangeIndex].end <= candidate.index) {
+        rangeIndex++;
+      }
+      const end = candidate.index + candidate[0].length;
+      const range = schemeRanges[rangeIndex];
+      // A prefixed dotted scheme can look like a bare domain. Exclude that
+      // fragment, but retain enclosing bare paths containing an explicit URL.
+      if (range && (range.start <= candidate.index || (range.start < end && end <= range.schemeEnd))) {
+        continue;
+      }
+      const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
       if (match) {
         detectedUrls.push(match);
-        // Track the domain part to avoid duplicates
-        if (match.includes('://')) {
-          const domainPart = match.split('://', 2)[1].split('/')[0].split('?')[0].split('#')[0];
-          schemeUrls.add(domainPart.toLowerCase());
-        }
       }
     }
   }
 
-  // Pattern 2: Domain-like patterns without schemes (exclude already found)
-  const domainPattern = /\b(?:www\.)?[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s]*)?/gi;
-  const domainMatches = text.match(domainPattern) || [];
-
-  for (let match of domainMatches) {
-    // Clean trailing punctuation
-    match = match.replace(PUNCTUATION_CLEANUP, '');
-    if (match) {
-      // Extract just the domain part for comparison
-      const domainPart = match.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
-      // Only add if we haven't already found this domain with a scheme
-      if (!schemeUrls.has(domainPart)) {
-        detectedUrls.push(match);
-      }
-    }
-  }
-
-  // Pattern 3: IP addresses (exclude already found)
-  const ipPattern = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?::[0-9]+)?(?:\/[^\s]*)?/g;
-  const ipMatches = text.match(ipPattern) || [];
-
-  for (let match of ipMatches) {
-    // Clean trailing punctuation
-    match = match.replace(PUNCTUATION_CLEANUP, '');
-    if (match) {
-      // Extract IP part for comparison
-      const ipPart = match.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
-      if (!schemeUrls.has(ipPart)) {
-        detectedUrls.push(match);
-      }
-    }
-  }
-
-  // Advanced deduplication: Remove domains that are already part of full URLs
-  const finalUrls: string[] = [];
-  const schemeUrlDomains = new Set<string>();
-
-  // First pass: collect all domains from scheme-ful URLs
-  for (const url of detectedUrls) {
-    if (url.includes('://')) {
-      try {
-        const parsed = new URL(url);
-        if (parsed.hostname) {
-          schemeUrlDomains.add(parsed.hostname.toLowerCase());
-          // Also add www-stripped version
-          const bareDomain = parsed.hostname.toLowerCase().replace(/^www\./, '');
-          schemeUrlDomains.add(bareDomain);
-        }
-      } catch {
-        const fallbackHost = extractHostCandidate(url);
-        if (fallbackHost) {
-          const normalizedHost = fallbackHost.toLowerCase();
-          schemeUrlDomains.add(normalizedHost);
-          schemeUrlDomains.add(normalizedHost.replace(/^www\./, ''));
-        }
-      }
-      finalUrls.push(url);
-    }
-  }
-
-  // Second pass: only add scheme-less URLs if their domain isn't already covered
-  for (const url of detectedUrls) {
-    if (!url.includes('://')) {
-      // Check if this domain is already covered by a full URL
-      const urlLower = url.toLowerCase().replace(/^www\./, '');
-      if (!schemeUrlDomains.has(urlLower)) {
-        finalUrls.push(url);
-      }
-    }
-  }
-
-  // Remove empty URLs and return unique list
-  return [...new Set(finalUrls.filter((url) => url))];
+  return [...new Set(detectedUrls)];
 }
 
 /**
@@ -257,7 +173,7 @@ function validateUrlSecurity(
       hadScheme = true;
     } else if (
       urlString.includes(':') &&
-      urlString.split(':', 1)[0].match(/^(data|javascript|vbscript|mailto)$/)
+      urlString.split(':', 1)[0].match(/^(data|javascript|vbscript|mailto)$/i)
     ) {
       // Special single-colon schemes
       parsedUrl = new URL(urlString);
