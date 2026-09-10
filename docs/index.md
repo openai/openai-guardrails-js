@@ -2,7 +2,7 @@
 
 **Guardrails** is a safety framework for LLM applications that automatically validates inputs and outputs using configurable checks. Use the [Guardrails Wizard](https://guardrails.openai.com/) to create configurations, then drop in our client classes for automatic validation.
 
-![Guardrails Wizard](assets/images/guardrails_wizard_screenshot.png)
+![Guardrails Wizard](/assets/images/guardrails_wizard_screenshot.png)
 
 ## Why Guardrails
 
@@ -53,8 +53,8 @@ main();
 
 ## Next Steps
 
-- [Quickstart](./quickstart.md)
-- [Examples](./examples.md) - See real implementations
+- [Quickstart](/quickstart/)
+- [Examples](/examples/) - See real implementations
 - [Guardrails Wizard](https://guardrails.openai.com/) - Create configurations visually
 
 ## Disclaimers

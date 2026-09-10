@@ -34,7 +34,7 @@ Run `npm run dev` to rebuild TypeScript as you edit.
 - `src/evals/`: Evaluation framework.
 - `src/__tests__/unit/` and `src/__tests__/integration/`: Vitest tests.
 - `examples/`: Usage examples and sample configurations.
-- `docs/`: MkDocs documentation.
+- `docs/`: VitePress documentation; branding and navigation live in `docs/.vitepress/`.
 - `dist/`: Generated build output; do not commit it.
 
 ## Making and checking changes
@@ -73,15 +73,25 @@ out of source control.
 
 ## Documentation
 
-To work on the documentation site, install Python 3.11 or newer and `uv`, then run:
+Documentation uses the same Node.js 22 and npm setup as the SDK. Run:
 
 ```bash
-make sync
-make serve-docs
+npm ci
+npm run docs:dev
 ```
 
-Validate documentation changes with `make build-docs`. Generated site output belongs
-in `site/` and should not be committed.
+Validate changes with `npm run docs:check`, then inspect the built site with
+`npm run docs:preview`. Generated output in `site/` should not be committed.
+The Makefile's `sync`, `serve-docs`, and `build-docs` targets wrap these npm commands.
+
+Pages retain their existing directory URLs, such as `/quickstart/`. Use site-root
+links in Markdown (`/quickstart/` or `/assets/images/example.png`); VitePress adds
+the GitHub Pages base path. Static images and branding files live in `docs/public/`.
+
+The docs check builds the site and verifies published URLs, heading anchors, and local links.
+Pull request CI runs this check. Pushes to `main` deploy `site/` to GitHub Pages
+using the Deploy docs workflow. To redeploy the current `main` manually, use the
+workflow's Run workflow button or `make deploy-docs` (requires the GitHub CLI).
 
 ## Pull requests
 

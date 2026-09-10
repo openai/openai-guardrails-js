@@ -181,7 +181,7 @@ The statements cover various types of factual claims including:
 
 #### ROC Curve
 
-![ROC Curve](../../benchmarking/hallucination_detection_roc_curves.png)
+![ROC Curve](/benchmarking/hallucination_detection_roc_curves.png)
 
 #### Model Performance Table
 
@@ -234,7 +234,7 @@ In addition to the above evaluations which use a 3 MB sized vector store, the ha
 
 #### Performance Scaling
 
-![ROC Curve](../../benchmarking/vector_store_performance_scaling.png)
+![ROC Curve](/benchmarking/vector_store_performance_scaling.png)
 
 ### Complete Performance Metrics Across All Vector Store Sizes
 

@@ -4,7 +4,7 @@ Guardrails supports two approaches for handling LLM output: non-streaming (safe,
 
 ## Non-Streaming (blocking): Safe and Reliable (Default)
 
-![Safe Pipeline](assets/images/slow_pipeline.png)
+![Safe Pipeline](/assets/images/slow_pipeline.png)
 
 Default behavior (`stream=False`):
 
@@ -24,7 +24,7 @@ const response = await client.responses.create({
 
 ## Streaming: Fast but Less Safe
 
-![Fast Pipeline](assets/images/fast_pipeline.png)
+![Fast Pipeline](/assets/images/fast_pipeline.png)
 
 Set `stream=True` for real-time output:
 

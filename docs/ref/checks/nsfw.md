@@ -1,8 +1,8 @@
 # NSFW Text Detection
 
-Detects not-safe-for-work text such as profanity, explicit sexual content, graphic violence, harassment, and other workplace-inappropriate material. This is a "softer" filter than [Moderation](./moderation.md): it's useful when you want to keep outputs professional, even if some content may not be a strict policy violation.
+Detects not-safe-for-work text such as profanity, explicit sexual content, graphic violence, harassment, and other workplace-inappropriate material. This is a "softer" filter than [Moderation](/ref/checks/moderation/): it's useful when you want to keep outputs professional, even if some content may not be a strict policy violation.
 
-Primarily for model outputs; use [Moderation](./moderation.md) for user inputs and strict policy violations.
+Primarily for model outputs; use [Moderation](/ref/checks/moderation/) for user inputs and strict policy violations.
 
 ## NSFW Definition
 
@@ -10,7 +10,7 @@ Flags workplace‑inappropriate model outputs: explicit sexual content, profanit
 
 ### What it does not focus on
 
-- Nuanced policy-violating content and safety categories with strict enforcement (use [Moderation](./moderation.md))
+- Nuanced policy-violating content and safety categories with strict enforcement (use [Moderation](/ref/checks/moderation/))
 - Neutral mentions of sensitive topics in clearly informational/medical/educational contexts (tune threshold to reduce false positives)
 
 ## Configuration
@@ -42,7 +42,7 @@ Flags workplace‑inappropriate model outputs: explicit sexual content, profanit
 ### Tuning guidance
 
 - Start at 0.7. Raise to 0.8–0.9 to avoid flagging borderline or contextual mentions; lower to 0.6 to be stricter.
-- Pair with [Moderation](./moderation.md) for firm safety boundaries and policy categories.
+- Pair with [Moderation](/ref/checks/moderation/) for firm safety boundaries and policy categories.
 
 ## What It Returns
 
@@ -90,7 +90,7 @@ This benchmark evaluates model performance on a balanced set of social media pos
 
 #### ROC Curve
 
-![ROC Curve](../../benchmarking/NSFW_roc_curve.png)
+![ROC Curve](/benchmarking/NSFW_roc_curve.png)
 
 #### Metrics Table
 

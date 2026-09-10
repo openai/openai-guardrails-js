@@ -1,0 +1,109 @@
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-Regular.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: italic;
+  font-weight: 400;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-RegularItalic.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: normal;
+  font-weight: 500;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-Medium.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: italic;
+  font-weight: 500;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-MediumItalic.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: normal;
+  font-weight: 600;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-Semibold.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: italic;
+  font-weight: 600;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-SemiboldItalic.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: normal;
+  font-weight: 700;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-Bold.woff2') format('woff2');
+}
+
+@font-face {
+  font-display: swap;
+  font-family: 'OpenAI Sans';
+  font-style: italic;
+  font-weight: 700;
+  src: url('https://cdn.openai.com/common/fonts/openai-sans/OpenAISans-BoldItalic.woff2')
+    format('woff2');
+}
+
+:root {
+  --vp-font-family-base: 'OpenAI Sans', -apple-system, system-ui, Helvetica, Arial, sans-serif;
+  --vp-c-brand-1: #000;
+  --vp-c-brand-2: #333;
+  --vp-c-brand-3: #555;
+  --vp-c-brand-soft: rgba(0, 0, 0, 0.06);
+  --vp-c-text-1: #212121;
+  --vp-c-bg: #fff;
+  --vp-c-bg-alt: #f8f8f8;
+  --vp-code-bg: #f5f5f5;
+}
+
+.VPNavBar {
+  --vp-nav-bg-color: #000;
+  --vp-c-bg: #000;
+  --vp-c-bg-alt: #000;
+  --vp-c-bg-soft: #222;
+  --vp-c-text-1: #fff;
+  --vp-c-text-2: #ddd;
+  --vp-c-text-3: #ccc;
+  --vp-c-brand-1: #fff;
+  --vp-c-divider: #444;
+  --vp-c-default-soft: #222;
+}
+
+.VPNavBar .VPImage.logo {
+  filter: brightness(0) invert(1);
+}
+
+.vp-doc a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The default desktop layout makes the area over the sidebar transparent. */
+.VPNavBar.has-sidebar {
+  background-color: var(--vp-nav-bg-color);
+}

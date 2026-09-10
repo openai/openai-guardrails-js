@@ -109,15 +109,16 @@ const agent = await GuardrailAgent.create(
 
 - Use the [Guardrails Wizard](https://guardrails.openai.com/) to generate your configuration
 - Explore available guardrails for your use case  
-- Learn about pipeline configuration in our [quickstart](./quickstart.md)
+- Learn about pipeline configuration in our [quickstart](/quickstart/)
 - For more details on the OpenAI Agents SDK, refer to the [Agent SDK documentation](https://openai.github.io/openai-agents-js/).
 
 ## Token Usage Tracking
 
-!!! warning "JavaScript Agents SDK Limitation"
-    The JavaScript Agents SDK (`@openai/agents`) does not currently return guardrail results in the `RunResult` object. This means `totalGuardrailTokenUsage()` cannot retrieve token counts from Agents SDK runs.
-    
-    **For token usage tracking, use `GuardrailsOpenAI` instead of `GuardrailAgent`.** The Python Agents SDK does support this feature.
+::: warning JavaScript Agents SDK Limitation
+The JavaScript Agents SDK (`@openai/agents`) does not currently return guardrail results in the `RunResult` object. This means `totalGuardrailTokenUsage()` cannot retrieve token counts from Agents SDK runs.
+
+**For token usage tracking, use `GuardrailsOpenAI` instead of `GuardrailAgent`.** The Python Agents SDK does support this feature.
+:::
 
 When a guardrail **triggers** (throws `InputGuardrailTripwireTriggered` or `OutputGuardrailTripwireTriggered`), token usage IS available in the error's result object:
 
@@ -135,4 +136,4 @@ try {
 }
 ```
 
-For full token usage tracking across all guardrail runs (passing and failing), use the `GuardrailsOpenAI` client instead - see the [quickstart](./quickstart.md#token-usage-tracking) for details.
+For full token usage tracking across all guardrail runs (passing and failing), use the `GuardrailsOpenAI` client instead - see the [quickstart](/quickstart/#token-usage-tracking) for details.

@@ -95,12 +95,9 @@ jspm_packages/
 # Test data and sample files
 sample_eval_data/
 
-# Python/MkDocs
+# Documentation
 site/
-.venv/
-__pycache__/
-*.pyc
-.pytest_cache/
+docs/.vitepress/cache/
 
 # internal files
 internal_examples/

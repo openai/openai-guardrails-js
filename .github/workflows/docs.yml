@@ -21,14 +21,15 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
-      - name: Setup uv
-        uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
         with:
-          enable-cache: true
+          node-version: 22
+          cache: npm
       - name: Install dependencies
-        run: make sync
-      - name: Build docs
-        run: uv run mkdocs build --site-dir site
+        run: npm ci
+      - name: Build and check docs
+        run: npm run docs:check
       - name: Upload artifact
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:

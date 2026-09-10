@@ -45,6 +45,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Build and check docs
+        run: npm run docs:check
+
   ci-status:
     name: Build, Test, and Lint
     if: always()

@@ -113,7 +113,7 @@ results/
     └── run_summary.txt
 ```
 
-### Benchmark Mode
+### Benchmark Mode {#benchmark-mode_1}
 ```
 results/
 └── benchmark_{guardrail}_YYYYMMDD_HHMMSS/
@@ -165,5 +165,5 @@ npm run eval -- --config-path config.json --dataset-path data.jsonl --base-url h
 
 ## Next Steps
 
-- See the [API Reference](./ref/eval/guardrail_evals.md) for detailed documentation
+- See the [API Reference](/ref/eval/guardrail_evals/) for detailed documentation
 - Use [Wizard UI](https://guardrails.openai.com/) for configuring guardrails without code
