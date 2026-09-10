@@ -294,6 +294,111 @@ describe('UrlsConfig', () => {
 });
 
 describe('urls guardrail', () => {
+  it.each(['wss', 'custom+v1', 'custom-v1', 'custom.v1', 'CuStOm'])(
+    'retains the explicit %s scheme for policy validation',
+    async (scheme) => {
+      const candidate = `${scheme}://example.com/docs`;
+      const result = await urls({}, candidate, UrlsConfig.parse({
+        url_allow_list: ['example.com'],
+      }));
+
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.info?.blocked).toEqual([candidate]);
+      expect(result.info?.blocked_reasons).toEqual([
+        `${candidate}: Blocked scheme: ${scheme.toLowerCase()}`,
+      ]);
+    }
+  );
+
+  it.each(['-', '+', '.', '1', '...'])('retains schemes after the prefix %s', async (prefix) => {
+    for (const scheme of ['http', 'custom', 'https']) {
+      const candidate = `${scheme}://example.com/docs`;
+      const result = await urls({}, `${prefix}${candidate}`, UrlsConfig.parse({
+        url_allow_list: ['example.com'],
+      }));
+
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.tripwireTriggered).toBe(scheme !== 'https');
+      expect(result.info?.[scheme === 'https' ? 'allowed' : 'blocked']).toEqual([candidate]);
+    }
+  });
+
+  it.each(['example.com', '192.0.2.1'])(
+    'allows configured custom schemes without extracting fragments from %s',
+    async (host) => {
+      const candidate = `custom://${host}/docs/other.example?next=https://nested.example`;
+      const result = await urls({}, candidate, UrlsConfig.parse({
+        url_allow_list: [host],
+        allowed_schemes: ['custom'],
+      }));
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.info?.allowed).toEqual([candidate]);
+    }
+  );
+
+  it.each([true, false])('preserves block_userinfo=%s for custom schemes', async (blockUserinfo) => {
+    const candidate = 'custom://reader@example.com/docs';
+    const result = await urls({}, candidate, UrlsConfig.parse({
+      url_allow_list: ['example.com'],
+      allowed_schemes: ['custom'],
+      block_userinfo: blockUserinfo,
+    }));
+
+    expect(result.tripwireTriggered).toBe(blockUserinfo);
+    expect(result.info?.detected).toEqual([candidate]);
+    expect(result.info?.[blockUserinfo ? 'blocked' : 'allowed']).toEqual([candidate]);
+  });
+
+  it('preserves explicit scheme matching in allow list entries', async () => {
+    const candidate = 'custom://example.com/docs';
+    const result = await urls({}, candidate, UrlsConfig.parse({
+      url_allow_list: ['https://example.com'],
+      allowed_schemes: ['custom', 'https'],
+    }));
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.blocked_reasons).toEqual([`${candidate}: Not in allow list`]);
+  });
+
+  it.each(['data', 'DATA', 'javascript', 'vbscript'])(
+    'preserves configured hostless %s tokens without extracting their contents',
+    async (scheme) => {
+      const candidate = `${scheme}:text/plain,example.com/192.0.2.1`;
+      const result = await urls({}, candidate, UrlsConfig.parse({ allowed_schemes: [scheme] }));
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.info?.detected).toEqual([candidate]);
+      expect(result.info?.allowed).toEqual([candidate]);
+    }
+  );
+
+  it('keeps standalone bare domains outside explicit URL spans', async () => {
+    const candidate = 'custom://example.com/docs';
+    const result = await urls({}, `${candidate} separate.example`, UrlsConfig.parse({
+      url_allow_list: ['example.com', 'https://separate.example'],
+      allowed_schemes: ['custom'],
+    }));
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.allowed).toEqual([candidate, 'separate.example']);
+  });
+
+  it('validates separate same-host bare paths outside an explicit URL', async () => {
+    const candidate = 'custom://example.com/allowed';
+    const result = await urls({}, `${candidate} example.com/blocked`, UrlsConfig.parse({
+      url_allow_list: ['custom://example.com/allowed'],
+      allowed_schemes: ['custom'],
+    }));
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.detected).toEqual([candidate, 'example.com/blocked']);
+    expect(result.info?.allowed).toEqual([candidate]);
+    expect(result.info?.blocked).toEqual(['example.com/blocked']);
+  });
+
   it('allows https URLs listed in the allow list', async () => {
     const result = await urls(
       {},
