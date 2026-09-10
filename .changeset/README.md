@@ -59,7 +59,7 @@ it is not a separate credential-approval gate. No release environment approval i
 required. Maintain branch protections, code-owner review, required checks, and the
 merge queue, and restrict access to any administrative bypasses.
 
-The workflow uses npm trusted publishing (OIDC) with Node 22 and npm 11. Keep the
+The workflow uses npm trusted publishing (OIDC) with Node 24 and its bundled npm. Keep the
 npm trusted publisher configured for `openai/openai-guardrails-js` and the workflow
 filename `publish.yml`. No npm token is needed. GitHub Actions must be allowed to
 create pull requests in the repository settings.
@@ -90,4 +90,4 @@ happen together after merging the version PR, preventing a second tag-triggered
 publish of the same version.
 
 The release workflow uses Changesets CLI 2.x with the compatible Changesets action
-1.x on Node 22.
+1.x on Node 24.
