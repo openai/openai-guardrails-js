@@ -640,7 +640,8 @@ export abstract class GuardrailsBaseClient {
       'output',
       responseText,
       completeConversation,
-      suppressTripwire
+      suppressTripwire,
+      this.raiseGuardrailErrors
     );
 
     return this.createGuardrailsResponse(llmResponse, preflightResults, inputResults, outputResults);

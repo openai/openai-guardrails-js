@@ -41,7 +41,13 @@ export class StreamingMixin {
             const history = mergeConversationWithItems(baseHistory, [
               { role: 'assistant', content: accumulatedText },
             ]);
-            await this.runStageGuardrails('output', accumulatedText, history, suppressTripwire);
+            await this.runStageGuardrails(
+              'output',
+              accumulatedText,
+              history,
+              suppressTripwire,
+              this.raiseGuardrailErrors
+            );
           } catch (error) {
             if (error instanceof GuardrailTripwireTriggered) {
               const finalResponse = this.createGuardrailsResponse(
@@ -76,7 +82,8 @@ export class StreamingMixin {
           'output',
           accumulatedText,
           history,
-          suppressTripwire
+          suppressTripwire,
+          this.raiseGuardrailErrors
         );
 
         const finalResponse = this.createGuardrailsResponse(

@@ -381,6 +381,7 @@ describe('GuardrailsBaseClient helpers', () => {
           { role: 'user', content: 'hi' },
           { role: 'assistant', content: 'All good' },
         ]),
+        false,
         false
       );
       expect((response as unknown as ResponseWithGuardrailResults).guardrail_results).toBeInstanceOf(GuardrailResultsImpl);
