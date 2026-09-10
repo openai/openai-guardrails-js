@@ -1,26 +1,30 @@
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { expect, it } from 'vitest';
+import { it } from 'vitest';
 
-// Load the compiler's CommonJS API without Vite's default-export interop.
-const ts = createRequire(import.meta.url)('typescript') as typeof import('typescript');
+const require = createRequire(import.meta.url);
 
 it('accepts migrated public schemas and client types in a consumer', () => {
-  const program = ts.createProgram(
-    [fileURLToPath(new URL('./fixtures/sdk-types.ts', import.meta.url))],
-    {
-      noEmit: true,
-      strict: true,
-      exactOptionalPropertyTypes: true,
-      skipLibCheck: true,
-      target: ts.ScriptTarget.ES2020,
-      module: ts.ModuleKind.Node16,
-      moduleResolution: ts.ModuleResolutionKind.Node16,
-      esModuleInterop: true,
-    }
+  // Use the same compiler CLI as the package build, outside the test runner.
+  execFileSync(
+    process.execPath,
+    [
+      require.resolve('typescript/bin/tsc'),
+      '--ignoreConfig',
+      '--noEmit',
+      '--strict',
+      '--exactOptionalPropertyTypes',
+      '--skipLibCheck',
+      '--target',
+      'ES2020',
+      '--module',
+      'Node16',
+      '--moduleResolution',
+      'Node16',
+      '--esModuleInterop',
+      fileURLToPath(new URL('./fixtures/sdk-types.ts', import.meta.url)),
+    ],
+    { encoding: 'utf8' }
   );
-  const diagnostics = ts.getPreEmitDiagnostics(program);
-  expect(
-    diagnostics.map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'))
-  ).toEqual([]);
 }, 15_000);
