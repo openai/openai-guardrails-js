@@ -39,6 +39,55 @@ describe('URL Filter control-bearing scheme prefixes', () => {
     expect(result.info?.allowed).toContain('https://example.com/help');
   });
 
+  it.each(['1', '1.', '+', '-.', '123+.-'])(
+    'preserves the existing URL boundary after prefix %j',
+    async (leading) => {
+      const result = await urls({}, `${leading}https\t://example.com`, config);
+
+      expect(result.tripwireTriggered).toBe(true);
+      expect(result.info?.blocked).toContain('https\t:');
+    }
+  );
+
+  it.each([
+    'https://example.com/docs/javascript\n:section',
+    'https://example.com/search?q=data\t:value',
+    'https://example.com/#data\r:value',
+    'https://example.com/docs/http\t://example.com',
+  ])('keeps a scheme-like word inside an existing URL: %j', async (text) => {
+    const result = await urls({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.blocked).toEqual([]);
+  });
+
+  it.each(['example.com/docs/javascript\n:section', '192.0.2.1/docs/data\t:value'])(
+    'keeps scheme-like words inside bare URL paths: %j',
+    async (text) => {
+      const result = await urls(
+        {},
+        text,
+        UrlsConfig.parse({ url_allow_list: ['example.com', '192.0.2.1'] })
+      );
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.info?.blocked).toEqual([]);
+    }
+  );
+
+  it.each([
+    'HTTP\t: Hypertext Transfer Protocol',
+    'javascript\n: a language label',
+    'ftp\r:',
+    'data\t:',
+    'HTTP\t://',
+  ])('preserves labels without a URL continuation: %j', async (text) => {
+    const result = await urls({}, text, config);
+
+    expect(result.tripwireTriggered).toBe(false);
+    expect(result.info?.blocked).toEqual([]);
+  });
+
   it.each([
     'See https://example.com and email user@example.com',
     'See https://example.com for details.\nContact user@example.com',

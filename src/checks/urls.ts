@@ -21,8 +21,14 @@ const ASCII_URL_CONTROL_RE = /[\t\n\r]/;
 // before whitespace tokenization can discard part of the scheme. Match only
 // the prefix: joining the following text could absorb ordinary prose or email.
 const CONTROL_TOLERANT_SCHEME_RE = new RegExp(
-  `(?<![a-z0-9])(?:${['http', 'https', 'ftp', 'data', 'javascript', 'vbscript']
-    .map((scheme) => [...scheme, ':'].join('[\\t\\n\\r]*'))
+  `(?<![a-z0-9+.-])[0-9+.-]*(${['http', 'https', 'ftp', 'data', 'javascript', 'vbscript']
+    .map(
+      (scheme) =>
+        [...scheme, ':'].join('[\\t\\n\\r]*') +
+        (HOSTLESS_SCHEMES.has(scheme)
+          ? '(?=[^\\s<>"{}|\\\\^`[\\]])'
+          : '(?=//[^\\s<>"{}|\\\\^`[\\]])')
+    )
     .join('|')})`,
   'gi'
 );
@@ -113,14 +119,6 @@ function detectUrls(text: string): string[] {
 
   const detectedUrls: string[] = [];
 
-  if (ASCII_URL_CONTROL_RE.test(text)) {
-    for (const candidate of text.matchAll(CONTROL_TOLERANT_SCHEME_RE)) {
-      if (ASCII_URL_CONTROL_RE.test(candidate[0])) {
-        detectedUrls.push(candidate[0]);
-      }
-    }
-  }
-
   // Pattern 1: URLs with schemes (highest priority)
   // Consume non-letter prefixes at token boundaries without retrying every
   // suffix of a long scheme-like token. The capture retains only the URL.
@@ -138,6 +136,8 @@ function detectUrls(text: string): string[] {
       detectedUrls.push(match);
     }
   }
+
+  const urlRanges: { start: number; end: number }[] = [...schemeRanges];
 
   // Scan bare domains and IPs only outside explicit URL tokens. Matches and
   // ranges are ordered, so each pass advances through the ranges just once.
@@ -164,6 +164,30 @@ function detectUrls(text: string): string[] {
       const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
       if (match) {
         detectedUrls.push(match);
+        urlRanges.push({ start: candidate.index, end });
+      }
+    }
+  }
+
+  if (ASCII_URL_CONTROL_RE.test(text)) {
+    urlRanges.sort((left, right) => left.start - right.start);
+    let rangeIndex = 0;
+    for (const candidate of text.matchAll(CONTROL_TOLERANT_SCHEME_RE)) {
+      const prefix = candidate[1];
+      const start = candidate.index + candidate[0].length - prefix.length;
+      while (rangeIndex < urlRanges.length && urlRanges[rangeIndex].end <= start) {
+        rangeIndex++;
+      }
+      // A prefix starting inside an existing URL belongs to that URL, even
+      // when its control character extends beyond the whitespace token boundary.
+      // Compare the entire match: a leading numeric/dotted prefix can itself
+      // resemble a bare domain, but does not make this scheme nested URL content.
+      const range = urlRanges[rangeIndex];
+      if (range && range.start < candidate.index) {
+        continue;
+      }
+      if (ASCII_URL_CONTROL_RE.test(prefix)) {
+        detectedUrls.push(prefix);
       }
     }
   }

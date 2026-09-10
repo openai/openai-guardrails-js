@@ -15,7 +15,10 @@ Advanced URL detection and filtering guardrail that prevents access to unauthori
 ### Control characters and scope
 
 The filter rejects `http`, `https`, `ftp`, `data`, `javascript`, and `vbscript`
-scheme prefixes with TAB, LF, or CR between their letters or before the colon.
+scheme prefixes with TAB, LF, or CR between their letters or before the colon
+when a URL-like continuation immediately follows: `//` and URL content for
+`http`, `https`, and `ftp`, or non-whitespace content for the other three schemes.
+Scheme-like words inside an already-detected URL retain the existing handling.
 WHATWG URL parsers remove those characters, so ordinary whitespace-based
 detection could otherwise miss the scheme. The original prefix is reported in
 `detected` and `blocked` with an ambiguous-scheme reason, even if its destination
