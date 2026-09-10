@@ -16,6 +16,22 @@ const DEFAULT_PORTS: Record<string, number> = {
 
 const SCHEME_PREFIX_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 const HOSTLESS_SCHEMES = new Set(['data', 'javascript', 'vbscript', 'mailto']);
+const ASCII_URL_CONTROL_RE = /[\t\n\r]/;
+// WHATWG removes TAB/LF/CR before parsing. Recognize these scheme prefixes
+// before whitespace tokenization can discard part of the scheme. Match only
+// the prefix: joining the following text could absorb ordinary prose or email.
+const CONTROL_TOLERANT_SCHEME_RE = new RegExp(
+  `(?<![a-z0-9+.-])[0-9+.-]*(${['http', 'https', 'ftp', 'data', 'javascript', 'vbscript']
+    .map(
+      (scheme) =>
+        [...scheme, ':'].join('[\\t\\n\\r]*') +
+        (HOSTLESS_SCHEMES.has(scheme)
+          ? '(?=[^\\s<>"{}|\\\\^`[\\]])'
+          : '(?=//[^\\s<>"{}|\\\\^`[\\]])')
+    )
+    .join('|')})`,
+  'gi'
+);
 
 function normalizeAllowedSchemes(value: unknown): Set<string> {
   if (value === undefined || value === null) {
@@ -121,6 +137,8 @@ function detectUrls(text: string): string[] {
     }
   }
 
+  const urlRanges: { start: number; end: number }[] = [...schemeRanges];
+
   // Scan bare domains and IPs only outside explicit URL tokens. Matches and
   // ranges are ordered, so each pass advances through the ranges just once.
   const barePatterns = [
@@ -129,6 +147,7 @@ function detectUrls(text: string): string[] {
   ];
   for (const pattern of barePatterns) {
     let rangeIndex = 0;
+    let coveredEnd = 0;
     for (const candidate of text.matchAll(pattern)) {
       while (rangeIndex < schemeRanges.length && schemeRanges[rangeIndex].end <= candidate.index) {
         rangeIndex++;
@@ -146,6 +165,37 @@ function detectUrls(text: string): string[] {
       const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
       if (match) {
         detectedUrls.push(match);
+        if (candidate.index >= coveredEnd) {
+          // Extend containment only, leaving extraction and validation unchanged.
+          // Scan each token's query/fragment or port tail once per bare pattern,
+          // even when the same token contains further domain-like matches.
+          const tail = text.slice(end).match(/^(?:[?#]|:\d+(?=[/?#]))[^\s]*/);
+          coveredEnd = end + (tail?.[0].length ?? 0);
+          urlRanges.push({ start: candidate.index, end: coveredEnd });
+        }
+      }
+    }
+  }
+
+  if (ASCII_URL_CONTROL_RE.test(text)) {
+    urlRanges.sort((left, right) => left.start - right.start);
+    let rangeIndex = 0;
+    for (const candidate of text.matchAll(CONTROL_TOLERANT_SCHEME_RE)) {
+      const prefix = candidate[1];
+      const start = candidate.index + candidate[0].length - prefix.length;
+      while (rangeIndex < urlRanges.length && urlRanges[rangeIndex].end <= start) {
+        rangeIndex++;
+      }
+      // A prefix starting inside an existing URL belongs to that URL, even
+      // when its control character extends beyond the whitespace token boundary.
+      // Compare the entire match: a leading numeric/dotted prefix can itself
+      // resemble a bare domain, but does not make this scheme nested URL content.
+      const range = urlRanges[rangeIndex];
+      if (range && range.start < candidate.index) {
+        continue;
+      }
+      if (ASCII_URL_CONTROL_RE.test(prefix)) {
+        detectedUrls.push(prefix);
       }
     }
   }
@@ -164,6 +214,14 @@ function validateUrlSecurity(
   urlString: string,
   config: UrlsConfig
 ): { parsedUrl: URL | null; reason: string; hadScheme: boolean } {
+  if (ASCII_URL_CONTROL_RE.test(urlString)) {
+    return {
+      parsedUrl: null,
+      reason: 'Ambiguous URL scheme containing ASCII control characters',
+      hadScheme: true,
+    };
+  }
+
   try {
     let parsedUrl: URL;
     let originalScheme: string;
