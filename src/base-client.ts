@@ -333,6 +333,10 @@ export abstract class GuardrailsBaseClient {
     if ('choices' in response && response.choices) {
       const choice0 = response.choices[0];
 
+      if (!choice0) {
+        return '';
+      }
+
       if ('message' in choice0 && choice0.message) {
         return choice0.message.content || '';
       }
@@ -629,19 +633,20 @@ export abstract class GuardrailsBaseClient {
       conversationHistory !== undefined && conversationHistory !== null
         ? this.normalizeConversationHistory(conversationHistory)
         : [];
-    const completeConversation = this.appendLlmResponseToConversation(
-      normalizedHistory,
-      llmResponse
-    );
-
-    const responseText = this.extractResponseText(llmResponse);
-    const outputResults = await this.runStageGuardrails(
-      'output',
-      responseText,
-      completeConversation,
-      suppressTripwire,
-      this.raiseGuardrailErrors
-    );
+    // Alternatives are separate assistant responses, not consecutive conversation turns.
+    const responses = 'choices' in llmResponse && llmResponse.choices.length > 0
+      ? llmResponse.choices.map((choice) => ({ ...llmResponse, choices: [choice] } as OpenAIResponseType))
+      : [llmResponse];
+    const outputResults: GuardrailResult[] = [];
+    for (const response of responses) {
+      const completeConversation = this.appendLlmResponseToConversation(normalizedHistory, response);
+      outputResults.push(...await this.runStageGuardrails(
+        'output',
+        this.extractResponseText(response),
+        completeConversation,
+        suppressTripwire
+      ));
+    }
 
     return this.createGuardrailsResponse(
       llmResponse,
