@@ -332,7 +332,7 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
         /\b\d{1,6}\s[A-Za-z0-9\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Place|Pl|Court|Ct|Way|Highway|Hwy|Parkway|Pkwy|Circle|Cir|Trail|Trl|Terrace|Ter)\b/gi,
     },
     {
-      regex: /\b\d{1,6}\s[A-Za-z0-9\s]+,\s*[A-Za-z\s]+,\s*[A-Z]{2}\b/g,
+      regex: /\b\d{1,6}\s[A-Za-z0-9\s]+,[A-Za-z\s]+,\s*[A-Z]{2}\b/g,
     },
   ],
   [PIIEntity.PERSON]: [{ regex: /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g }],
@@ -405,6 +405,46 @@ const DEFAULT_PII_PATTERNS: Record<PIIEntity, PatternDefinition[]> = {
 };
 
 /**
+ * Try LOCATION only at the first house-number prefix in each maximal address
+ * body run. Any later prefix shares the same possible endpoints, so retrying
+ * it cannot find a match the first prefix missed. A greedy street match ends
+ * at the last suffix in the run; a city/state match ends beyond the run.
+ *
+ * Sticky matching prevents the engine from retrying all later starts. Each
+ * run is scanned a constant number of times, including the adjacent city and
+ * state runs. Keep the city pattern's whitespace alternatives non-overlapping
+ * so each individual attempt is linear as well. No input is truncated.
+ */
+function* _locationMatches(text: string, pattern: RegExp): Generator<RegExpExecArray> {
+  const regex = new RegExp(pattern.source, pattern.flags.replace('g', 'y'));
+  let previousEnd = 0;
+
+  for (const run of text.matchAll(/[A-Za-z0-9\s]+/g)) {
+    const offset = Math.max(run.index, previousEnd);
+    const runEnd = run.index + run[0].length;
+    if (offset >= runEnd) {
+      continue;
+    }
+
+    const body = text.slice(offset, runEnd);
+    for (const prefix of body.matchAll(/\b\d{1,6}\s/g)) {
+      const start = offset + prefix.index;
+      // A slice boundary must not create a word boundary in the original text.
+      if (start > 0 && /\w/.test(text[start - 1])) {
+        continue;
+      }
+      regex.lastIndex = start;
+      const match = regex.exec(text);
+      if (match) {
+        previousEnd = regex.lastIndex;
+        yield match;
+      }
+      break;
+    }
+  }
+}
+
+/**
  * Run regex analysis and collect findings by entity type.
  *
  * @param text The text to analyze for PII
@@ -474,23 +514,18 @@ function _collectPlainDetections(
 
     for (const definition of definitions) {
       const regex = new RegExp(definition.regex.source, definition.regex.flags);
-      let match: RegExpExecArray | null;
+      const matches =
+        entity === PIIEntity.LOCATION ? _locationMatches(text, regex) : text.matchAll(regex);
 
-      while ((match = regex.exec(text)) !== null) {
+      for (const match of matches) {
         const groupIndex = definition.group ?? 0;
         const matchedValue = match[groupIndex];
         if (!matchedValue) {
-          if (regex.lastIndex === match.index) {
-            regex.lastIndex += 1;
-          }
           continue;
         }
 
         const extracted = matchedValue.trim();
         if (!extracted) {
-          if (regex.lastIndex === match.index) {
-            regex.lastIndex += 1;
-          }
           continue;
         }
 
@@ -500,9 +535,6 @@ function _collectPlainDetections(
         const spanKey = `${entity}:${start}:${end}`;
 
         if (seen.has(spanKey)) {
-          if (regex.lastIndex === match.index) {
-            regex.lastIndex += 1;
-          }
           continue;
         }
 
@@ -520,10 +552,6 @@ function _collectPlainDetections(
           replacement: `<${entity}>`,
           priority: 2,
         });
-
-        if (regex.lastIndex === match.index) {
-          regex.lastIndex += 1;
-        }
       }
     }
   }
