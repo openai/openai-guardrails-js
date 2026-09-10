@@ -8,6 +8,7 @@
  */
 
 import type { OpenAI } from 'openai';
+import { zodResponseFormat } from 'openai/helpers/zod';
 import { type ZodTypeAny, z } from 'zod';
 import { defaultSpecRegistry } from '../registry';
 import {
@@ -441,6 +442,15 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Only include safety_identifier for official OpenAI API (not Azure or local providers)
     if (supportsSafetyIdentifier(client)) {
       params.safety_identifier = SAFETY_IDENTIFIER;
+
+      // Limit schema enforcement to the GPT-4.1 family and our standard outputs.
+      // Other models/providers and custom Zod schemas retain JSON mode compatibility.
+      if (
+        /^gpt-4\.1(?:-mini|-nano)?(?:-2025-04-14)?$/.test(model) &&
+        (Object.is(outputModel, LLMOutput) || Object.is(outputModel, LLMReasoningOutput))
+      ) {
+        params.response_format = zodResponseFormat(outputModel, 'guardrail_result');
+      }
     }
 
     // @ts-expect-error - safety_identifier is not in the OpenAI types yet
@@ -465,7 +475,9 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     const cleanedResult = stripJsonCodeFence(result);
     return [outputModel.parse(JSON.parse(cleanedResult)), tokenUsage];
   } catch (error) {
-    logLLMError('error', 'LLM guardrail failed for prompt:', systemPrompt, error);
+    // Logging exception objects can itself fail in Node's object inspector.
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    logLLMError('error', 'LLM guardrail failed for prompt:', systemPrompt, errorMessage);
 
     // Check if this is a content filter error - Azure OpenAI
     if (error && typeof error === 'string' && error.includes('content_filter')) {
@@ -486,7 +498,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on JSON parsing errors (malformed or non-JSON responses)
     // Use tokenUsage here since API call succeeded but response parsing failed
     if (error instanceof SyntaxError || (error as Error)?.constructor?.name === 'SyntaxError') {
-      logLLMError('warn', 'LLM returned non-JSON or malformed JSON.', error);
+      logLLMError('warn', 'LLM returned non-JSON or malformed JSON.', errorMessage);
       return [
         LLMErrorOutput.parse({
           flagged: false,
@@ -502,7 +514,7 @@ export async function runLLM<TOutput extends ZodTypeAny>(
     // Fail-open on schema validation errors (e.g., wrong types like confidence as string)
     // Use tokenUsage here since API call succeeded but schema validation failed
     if (error instanceof z.ZodError) {
-      logLLMError('warn', 'LLM response validation failed.', error);
+      logLLMError('warn', 'LLM response validation failed.', errorMessage);
       return [
         LLMErrorOutput.parse({
           flagged: false,
