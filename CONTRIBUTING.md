@@ -85,7 +85,6 @@ npm run docs:dev
 
 Validate changes with `npm run docs:check`, then inspect the built site with
 `npm run docs:preview`. Generated output in `site/` should not be committed.
-The Makefile's `sync`, `serve-docs`, and `build-docs` targets wrap these npm commands.
 
 Pages retain their existing directory URLs, such as `/quickstart/`. Use site-root
 links in Markdown (`/quickstart/` or `/assets/images/example.png`); VitePress adds
@@ -94,7 +93,7 @@ the GitHub Pages base path. Static images and branding files live in `docs/publi
 The docs check builds the site and verifies published URLs, heading anchors, and local links.
 Pull request CI runs this check. Pushes to `main` deploy `site/` to GitHub Pages
 using the Deploy docs workflow. To redeploy the current `main` manually, use the
-workflow's Run workflow button or `make deploy-docs` (requires the GitHub CLI).
+workflow's Run workflow button or `gh workflow run docs.yml --ref main` (requires the GitHub CLI).
 
 ## Pull requests
 
