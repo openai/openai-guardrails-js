@@ -1,0 +1,3 @@
+interface:
+  display_name: "Code Change Verification"
+  short_description: "Verify changes with the current npm toolchain"
