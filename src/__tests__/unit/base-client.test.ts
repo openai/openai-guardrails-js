@@ -108,6 +108,26 @@ describe('GuardrailsBaseClient helpers', () => {
       expect(index).toBe(1);
     });
 
+    it.each(['text', 'input_text', 'output_text', 'summary_text'])(
+      'preserves original indices and extraction for %s in mixed histories',
+      (type) => {
+        const messages: Message[] = [
+          { role: 'user', content: 'earlier' },
+          { role: 'assistant', content: [] },
+          { role: 'user', content: [{ type: 'input_image', image_url: 'fixture' }] },
+          { role: 'user', content: [
+            { type, text: ' latest ' },
+            { type: 'input_image', image_url: 'fixture' },
+            { type, text: 'message ' },
+          ] },
+          { role: 'user', content: '   ' },
+          { role: 'user', content: [{ type: 'input_image', image_url: 'fixture' }] },
+        ];
+
+        expect(client.extractLatestUserTextMessage(messages)).toEqual(['latest  message', 3]);
+      }
+    );
+
     it('returns empty string when no user messages exist', () => {
       const messages: Message[] = [
         { role: 'assistant', content: 'hi' },

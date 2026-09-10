@@ -150,16 +150,14 @@ export abstract class GuardrailsBaseClient {
   public raiseGuardrailErrors = false;
 
   /**
-   * Extract the latest user text message from a conversation for text guardrails.
+   * Extract the latest user text message and its original conversation index for text guardrails.
    *
    * This method specifically extracts text content from messages. For other content types,
    * create parallel methods like extractLatestUserImage() or extractLatestUserVideo().
    */
   public extractLatestUserTextMessage(messages: Message[]): [string, number] {
-    const textOnlyMessages = ContentUtils.filterToTextOnly(messages);
-
-    for (let i = textOnlyMessages.length - 1; i >= 0; i -= 1) {
-      const message = textOnlyMessages[i];
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
       if (message.role === 'user') {
         const text = ContentUtils.extractTextFromMessage(message);
         if (text) {
