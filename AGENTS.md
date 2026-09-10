@@ -166,3 +166,5 @@ external actions on their own.
 
 - [code-change-verification](.agents/skills/code-change-verification/SKILL.md): Verify changes with the current npm toolchain.
 - [implementation-strategy](.agents/skills/implementation-strategy/SKILL.md): Choose scope around existing Guardrails boundaries.
+- [implementation-final-review](.agents/skills/implementation-final-review/SKILL.md): Review complete changes with independent reviewers.
+- [implementation-kickoff](.agents/skills/implementation-kickoff/SKILL.md): Start bounded implementation and PR takeover work.
