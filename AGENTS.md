@@ -165,3 +165,4 @@ above remain authoritative; skills do not expand the user's scope or authorize
 external actions on their own.
 
 - [code-change-verification](.agents/skills/code-change-verification/SKILL.md): Verify changes with the current npm toolchain.
+- [implementation-strategy](.agents/skills/implementation-strategy/SKILL.md): Choose scope around existing Guardrails boundaries.
