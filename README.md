@@ -1,45 +1,25 @@
 # OpenAI Guardrails: TypeScript (Preview)
 
-This is the TypeScript version of OpenAI Guardrails, a package for adding configurable safety and compliance guardrails to LLM applications. It provides a drop-in wrapper for OpenAI's TypeScript / JavaScript client, enabling automatic input/output validation and moderation using a wide range of guardrails.
+Add configurable input and output checks to your OpenAI applications. Guardrails wraps the OpenAI JavaScript/TypeScript client and supports `responses.create()` and `chat.completions.create()`, with integrations for Azure OpenAI and the Agents SDK.
 
-Most users can simply follow the guided configuration and installation instructions at [guardrails.openai.com](https://guardrails.openai.com/).
+[Documentation](https://openai.github.io/openai-guardrails-js/) · [Configuration wizard](https://guardrails.openai.com/) · [Examples](examples/) · [Migration guide](docs/sdk_migration.md)
 
-[![OpenAI Guardrails configuration screenshot](docs/public/assets/images/guardrails-js-config-screenshot-100pct-q70.webp)](https://guardrails.openai.com)
+[![OpenAI Guardrails configuration screenshot](docs/public/assets/images/guardrails-js-config-screenshot-100pct-q70.webp)](https://guardrails.openai.com/)
 
-## Installation
+## Quickstart
 
-### Usage
-
-Follow the configuration and installation instructions at [guardrails.openai.com](https://guardrails.openai.com/).
-
-
-### Local Development
-
-Clone the repository and install locally:
+Requires Node.js 22.13+ on the 22.x release line, or Node.js 24+. Set `OPENAI_API_KEY` in your environment, then install:
 
 ```bash
-# Clone the repository
-git clone https://github.com/openai/openai-guardrails-js.git
-cd openai-guardrails-js
-
-# Install dependencies
-npm install
-
-# Build the package
-npm run build
+npm install @openai/guardrails
 ```
 
-## Integration Details
-
-### Drop-in OpenAI Replacement
-
-The easiest way to use Guardrails TypeScript is as a drop-in replacement for the OpenAI client:
+Save this as `guardrails-example.ts`. It checks generated text for the selected moderation categories before returning it:
 
 ```typescript
-import { GuardrailsOpenAI } from '@openai/guardrails';
+import { GuardrailsOpenAI, GuardrailTripwireTriggered } from '@openai/guardrails';
 
 async function main() {
-  // Use GuardrailsOpenAI instead of OpenAI
   const client = await GuardrailsOpenAI.create({
     version: 1,
     output: {
@@ -53,146 +33,77 @@ async function main() {
       model: 'gpt-5',
       input: 'Hello world',
     });
-
-    // Access OpenAI response directly
     console.log(response.output_text);
   } catch (error) {
-    if (error.constructor.name === 'GuardrailTripwireTriggered') {
-      console.log(`Guardrail triggered: ${error.guardrailResult.info}`);
+    if (error instanceof GuardrailTripwireTriggered) {
+      console.log('Response blocked by a guardrail.');
+    } else {
+      throw error;
     }
   }
 }
 
-main();
-```
-
-### Agents SDK Integration
-
-```typescript
-import { GuardrailAgent } from '@openai/guardrails';
-import { run } from '@openai/agents';
-
-// Create agent with guardrails automatically configured
-const agent = new GuardrailAgent({
-  config: {
-    version: 1,
-    output: {
-      version: 1,
-      guardrails: [{ name: 'Moderation', config: { categories: ['hate', 'violence'] } }],
-    },
-  },
-  name: 'Customer support agent',
-  instructions: 'You are a helpful customer support agent.',
+main().catch(() => {
+  console.error('Request failed. Check your API credentials and configuration.');
+  process.exitCode = 1;
 });
-
-// Use exactly like a regular Agent
-const result = await run(agent, 'Hello, can you help me?');
 ```
 
-## Evaluation Framework
-
-The evaluation framework allows you to test guardrail performance on datasets and measure metrics like precision, recall, and F1 scores.
-
-### Running Evaluations
-
-**Using the CLI:**
+Run it with:
 
 ```bash
-npm run build
-npm run eval -- --config-path src/evals/sample_eval_data/nsfw_config.json --dataset-path src/evals/sample_eval_data/nsfw_eval.jsonl
+npx tsx guardrails-example.ts
 ```
 
-### Dataset Format
+You can also pass an exported configuration file path to `GuardrailsOpenAI.create()`. Use the [configuration wizard](https://guardrails.openai.com/) to choose checks and the [quickstart guide](docs/quickstart.md) to learn about preflight, input, and output stages. See [tripwire handling](docs/tripwires.md) for handling blocked requests and guardrail execution errors.
 
-Datasets must be in JSONL format, with each line containing a JSON object:
+## Integrations and checks
 
-```json
-{
-  "id": "sample_1",
-  "data": "Text to evaluate",
-  "expectedTriggers": {
-    "guardrail_name_1": true,
-    "guardrail_name_2": false
-  }
-}
+- [Agents SDK](docs/agents_sdk_integration.md): create an agent with `await GuardrailAgent.create(...)`.
+- [Azure OpenAI](examples/basic/azure_example.ts) and [local models](examples/basic/local_model.ts).
+- [Streaming](docs/streaming_output.md) and [inspecting results without raising tripwires](examples/basic/suppress_tripwire.ts).
+
+Built-in checks include [Moderation](docs/ref/checks/moderation.md), [Contains PII](docs/ref/checks/pii.md), [URL Filter](docs/ref/checks/urls.md), [Hallucination Detection](docs/ref/checks/hallucination_detection.md), [Jailbreak](docs/ref/checks/jailbreak.md), [Prompt Injection Detection](docs/ref/checks/prompt_injection_detection.md), [Off Topic Prompts](docs/ref/checks/off_topic_prompts.md), and [Custom Prompt Check](docs/ref/checks/custom_prompt_check.md). Each reference explains its configuration and prerequisites.
+
+## Evaluations
+
+Measure guardrail precision, recall, and F1 against labeled datasets. Export a configuration as `guardrails_config.json` from the [wizard](https://guardrails.openai.com/) and create `data.jsonl` with one JSON object per line. Labels must match the guardrail names in your configuration; for a Moderation-only configuration:
+
+```jsonl
+{"id":"sample_1","data":"Hello world","expected_triggers":{"Moderation":false}}
 ```
 
-### Programmatic Usage
-
-```typescript
-import { GuardrailEval } from '@openai/guardrails';
-
-const eval = new GuardrailEval(
-  'configs/my_guardrails.json',
-  'data/demo_data.jsonl',
-  32, // batch size
-  'results', // output directory
-  false // multi-turn mode (set to true to evaluate conversation-aware guardrails incrementally)
-);
-
-await eval.run('Evaluating my dataset');
-```
-
-### Project Structure
-
-For release notes and publishing, see the [Changesets release guide](.changeset/README.md).
-
-- `src/` - TypeScript source code
-- `dist/` - Compiled JavaScript output
-- `src/checks/` - Built-in guardrail checks
-- `src/evals/` - Evaluation framework
-- `examples/` - Example usage and sample data
-
-## Examples
-
-The package includes comprehensive examples in the [`examples/` directory](https://github.com/openai/openai-guardrails-js/tree/main/examples):
-
-- **`agents_sdk.ts`**: Agents SDK integration with GuardrailAgent
-- **`hello_world.ts`**: Basic chatbot with guardrails using GuardrailsOpenAI
-- **`azure_example.ts`**: Azure OpenAI integration example
-- **`local_model.ts`**: Using local models with guardrails
-- **`streaming.ts`**: Streaming responses with guardrails
-- **`suppress_tripwire.ts`**: Handling guardrail violations gracefully
-
-### Running Examples
-
-#### Prerequisites
-
-Before running examples, you need to build the package:
+Run the installed CLI:
 
 ```bash
-# Install dependencies (if not already done)
-npm install
-
-# Build the TypeScript code
-npm run build
+npx --no-install guardrails eval --config-path guardrails_config.json --dataset-path data.jsonl
 ```
 
-#### Running Individual Examples
+See the [evaluation guide](docs/evals.md) for dataset requirements, benchmarking, and multi-turn evaluation, or the [programmatic API](docs/ref/eval/guardrail_evals.md).
 
-**Using tsx (Recommended)**
+## Local development
+
+```bash
+git clone https://github.com/openai/openai-guardrails-js.git
+cd openai-guardrails-js
+npm ci
+npm run build
+npm run test:run
+npm run lint
+npm run docs:check
+```
+
+With `OPENAI_API_KEY` set, run a repository example:
 
 ```bash
 npx tsx examples/basic/hello_world.ts
-npx tsx examples/basic/streaming.ts
-npx tsx examples/basic/agents_sdk.ts
 ```
 
-## Available Guardrails
-
-The TypeScript implementation includes the following built-in guardrails:
-
-- **Moderation**: Content moderation using OpenAI's moderation API
-- **URL Filter**: URL filtering and domain allowlist/blocklist
-- **Contains PII**: Personally Identifiable Information detection
-- **Hallucination Detection**: Detects hallucinated content using vector stores
-- **Jailbreak**: Detects jailbreak attempts
-- **Off Topic Prompts**: Ensures responses stay within business scope
-- **Custom Prompt Check**: Custom LLM-based guardrails
+See the [examples guide](examples/README.md) for more examples and their prerequisites, and the [release guide](.changeset/README.md) for publishing.
 
 ## License
 
-MIT License - see LICENSE file for details.
+[MIT](LICENSE).
 
 ## Disclaimers
 
