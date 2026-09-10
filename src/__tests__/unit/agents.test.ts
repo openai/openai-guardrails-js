@@ -31,13 +31,15 @@ interface MockAgent {
 
 // Mock the @openai/agents module
 vi.mock('@openai/agents', () => ({
-  Agent: vi.fn().mockImplementation((config) => ({
-    name: config.name,
-    instructions: config.instructions,
-    inputGuardrails: config.inputGuardrails || [],
-    outputGuardrails: config.outputGuardrails || [],
-    ...config,
-  })),
+  Agent: vi.fn().mockImplementation(function (config) {
+    return {
+      name: config.name,
+      instructions: config.instructions,
+      inputGuardrails: config.inputGuardrails || [],
+      outputGuardrails: config.outputGuardrails || [],
+      ...config,
+    };
+  }),
 }));
 
 // Mock the runtime functions
