@@ -324,12 +324,32 @@ describe('urls guardrail', () => {
     }
   });
 
-  it.each(['-', '+', ' '])('validates an IP before a URL separated by %j', async (separator) => {
-    const candidate = 'https://example.com/docs';
+  it.each(['1', '2.', '-3'])('does not extract domains overlapping a prefixed dotted scheme %j', async (prefix) => {
+    const candidate = 'custom.foo://example.com/docs';
+    const result = await urls({}, `${prefix}${candidate}`, UrlsConfig.parse({
+      url_allow_list: ['example.com'],
+      allowed_schemes: ['custom.foo'],
+    }));
+
+    expect(result.info?.detected).toEqual([candidate]);
+    expect(result.info?.allowed).toEqual([candidate]);
+    expect(result.info?.blocked).toEqual([]);
+    expect(result.tripwireTriggered).toBe(false);
+  });
+
+  it.each([
+    ['-', 'https'],
+    ['+', 'https'],
+    [' ', 'https'],
+    ['-', 'custom.foo'],
+    ['+', 'custom.foo'],
+  ])('validates an IP before a URL separated by %j with scheme %s', async (separator, scheme) => {
+    const candidate = `${scheme}://example.com/docs`;
     const precedingIp = '192.0.2.1';
     for (const allowIp of [false, true]) {
       const result = await urls({}, `${precedingIp}${separator}${candidate}`, UrlsConfig.parse({
         url_allow_list: allowIp ? ['example.com', precedingIp] : ['example.com'],
+        allowed_schemes: [scheme],
       }));
 
       expect(result.info?.detected).toEqual([candidate, precedingIp]);
@@ -337,6 +357,23 @@ describe('urls guardrail', () => {
       expect(result.info?.allowed).toEqual(allowIp ? [candidate, precedingIp] : [candidate]);
       expect(result.info?.blocked).toEqual(allowIp ? [] : [precedingIp]);
     }
+  });
+
+  it.each([
+    'unlisted.example/path/',
+    '192.0.2.1/path/',
+    'unlisted.example/path<',
+    '192.0.2.1/path<',
+  ])('retains a bare URL enclosing an explicit URL after %j', async (prefix) => {
+    const candidate = 'https://example.com/docs';
+    const enclosing = `${prefix}${candidate}`;
+    const result = await urls({}, enclosing, UrlsConfig.parse({
+      url_allow_list: ['example.com'],
+    }));
+
+    expect(result.tripwireTriggered).toBe(true);
+    expect(result.info?.allowed).toEqual([candidate]);
+    expect(result.info?.blocked).toEqual([enclosing]);
   });
 
   it.each(['example.com', '192.0.2.1'])(

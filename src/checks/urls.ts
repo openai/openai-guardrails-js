@@ -107,12 +107,13 @@ function detectUrls(text: string): string[] {
   // Consume non-letter prefixes at token boundaries without retrying every
   // suffix of a long scheme-like token. The capture retains only the URL.
   const schemePattern = /(?<![a-z0-9+.-])[0-9+.-]*((?:[a-z][a-z0-9+.-]*:\/\/|data:|javascript:|vbscript:)[^\s<>"{}|\\^`[\]]+)/gi;
-  const schemeRanges: { start: number; end: number }[] = [];
+  const schemeRanges: { start: number; schemeEnd: number; end: number }[] = [];
   for (const candidate of text.matchAll(schemePattern)) {
     // Exclude only the captured URL, leaving discarded prefixes available
     // for independent domain/IP validation.
     const end = candidate.index + candidate[0].length;
-    schemeRanges.push({ start: end - candidate[1].length, end });
+    const start = end - candidate[1].length;
+    schemeRanges.push({ start, schemeEnd: start + candidate[1].indexOf(':'), end });
     const match = candidate[1].replace(PUNCTUATION_CLEANUP, '');
     if (match) {
       detectedUrls.push(match);
@@ -131,7 +132,11 @@ function detectUrls(text: string): string[] {
       while (rangeIndex < schemeRanges.length && schemeRanges[rangeIndex].end <= candidate.index) {
         rangeIndex++;
       }
-      if (rangeIndex < schemeRanges.length && schemeRanges[rangeIndex].start <= candidate.index) {
+      const end = candidate.index + candidate[0].length;
+      const range = schemeRanges[rangeIndex];
+      // A prefixed dotted scheme can look like a bare domain. Exclude that
+      // fragment, but retain enclosing bare paths containing an explicit URL.
+      if (range && (range.start <= candidate.index || (range.start < end && end <= range.schemeEnd))) {
         continue;
       }
       const match = candidate[0].replace(PUNCTUATION_CLEANUP, '');
