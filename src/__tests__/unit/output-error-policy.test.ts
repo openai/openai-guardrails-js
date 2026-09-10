@@ -41,7 +41,7 @@ class OutputTestClient extends GuardrailsBaseClient {
 describe('output execution-error policy', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  for (const failureKind of ['throw', 'result'] as const) {
+  for (const failureKind of ['throw', 'result', 'result without exception'] as const) {
     for (const strict of [true, false, undefined]) {
       describe(`${failureKind}, strict=${strict}`, () => {
         const setup = () => {
@@ -52,7 +52,7 @@ describe('output execution-error policy', () => {
             return {
               tripwireTriggered: false,
               executionFailed: true,
-              originalException: error,
+              ...(failureKind === 'result without exception' ? {} : { originalException: error }),
               info: {},
             };
           }, strict);
@@ -76,12 +76,17 @@ describe('output execution-error policy', () => {
                       suppressTripwire,
                     });
               if (strict) {
-                await expect(response).rejects.toBe(error);
+                if (failureKind === 'result without exception') {
+                  await expect(response).rejects.toThrow('Guardrail execution failed');
+                } else {
+                  await expect(response).rejects.toBe(error);
+                }
               } else {
-                expect((await response).guardrail_results.output[0]).toMatchObject({
-                  executionFailed: true,
-                  originalException: error,
-                });
+                const result = (await response).guardrail_results.output[0];
+                expect(result.executionFailed).toBe(true);
+                expect(result.originalException).toBe(
+                  failureKind === 'result without exception' ? undefined : error
+                );
               }
             });
           }
@@ -91,6 +96,7 @@ describe('output execution-error policy', () => {
           ['periodic', 1, false],
           ['periodic suppressed', 1, true],
           ['final', 100, false],
+          ['final suppressed', 100, true],
         ] as const) {
           it(`streaming ${checkpoint}`, async () => {
             const { client, error } = setup();
@@ -111,21 +117,54 @@ describe('output execution-error policy', () => {
               for await (const response of iterator) yielded.push(response);
             };
             if (strict) {
-              await expect(consume()).rejects.toBe(error);
+              if (failureKind === 'result without exception') {
+                await expect(consume()).rejects.toThrow('Guardrail execution failed');
+              } else {
+                await expect(consume()).rejects.toBe(error);
+              }
               // A final check can fail after chunks were streamed, but emits no successful final result.
               expect(yielded).toHaveLength(interval === 1 ? 0 : 1);
             } else {
               await consume();
               expect(yielded).toHaveLength(suppressTripwire ? 1 : 2);
               if (!suppressTripwire) {
-                expect(yielded[1].guardrail_results.output[0]).toMatchObject({
-                  executionFailed: true,
-                  originalException: error,
-                });
+                const result = yielded[1].guardrail_results.output[0];
+                expect(result.executionFailed).toBe(true);
+                expect(result.originalException).toBe(
+                  failureKind === 'result without exception' ? undefined : error
+                );
               }
             }
           });
         }
+      });
+    }
+  }
+
+  for (const strict of [true, false, undefined]) {
+    for (const tripwireTriggered of [false, true]) {
+      it(`preserves suppressed short-stream output with strict=${strict}, tripwire=${tripwireTriggered}`, async () => {
+        const check = vi.fn(() => ({ tripwireTriggered, info: {} }));
+        const client = new OutputTestClient(check, strict);
+        const chunk = { choices: [{ delta: { content: 'Hello' } }] };
+        async function* chunks() {
+          yield chunk;
+        }
+        const yielded: GuardrailsResponse[] = [];
+        for await (const response of StreamingMixin.streamWithGuardrailsSync(
+          client,
+          chunks(),
+          [],
+          [],
+          [],
+          true
+        )) {
+          yielded.push(response);
+        }
+        expect(check).toHaveBeenCalledTimes(strict ? 1 : 0);
+        expect(yielded).toHaveLength(1);
+        expect(yielded[0]).toMatchObject(chunk);
+        expect(yielded[0].guardrail_results.output).toEqual([]);
       });
     }
   }

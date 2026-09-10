@@ -73,7 +73,7 @@ export class StreamingMixin {
       yield response;
     }
 
-    if (!suppressTripwire && accumulatedText) {
+    if ((!suppressTripwire || this.raiseGuardrailErrors) && accumulatedText) {
       try {
         const history = mergeConversationWithItems(baseHistory, [
           { role: 'assistant', content: accumulatedText },
@@ -86,13 +86,15 @@ export class StreamingMixin {
           this.raiseGuardrailErrors
         );
 
-        const finalResponse = this.createGuardrailsResponse(
-          { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-          preflightResults,
-          inputResults,
-          finalOutputResults
-        );
-        yield finalResponse;
+        if (!suppressTripwire) {
+          const finalResponse = this.createGuardrailsResponse(
+            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
+            preflightResults,
+            inputResults,
+            finalOutputResults
+          );
+          yield finalResponse;
+        }
       } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const finalResponse = this.createGuardrailsResponse(

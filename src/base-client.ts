@@ -465,7 +465,7 @@ export abstract class GuardrailsBaseClient {
       if (raiseGuardrailErrors) {
         const executionFailures = results.filter((r) => r.executionFailed);
         if (executionFailures.length > 0) {
-          throw executionFailures[0].originalException;
+          throw executionFailures[0].originalException ?? new Error('Guardrail execution failed');
         }
       }
 
