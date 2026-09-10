@@ -67,7 +67,7 @@ The existing `v0.2.1` and earlier tags and GitHub Releases remain unchanged.
 Changesets continues the same `v<version>` naming for this single-package repo.
 Historical release notes remain in GitHub Releases; the generated changelog starts
 with the first Changesets release. The initial changesets cover the unreleased
-RequestOptions feature, five runtime fixes, and the breaking move to Node.js
+RequestOptions feature, six runtime fixes, and the breaking move to Node.js
 `^22.13.0 || >=24.0.0` since `v0.2.1`. The major changeset proposes version `1.0.0`; CI, tests,
 chores, documentation, and TypeScript cleanup are excluded from release notes.
 
