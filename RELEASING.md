@@ -16,11 +16,12 @@ for contributor instructions, first-release notes, and recovery procedures.
    publishing (OIDC), and creates the `v<version>` tag and GitHub Release.
 
 No manual tag push, release-please configuration, or GitHub App is required.
-Existing release tags and GitHub Releases remain unchanged. The package stays at
-`0.2.1` until the first Changesets version PR is merged; the pending notes propose
-`0.3.0`. Keep the package pre-1.0 until an explicit stable-release decision,
+Existing release tags and GitHub Releases remain unchanged. Version `0.3.0` is
+the first release managed by Changesets; see the [changelog](CHANGELOG.md) and
+[upgrade guide](docs/sdk_migration.md) for its changes. Keep the package pre-1.0
+until an explicit stable-release decision,
 using minor bumps for features and breaking changes and patches for compatible
-fixes. This release requires Node.js `^22.13.0 || >=24.0.0`, including removal of
+fixes. Version `0.3.0` requires Node.js `^22.13.0 || >=24.0.0`, including removal of
 Node.js 18 and 20 support.
 
 ## Publishing authority

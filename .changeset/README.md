@@ -92,11 +92,13 @@ version to recover GitHub metadata.
 
 The existing `v0.2.1` and earlier tags and GitHub Releases remain unchanged.
 Changesets continues the same `v<version>` naming for this single-package repo.
-Historical release notes remain in GitHub Releases; the generated changelog starts
-with the first Changesets release. The initial changesets cover the unreleased
-RequestOptions feature, twelve runtime fixes, and the breaking move to Node.js
-`^22.13.0 || >=24.0.0` since `v0.2.1`. The pending minor changesets propose version `0.3.0`; CI, tests,
-chores, documentation, and TypeScript cleanup are excluded from release notes.
+Historical release notes remain in GitHub Releases. The generated
+[changelog](../CHANGELOG.md) starts at `0.3.0`, the first release managed by
+Changesets. Its initial changesets are consumed into the changelog, which records
+the user-facing changes since `v0.2.1`. See the
+[upgrade guide](../docs/sdk_migration.md) for the breaking Node.js and SDK
+requirements. CI, tests, chores, documentation, and TypeScript cleanup are
+excluded from release notes.
 
 Pushing a tag no longer triggers npm publishing. Publishing and tag creation now
 happen together after merging the version PR, preventing a second tag-triggered
