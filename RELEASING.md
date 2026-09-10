@@ -36,6 +36,12 @@ Enable **Allow GitHub Actions to create and approve pull requests** in
 permissions can remain read-only; only the release job requests the writes it
 needs. Retain normal human reviews, required checks, and the merge queue.
 
+Configure the GitHub `publish` environment to allow only the exact `main` branch,
+with no required reviewers. SDK-team review of the release PR is the human
+approval gate.
+
 Keep the npm trusted publisher configured for owner `openai`, repository
-`openai-guardrails-js`, and workflow `publish.yml`, with no environment requirement.
-No npm token, App private key, or release environment is needed.
+`openai-guardrails-js`, workflow `publish.yml`, and environment `publish`.
+Follow the [environment rollout and recovery instructions](.changeset/README.md#publishing-trust-boundary)
+before tightening an existing publisher binding. No npm token or App private key
+is needed.
