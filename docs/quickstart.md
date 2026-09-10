@@ -1,5 +1,7 @@
 # Quickstart: TypeScript
 
+Upgrading an existing application? See the [SDK migration guide](/sdk_migration/).
+
 Get started with Guardrails TypeScript in minutes. Guardrails provides drop-in replacements for OpenAI clients that automatically validate inputs and outputs using configurable safety checks.
 
 ## Install

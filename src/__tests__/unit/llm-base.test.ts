@@ -1,5 +1,6 @@
 import type { OpenAI } from 'openai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import {
   buildAnalysisPayload,
   buildFullPrompt,
@@ -112,6 +113,28 @@ describe('LLM Base', () => {
   });
 
   describe('buildFullPrompt', () => {
+    it('describes Zod 4 fields without treating arrays or type discriminators as wrappers', () => {
+      const prompt = buildFullPrompt(
+        'Check the text',
+        z.object({
+          detected: z.boolean().optional(),
+          score: z.number().default(0),
+          explanation: z.string().nullable().readonly(),
+          labels: z.array(z.string()).optional(),
+          details: z.object({ label: z.string() }),
+          transformed: z.string().transform((text) => text.length),
+          preprocessed: z.preprocess((value) => value, z.number()),
+        })
+      );
+      expect(prompt).toContain('- "detected": boolean');
+      expect(prompt).toContain('- "score": float');
+      expect(prompt).toContain('- "explanation": string');
+      expect(prompt).toContain('- "labels": array');
+      expect(prompt).toContain('- "details": object');
+      expect(prompt).toContain('- "transformed": string');
+      expect(prompt).toContain('- "preprocessed": float');
+    });
+
     it.each([
       'Respond with a JSON object',
       'output json',

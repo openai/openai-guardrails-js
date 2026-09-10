@@ -216,7 +216,7 @@ describe('Spec Module', () => {
       const complexContext = z.object({
         user: z.string(),
         permissions: z.array(z.string()),
-        settings: z.record(z.unknown()),
+        settings: z.record(z.string(), z.unknown()),
       });
 
       const spec = new GuardrailSpec(

@@ -51,6 +51,10 @@ class MockOpenAI {
     openAiInstances.push(this);
   }
 
+  public withOptions = vi.fn(
+    (options: MockOpenAIOptions) => new MockOpenAI({ ...this.options, ...options })
+  );
+
   public apiKey?: string;
   public baseURL?: string;
   public organization?: string;

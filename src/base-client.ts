@@ -365,7 +365,13 @@ export abstract class GuardrailsBaseClient {
     openaiArgs: ConstructorParameters<typeof OpenAI>[0],
     clientClass: typeof OpenAI | typeof AzureOpenAI
   ): Promise<void> {
-    this._resourceClient = new clientClass(openaiArgs);
+    // The caller pairs options with its concrete client class. OpenAI 7 excludes
+    // provider routing options from Azure, so a union of constructors no longer
+    // accepts the broader OpenAI options type. Preserve the options unchanged;
+    // the selected SDK constructor performs its own provider validation.
+    this._resourceClient = new clientClass(
+      openaiArgs as ConstructorParameters<typeof AzureOpenAI>[0]
+    );
     await this.setupGuardrails(config);
     this.overrideResources();
   }

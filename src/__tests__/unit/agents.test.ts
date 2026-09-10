@@ -2,7 +2,7 @@
  * Unit tests for GuardrailAgent functionality.
  */
 
-import type { InputGuardrail, OutputGuardrail } from '@openai/agents-core';
+import type { InputGuardrail, OutputGuardrail } from '@openai/agents';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { GuardrailAgent } from '../../agents';

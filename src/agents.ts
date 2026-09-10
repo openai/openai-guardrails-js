@@ -12,7 +12,7 @@ import type {
   InputGuardrailFunctionArgs,
   OutputGuardrail,
   OutputGuardrailFunctionArgs,
-} from '@openai/agents-core';
+} from '@openai/agents';
 import {
   type ConfiguredGuardrail,
   type GuardrailBundle,
@@ -468,7 +468,7 @@ function ensureAgentRunnerPatch(): void {
   }
 
   try {
-    const agentsCore = require('@openai/agents-core');
+    const agentsCore = require('@openai/agents');
     const { Runner } = agentsCore ?? {};
 
     if (!Runner || typeof Runner.prototype?.run !== 'function') {
@@ -618,6 +618,7 @@ async function createInputGuardrailsFromStage(
 
   return guardrails.map((guardrail: ConfiguredGuardrail) => ({
     name: `${stageName}: ${guardrail.definition.name || 'Unknown Guardrail'}`,
+    ...(stageName === 'pre_flight' ? { runInParallel: false } : {}),
     execute: async (args: InputGuardrailFunctionArgs) => {
       const { input, context: agentContext } = args;
 
