@@ -43,7 +43,21 @@ Use `npm run changeset -- status` to preview pending releases. Do not manually b
    diagnostics (`gh workflow run ci.yml --ref changeset-release/main`).
 3. Merge the release PR. `publish.yml` builds, tests, and lints, then publishes the
    unpublished version to npm, creates a `v<version>` tag, and creates a GitHub
-   Release from the changelog. Merging the release PR is approval to publish.
+   Release from the changelog. The release PR selects the version and release
+   notes for the normal Changesets publishing process.
+
+### Publishing trust boundary
+
+Protected `main` is the publishing trust boundary. Code merged into `main` is
+trusted to use the release job's GitHub token and npm OIDC publishing authority,
+including during dependency installation, builds, and tests. These permissions
+are intentionally available on every main-branch release workflow run, including
+runs that prepare a version PR and manual reruns on `main`.
+
+The Changesets version PR controls the normal version/changelog release process;
+it is not a separate credential-approval gate. No release environment approval is
+required. Maintain branch protections, code-owner review, required checks, and the
+merge queue, and restrict access to any administrative bypasses.
 
 The workflow uses npm trusted publishing (OIDC) with Node 22 and npm 11. Keep the
 npm trusted publisher configured for `openai/openai-guardrails-js` and the workflow
@@ -67,7 +81,7 @@ The existing `v0.2.1` and earlier tags and GitHub Releases remain unchanged.
 Changesets continues the same `v<version>` naming for this single-package repo.
 Historical release notes remain in GitHub Releases; the generated changelog starts
 with the first Changesets release. The initial changesets cover the unreleased
-RequestOptions feature, six runtime fixes, and the breaking move to Node.js
+RequestOptions feature, eight runtime fixes, and the breaking move to Node.js
 `^22.13.0 || >=24.0.0` since `v0.2.1`. The major changeset proposes version `1.0.0`; CI, tests,
 chores, documentation, and TypeScript cleanup are excluded from release notes.
 

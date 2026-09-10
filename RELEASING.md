@@ -21,6 +21,14 @@ Existing release tags and GitHub Releases remain unchanged. The package stays at
 `1.0.0` because supported Node.js versions are now `^22.13.0 || >=24.0.0`,
 including removal of Node.js 18 and 20 support.
 
+## Publishing authority
+
+Protected `main` is the publishing trust boundary. Every main-branch release
+workflow run, including version-PR preparation, may use npm OIDC and the repository
+`GITHUB_TOKEN`. Merging a version PR controls the normal Changesets release
+process; it is not a separate credential-approval gate. Keep branch protections
+and reviews enforced, and restrict administrative bypass access.
+
 ## Repository setup
 
 Enable **Allow GitHub Actions to create and approve pull requests** in
