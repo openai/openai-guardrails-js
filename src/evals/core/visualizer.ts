@@ -28,16 +28,16 @@ export class BenchmarkVisualizer {
    * Create all visualizations for a benchmark run.
    *
    * @param resultsByModel - Dictionary mapping model names to their results
-   * @param metricsByModel - Dictionary mapping model names to their metrics
-   * @param latencyResults - Dictionary mapping model names to their latency data
+   * @param _metricsByModel - Dictionary mapping model names to their metrics
+   * @param _latencyResults - Dictionary mapping model names to their latency data
    * @param guardrailName - Name of the guardrail being evaluated
    * @param _expectedTriggers - Expected trigger values for each sample (reserved for future use)
    * @returns List of paths to saved visualization files
    */
   async createAllVisualizations(
     resultsByModel: Record<string, unknown[]>,
-    metricsByModel: Record<string, Record<string, number>>,
-    latencyResults: Record<string, Record<string, unknown>>,
+    _metricsByModel: Record<string, Record<string, number>>,
+    _latencyResults: Record<string, Record<string, unknown>>,
     guardrailName: string,
     _expectedTriggers: Record<string, boolean>
   ): Promise<string[]> {

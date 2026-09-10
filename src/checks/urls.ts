@@ -551,7 +551,7 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
 /**
  * Main URL filtering function.
  */
-export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (ctx, data, config) => {
+export const urls: CheckFn<UrlsContext, string, UrlsConfig> = async (_ctx, data, config) => {
   const actualConfig = UrlsConfig.parse(config || {});
 
   // Detect URLs in the text

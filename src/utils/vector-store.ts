@@ -94,7 +94,7 @@ class MemoryVectorStore implements VectorStore {
     }
   }
 
-  async search(query: string, limit: number = 10): Promise<SearchResult[]> {
+  async search(_query: string, limit: number = 10): Promise<SearchResult[]> {
     // Simple implementation - in a real scenario, you'd use proper similarity search
     const results: SearchResult[] = [];
 

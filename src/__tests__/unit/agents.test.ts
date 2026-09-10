@@ -259,7 +259,7 @@ describe('GuardrailAgent', () => {
     it('should accept callable instructions', async () => {
       const config = { version: 1 };
 
-      const dynamicInstructions = (ctx: unknown, agent: unknown) => {
+      const dynamicInstructions = (_ctx: unknown, agent: unknown) => {
         return `You are ${(agent as { name: string }).name}`;
       };
 

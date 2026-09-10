@@ -14,7 +14,7 @@ import { CheckFn, TextInput } from '../../types';
 import { z } from 'zod';
 
 // Mock check function for testing
-const mockCheck: CheckFn<object, TextInput, object> = (ctx, data) => ({
+const mockCheck: CheckFn<object, TextInput, object> = (_ctx, data) => ({
   tripwireTriggered: false,
   info: {
     sample_text: data,
