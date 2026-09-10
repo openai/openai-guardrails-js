@@ -155,32 +155,32 @@ export function createErrorResult(
  * @returns Formatted prompt string for LLM input.
  */
 function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
-  if ('unwrap' in schema && typeof schema.unwrap === 'function') {
-    return unwrapSchema(schema.unwrap());
+  // Unwrap value wrappers only: arrays also expose unwrap(), but remain arrays.
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault ||
+    schema instanceof z.ZodPrefault ||
+    schema instanceof z.ZodCatch ||
+    schema instanceof z.ZodReadonly ||
+    schema instanceof z.ZodNonOptional
+  ) {
+    const inner = schema.unwrap();
+    return inner instanceof z.ZodType ? unwrapSchema(inner) : schema;
   }
 
-  const def = (schema as { _def?: Record<string, unknown> })._def as
-    | {
-        innerType?: ZodTypeAny;
-        schema?: ZodTypeAny;
-        type?: ZodTypeAny;
-      }
-    | undefined;
-
-  if (!def) {
-    return schema;
-  }
-
-  if (def.innerType) {
-    return unwrapSchema(def.innerType);
-  }
-
-  if (def.schema) {
-    return unwrapSchema(def.schema as ZodTypeAny);
-  }
-
-  if (def.type) {
-    return unwrapSchema(def.type as ZodTypeAny);
+  // Zod 4 represents transforms/preprocessors as pipes. Describe the JSON
+  // input before a transform, or the target schema after a preprocessor.
+  if (schema instanceof z.ZodPipe) {
+    const inner =
+      schema.out instanceof z.ZodTransform
+        ? schema.in
+        : schema.in instanceof z.ZodTransform
+          ? schema.out
+          : undefined;
+    if (inner instanceof z.ZodType) {
+      return unwrapSchema(inner);
+    }
   }
 
   return schema;

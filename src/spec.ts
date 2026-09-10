@@ -60,7 +60,7 @@ export class GuardrailSpec<TContext = object, TIn = TextInput, TCfg = object> {
    * @returns JSON schema describing the config model fields.
    */
   schema(): Record<string, unknown> {
-    return this.configSchema._def as Record<string, unknown>;
+    return this.configSchema._def as unknown as Record<string, unknown>;
   }
 
   /**
