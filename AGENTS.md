@@ -156,3 +156,12 @@ files. Biome does not cover Markdown or YAML here; review those formats and
 links directly. Preserve existing checks, and report exactly which checks ran
 and any failures or unavailable coverage. Release-note requirements are defined
 above and in the [release guide](.changeset/README.md).
+
+
+## Repository skills
+
+Use these skills when their described task applies. The repository policies
+above remain authoritative; skills do not expand the user's scope or authorize
+external actions on their own.
+
+- [code-change-verification](.agents/skills/code-change-verification/SKILL.md): Verify changes with the current npm toolchain.
