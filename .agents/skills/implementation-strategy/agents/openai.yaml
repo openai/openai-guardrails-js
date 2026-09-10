@@ -1,0 +1,3 @@
+interface:
+  display_name: "Implementation Strategy"
+  short_description: "Choose scope around existing Guardrails boundaries"
