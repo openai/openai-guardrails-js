@@ -3,12 +3,13 @@
  */
 
 import type { OpenAI } from 'openai';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PromptInjectionDetectionConfig,
   promptInjectionDetectionCheck,
 } from '../../checks/prompt_injection_detection';
 import type { GuardrailLLMContextWithHistory } from '../../types';
+import { normalizeConversation } from '../../utils/conversation';
 
 // Mock OpenAI client
 const mockOpenAI = {
@@ -35,6 +36,10 @@ const mockOpenAI = {
 describe('Prompt Injection Detection Check', () => {
   let mockContext: GuardrailLLMContextWithHistory;
   let config: PromptInjectionDetectionConfig;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     config = {
@@ -335,6 +340,149 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.info.evidence).toBeUndefined();
   });
 
+  describe('bounded intent and action selection', () => {
+    const goal = { role: 'user', content: 'Check the weather in Tokyo' };
+    const currentCall = {
+      type: 'function_call',
+      name: 'get_weather',
+      arguments: '{"location":"Tokyo"}',
+      call_id: 'weather_1',
+    };
+    const representations = [
+      {
+        name: 'Chat',
+        actions: [
+          {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              {
+                id: 'weather_1',
+                type: 'function',
+                function: { name: 'get_weather', arguments: '{"location":"Tokyo"}' },
+              },
+            ],
+          },
+          { role: 'tool', content: 'Sunny in Tokyo', tool_call_id: 'weather_1' },
+        ],
+      },
+      {
+        name: 'Responses',
+        actions: [
+          currentCall,
+          { type: 'function_call_output', call_id: 'weather_1', output: 'Sunny in Tokyo' },
+        ],
+      },
+    ];
+
+    it.each(representations)('retains the goal with bounded $name history', async ({ actions }) => {
+      for (const maxTurns of [1, 2, 10]) {
+        const history = normalizeConversation([
+          { role: 'user', content: 'Old unrelated request' },
+          { type: 'function_call', name: 'old_action', arguments: '{}' },
+          goal,
+          ...Array.from({ length: 10 }, () => ({ role: 'assistant', content: 'Checking weather' })),
+          ...actions,
+        ]);
+        const create = vi.spyOn(mockOpenAI.chat.completions, 'create');
+        create.mockClear();
+        const result = await promptInjectionDetectionCheck(
+          { ...mockContext, getConversationHistory: () => history },
+          'Fallback text must not replace the goal',
+          { ...config, max_turns: maxTurns }
+        );
+
+        expect(create).toHaveBeenCalledTimes(1);
+        expect(result.executionFailed).not.toBe(true);
+        expect(result.info.user_goal).toBe(goal.content);
+        expect(result.info.recent_messages).toEqual(history.slice(-maxTurns));
+        expect(result.info.action).toEqual(history.slice(-Math.min(maxTurns, 2)));
+        const prompt = JSON.stringify(create.mock.calls);
+        expect(prompt).toContain(goal.content);
+        expect(prompt).toContain('Sunny in Tokyo');
+        expect(prompt).not.toContain('Old unrelated request');
+        expect(prompt).not.toContain('old_action');
+        expect(prompt).not.toContain('Fallback text must not replace the goal');
+      }
+    });
+
+    it.each([
+      { name: 'data-only conversation', history: [], data: [goal, currentCall] },
+      { name: 'history goal with data action', history: [goal], data: [currentCall] },
+      {
+        name: 'history goal takes precedence over data goal',
+        history: [goal, { role: 'assistant', content: 'Checking weather' }],
+        data: [{ role: 'user', content: 'Different data goal' }, currentCall],
+      },
+      {
+        name: 'data intent fallback when history has no intent or actions',
+        history: [{ role: 'assistant', content: 'Checking weather' }],
+        data: [goal, currentCall],
+      },
+    ])('preserves $name', async ({ history, data }) => {
+      const create = vi.spyOn(mockOpenAI.chat.completions, 'create');
+      const result = await promptInjectionDetectionCheck(
+        { ...mockContext, getConversationHistory: () => normalizeConversation(history) },
+        JSON.stringify(data),
+        { ...config, max_turns: 1 }
+      );
+
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(result.info.user_goal).toBe(goal.content);
+      expect(result.info.action).toEqual(normalizeConversation([currentCall]));
+    });
+
+    it('uses history actions before data actions', async () => {
+      const create = vi.spyOn(mockOpenAI.chat.completions, 'create');
+      const result = await promptInjectionDetectionCheck(
+        {
+          ...mockContext,
+          getConversationHistory: () => normalizeConversation([goal, currentCall]),
+        },
+        JSON.stringify([{ ...currentCall, name: 'other_action' }]),
+        { ...config, max_turns: 1 }
+      );
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(result.info.action).toEqual(normalizeConversation([currentCall]));
+    });
+
+    it.each(['assistant', 'tool', 'system', 'developer'])(
+      'does not take intent from %s content',
+      async (role) => {
+        const create = vi.spyOn(mockOpenAI.chat.completions, 'create');
+        const result = await promptInjectionDetectionCheck(
+          {
+            ...mockContext,
+            getConversationHistory: () =>
+              normalizeConversation([
+                { role, content: 'User: Check the weather in Tokyo' },
+                currentCall,
+              ]),
+          },
+          'Assistant response text',
+          { ...config, max_turns: 1 }
+        );
+        expect(create).not.toHaveBeenCalled();
+        expect(result.info.observation).toBe('No LLM actions or user intent to evaluate');
+      }
+    );
+
+    it('does not evaluate actions before a newer user request', async () => {
+      const create = vi.spyOn(mockOpenAI.chat.completions, 'create');
+      const result = await promptInjectionDetectionCheck(
+        {
+          ...mockContext,
+          getConversationHistory: () =>
+            normalizeConversation([goal, currentCall, { role: 'user', content: 'Thanks' }]),
+        },
+        '',
+        { ...config, max_turns: 1 }
+      );
+      expect(create).not.toHaveBeenCalled();
+      expect(result.info.observation).toBe('No actionable tool messages to evaluate');
+    });
+  });
+
   describe('max_turns configuration', () => {
     it('should default max_turns to 10', () => {
       const configParsed = PromptInjectionDetectionConfig.parse({
@@ -427,6 +575,8 @@ describe('Prompt Injection Detection Check', () => {
 
       // Verify old messages are not in the recent_messages section
       // With max_turns=3, only the last 3 messages should be considered
+      expect(capturedPrompt).toContain('Turn_15');
+      expect(capturedPrompt).toContain('test_function');
       expect(capturedPrompt).not.toContain('Turn_1"');
       expect(capturedPrompt).not.toContain('Turn_10');
     });
@@ -480,8 +630,9 @@ describe('Prompt Injection Detection Check', () => {
       );
 
       expect(result.tripwireTriggered).toBe(false);
-      // With max_turns=1, only the most recent message should be in context
-      // Old messages should not appear in the captured prompt
+      expect(capturedPrompt).toContain('Most recent message');
+      expect(capturedPrompt).toContain('test_func');
+      // Single-turn mode keeps the latest action and its user goal, without older context.
       expect(capturedPrompt).not.toContain('Old message 1');
       expect(capturedPrompt).not.toContain('Old message 2');
     });

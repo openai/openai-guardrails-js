@@ -374,11 +374,10 @@ function prepareConversationSlice(
   const limitedHistoryMessages = historyMessages.slice(-maxTurns);
   const limitedDatasetMessages = datasetMessages.slice(-maxTurns);
 
-  const sourceMessages =
-    limitedHistoryMessages.length > 0 ? limitedHistoryMessages : limitedDatasetMessages;
-  let userIntent = extractUserIntentFromMessages(sourceMessages);
+  const sourceMessages = historyMessages.length > 0 ? historyMessages : datasetMessages;
+  let userIntent = extractUserIntentFromMessages(sourceMessages, maxTurns);
 
-  let recentMessages = sliceMessagesAfterLatestUser(sourceMessages);
+  let recentMessages = sliceMessagesAfterLatestUser(sourceMessages.slice(-maxTurns));
   let actionableMessages = extractActionableMessages(recentMessages);
 
   if (
@@ -389,7 +388,7 @@ function prepareConversationSlice(
     recentMessages = sliceMessagesAfterLatestUser(limitedDatasetMessages);
     actionableMessages = extractActionableMessages(recentMessages);
     if (!userIntent.most_recent_message) {
-      userIntent = extractUserIntentFromMessages(limitedDatasetMessages);
+      userIntent = extractUserIntentFromMessages(datasetMessages, maxTurns);
     }
   }
 
@@ -424,13 +423,28 @@ function isUserMessageEntry(entry: NormalizedConversationEntry): boolean {
   return Boolean(entry && entry.role === 'user');
 }
 
-function extractUserIntentFromMessages(messages: NormalizedConversationEntry[]): UserIntentDict {
+function extractUserIntentFromMessages(
+  messages: NormalizedConversationEntry[],
+  maxTurns: number
+): UserIntentDict {
   const userMessages = messages
+    .slice(-maxTurns)
     .filter((message) => message.role === 'user' && typeof message.content === 'string')
     .map((message) => (message.content as string).trim())
     .filter((text) => text.length > 0);
 
   if (userMessages.length === 0) {
+    // Keep the latest user goal even when tool activity pushes it outside the
+    // window. Older context and the action window remain bounded by max_turns.
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (isUserMessageEntry(message) && typeof message.content === 'string') {
+        const content = message.content.trim();
+        if (content) {
+          return { most_recent_message: content, previous_context: [] };
+        }
+      }
+    }
     return { most_recent_message: '', previous_context: [] };
   }
 
