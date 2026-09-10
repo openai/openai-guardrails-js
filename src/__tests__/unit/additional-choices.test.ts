@@ -167,4 +167,43 @@ describe('Chat choice validation', () => {
     }
   });
 
+
+  it.each([false, true])('settles final checks concurrently in choice order (tripwire=%s)', async (tripwire) => {
+    const client = new ChoiceClient();
+    let finishFirst!: (results: GuardrailResult[]) => void;
+    let finishSecond!: (results: GuardrailResult[]) => void;
+    let rejectSecond!: (error: Error) => void;
+    let secondStarted!: () => void;
+    const started = new Promise<void>((resolve) => { secondStarted = resolve; });
+    const first = new Promise<GuardrailResult[]>((resolve) => { finishFirst = resolve; });
+    const second = new Promise<GuardrailResult[]>((resolve, reject) => { finishSecond = resolve; rejectSecond = reject; });
+    const check = vi.spyOn(client, 'runStageGuardrails')
+      .mockImplementationOnce(() => first)
+      .mockImplementationOnce(() => { secondStarted(); return second; });
+    const original = chunk([[1, 'second choice'], [0, 'first choice']]);
+    const iterator = StreamingMixin.streamWithGuardrailsSync(client, stream([original]), [], [], []);
+    await iterator.next();
+    const next = iterator.next();
+    const firstResult: GuardrailResult = { tripwireTriggered: false, info: { text: 'first' } };
+    const secondResult: GuardrailResult = { tripwireTriggered: tripwire, info: { text: 'second' } };
+    const error = new GuardrailTripwireTriggered(secondResult);
+    try {
+      await started;
+      expect(check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'second choice']);
+      if (tripwire) { rejectSecond(error); } else { finishSecond([secondResult]); }
+      finishFirst([firstResult]);
+      const final = (await next).value;
+      expect(final.guardrail_results.output).toEqual([firstResult, secondResult]);
+      if (tripwire) {
+        await expect(iterator.next()).rejects.toBe(error);
+      } else {
+        expect((await iterator.next()).done).toBe(true);
+      }
+    } finally {
+      finishFirst([]);
+      finishSecond([]);
+      await iterator.return(undefined);
+    }
+  });
+
 });

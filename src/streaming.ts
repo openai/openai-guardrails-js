@@ -84,39 +84,35 @@ export class StreamingMixin {
     if (choices.size > 0) {
       // Keep the existing final response shape; results cover every alternative.
       const accumulatedText = choices.get(0)?.text ?? '';
-      const finalOutputResults: GuardrailResult[] = [];
-      try {
-        for (const [, state] of [...choices.entries()].sort(([a], [b]) => a - b)) {
+      const settledChecks = await Promise.allSettled(
+        [...choices.entries()].sort(([a], [b]) => a - b).map(([, state]) => {
           const history = mergeConversationWithItems(baseHistory, [
             { role: 'assistant', content: state.text },
           ]);
-          finalOutputResults.push(...await this.runStageGuardrails(
-            'output',
-            state.text,
-            history,
-            suppressTripwire
-          ));
+          return this.runStageGuardrails('output', state.text, history, suppressTripwire);
+        })
+      );
+      const finalOutputResults: GuardrailResult[] = [];
+      for (const check of settledChecks) {
+        if (check.status === 'fulfilled') {
+          finalOutputResults.push(...check.value);
+        } else if (check.reason instanceof GuardrailTripwireTriggered) {
+          finalOutputResults.push(check.reason.guardrailResult);
         }
-
-        const finalResponse = this.createGuardrailsResponse(
-          { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-          preflightResults,
-          inputResults,
-          finalOutputResults
-        );
-        yield finalResponse;
-      } catch (error) {
-        if (error instanceof GuardrailTripwireTriggered) {
-          const finalResponse = this.createGuardrailsResponse(
-            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-            preflightResults,
-            inputResults,
-            [...finalOutputResults, error.guardrailResult]
-          );
-          yield finalResponse;
-          throw error;
-        }
-        throw error;
+      }
+      const failure = settledChecks.find((check) => check.status === 'rejected');
+      if (failure?.status === 'rejected' && !(failure.reason instanceof GuardrailTripwireTriggered)) {
+        throw failure.reason;
+      }
+      const finalResponse = this.createGuardrailsResponse(
+        { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
+        preflightResults,
+        inputResults,
+        finalOutputResults
+      );
+      yield finalResponse;
+      if (failure?.status === 'rejected') {
+        throw failure.reason;
       }
     }
   }
