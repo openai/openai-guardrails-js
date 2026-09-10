@@ -59,6 +59,9 @@ need none. Leave version and changelog generation to the release PR.
 
 ## Handoff
 
+Use [pr-draft-summary](../pr-draft-summary/SKILL.md) for the final description
+and authorized submission/follow-up.
+
 Inspect status, full diff statistics, and every task commit before staging or
 reporting. Stage only task-owned deliverables; keep local planning and review
 artifacts out of the PR. Preserve hooks and inspect the committed result.

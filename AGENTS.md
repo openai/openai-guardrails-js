@@ -168,3 +168,4 @@ external actions on their own.
 - [implementation-strategy](.agents/skills/implementation-strategy/SKILL.md): Choose scope around existing Guardrails boundaries.
 - [implementation-final-review](.agents/skills/implementation-final-review/SKILL.md): Review complete changes with independent reviewers.
 - [implementation-kickoff](.agents/skills/implementation-kickoff/SKILL.md): Start bounded implementation and PR takeover work.
+- [pr-draft-summary](.agents/skills/pr-draft-summary/SKILL.md): Draft PRs and follow current-head CI and reviews.
