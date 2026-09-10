@@ -7,7 +7,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StreamingMixin } from '../../streaming';
-import { GuardrailTripwireTriggered } from '../../exceptions';
 import { GuardrailsBaseClient, GuardrailResultsImpl, GuardrailsResponse } from '../../base-client';
 import { GuardrailResult } from '../../types';
 
@@ -104,14 +103,12 @@ describe('StreamingMixin', () => {
   });
 
   it('propagates tripwire errors during periodic checks but yields final response', async () => {
-    const tripwire = new GuardrailTripwireTriggered({
+    const result: GuardrailResult = {
       tripwireTriggered: true,
       info: { guardrail_name: 'Test' },
-    });
+    };
 
-    client.runStageGuardrails.mockImplementationOnce(async () => {
-      throw tripwire;
-    });
+    client.runStageGuardrails.mockResolvedValueOnce([result]);
 
     async function* mockStream() {
       yield makeChunk('tripwire');
@@ -132,7 +129,7 @@ describe('StreamingMixin', () => {
       for await (const value of iterator) {
         results.push(value);
       }
-    }).rejects.toBe(tripwire);
+    }).rejects.toMatchObject({ guardrailResult: result });
 
     expect(results).toHaveLength(1);
     expect(results[0].guardrail_results.output).toHaveLength(1);
@@ -216,7 +213,7 @@ describe('Responses streaming with the real text extractor', () => {
         'output',
         'Hello world',
         [...history, { role: 'assistant', content: 'Hello world' }],
-        false,
+        true,
         false
       );
       expect(responses).toHaveLength(events.length + 1);
@@ -255,7 +252,7 @@ describe('Responses streaming with the real text extractor', () => {
         'output',
         'Hello world',
         [{ role: 'assistant', content: 'Hello world' }],
-        suppressTripwire,
+        true,
         false
       );
     }
@@ -263,8 +260,8 @@ describe('Responses streaming with the real text extractor', () => {
 
   it.each([1, 100])('reports and throws an output tripwire at interval %s', async (interval) => {
     const client = new StreamingTestClient();
-    const tripwire = new GuardrailTripwireTriggered({ tripwireTriggered: true, info: {} });
-    const stage = vi.spyOn(client, 'runStageGuardrails').mockRejectedValue(tripwire);
+    const result: GuardrailResult = { tripwireTriggered: true, info: {} };
+    const stage = vi.spyOn(client, 'runStageGuardrails').mockResolvedValue([result]);
     const received: GuardrailsResponse[] = [];
     const iterator = new StreamingMixin().streamWithGuardrails.call(
       client,
@@ -276,15 +273,15 @@ describe('Responses streaming with the real text extractor', () => {
     );
     await expect(async () => {
       for await (const response of iterator) received.push(response);
-    }).rejects.toBe(tripwire);
+    }).rejects.toMatchObject({ guardrailResult: result });
     expect(stage).toHaveBeenCalledWith(
       'output',
       'ordinary fixture',
       [{ role: 'assistant', content: 'ordinary fixture' }],
-      false,
+      true,
       false
     );
-    expect(received.at(-1)?.guardrail_results.output).toEqual([tripwire.guardrailResult]);
+    expect(received.at(-1)?.guardrail_results.output).toEqual([result]);
   });
 
   it('preserves Chat delta extraction', async () => {
@@ -302,7 +299,7 @@ describe('Responses streaming with the real text extractor', () => {
       'output',
       'Hello world',
       [{ role: 'assistant', content: 'Hello world' }],
-      false,
+      true,
       false
     );
   });

@@ -17,6 +17,7 @@ import {
   aggregateTokenUsageFromInfos,
 } from './types';
 import { ContentUtils } from './utils/content';
+import { getGuardrailFailure } from './utils/guardrail-failure';
 import {
   GuardrailBundle,
   ConfiguredGuardrail,
@@ -462,20 +463,9 @@ export abstract class GuardrailsBaseClient {
         }
       }
 
-      if (raiseGuardrailErrors) {
-        const executionFailures = results.filter((r) => r.executionFailed);
-        if (executionFailures.length > 0) {
-          throw executionFailures[0].originalException ?? new Error('Guardrail execution failed');
-        }
-      }
-
-      if (!suppressTripwire) {
-        for (const result of results) {
-          if (result.tripwireTriggered) {
-            const { GuardrailTripwireTriggered } = await import('./exceptions');
-            throw new GuardrailTripwireTriggered(result);
-          }
-        }
+      const failure = getGuardrailFailure(results, suppressTripwire, raiseGuardrailErrors);
+      if (failure) {
+        throw failure.error;
       }
 
       return results;
