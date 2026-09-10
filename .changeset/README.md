@@ -59,8 +59,10 @@ version to recover GitHub metadata.
 The existing `v0.2.1` and earlier tags and GitHub Releases remain unchanged.
 Changesets continues the same `v<version>` naming for this single-package repo.
 Historical release notes remain in GitHub Releases; the generated changelog starts
-with the first Changesets release. The initial changeset records the unreleased
-RequestOptions support from PR #63 and proposes version `0.3.0`.
+with the first Changesets release. The initial changesets cover the unreleased
+RequestOptions feature, five runtime fixes, and the breaking move to Node.js 22
+or newer since `v0.2.1`. The major changeset proposes version `1.0.0`; CI, tests,
+chores, documentation, and TypeScript cleanup are excluded from release notes.
 
 Pushing a tag no longer triggers npm publishing. Publishing and tag creation now
 happen together after merging the version PR, preventing a second tag-triggered
