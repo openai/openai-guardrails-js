@@ -1,13 +1,37 @@
 # Migrating to Agents 0.17, OpenAI 7, and Zod 4
 
-Guardrails now depends on `@openai/agents ^0.17.2`, `openai ^7.9.0`, and
-`zod ^4.5.4`. Upgrade these together if your application also installs them:
+This guide covers upgrading `@openai/guardrails` from 0.2.1 to 0.3.0.
+The release introduces breaking dependency and runtime changes:
 
-```bash
-npm install @openai/guardrails @openai/agents@^0.17.2 openai@^7.9.0 zod@^4.5.4
-```
+| Dependency | In 0.2.1 | Required by 0.3.0 |
+| --- | --- | --- |
+| Node.js | `>=18.0.0` | `^22.13.0 \|\| >=24.0.0` |
+| `zod` | `^3.22.0` | `^4.5.4` |
+| `openai` | `^4.0.0` | `^7.9.0` |
+| `@openai/agents` | `^0.1.3` | `^0.17.2` |
 
-The existing Node.js requirement, `^22.13.0 || >=24.0.0`, is unchanged.
+## Quick upgrade
+
+1. Upgrade local, CI, and production Node.js runtimes to 22.13+ in the 22.x
+   series, or 24+. Node.js 18, 20, 22.0–22.12, and 23 are no longer supported.
+2. Once 0.3.0 is published, install it and update any of these SDKs your app
+   directly uses. For an app that uses all three:
+
+   ```bash
+   npm install @openai/guardrails@^0.3.0 @openai/agents@^0.17.2 openai@^7.9.0 zod@^4.5.4
+   ```
+
+   If your app only imports Guardrails, install `@openai/guardrails@^0.3.0`;
+   its SDK dependencies are installed transitively. Update any dependency
+   overrides or resolutions that force older versions, and commit the updated
+   manifest and lockfile.
+3. Migrate custom Zod schemas, shared OpenAI clients, and Agents tools using the
+   sections below. Do not pass Zod 3 schemas or older SDK clients into Guardrails.
+4. Run your application's TypeScript build and tests. Exercise custom schema
+   validation (including defaults and errors), custom fetch or proxy options,
+   and Agents runs with session history if your app uses them. Check installed
+   versions with `npm ls @openai/guardrails @openai/agents openai zod`.
+
 Guardrails pipeline JSON and the `GuardrailAgent.create`, `GuardrailsOpenAI.create`,
 and `GuardrailsAzureOpenAI.create` entry points remain unchanged.
 
