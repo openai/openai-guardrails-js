@@ -109,9 +109,10 @@ function detectUrls(text: string): string[] {
   const schemePattern = /(?<![a-z0-9+.-])[0-9+.-]*((?:[a-z][a-z0-9+.-]*:\/\/|data:|javascript:|vbscript:)[^\s<>"{}|\\^`[\]]+)/gi;
   const schemeRanges: { start: number; end: number }[] = [];
   for (const candidate of text.matchAll(schemePattern)) {
-    // Retain the full token's span so embedded domains and IPs are not
-    // reinterpreted as independent scheme-less URLs.
-    schemeRanges.push({ start: candidate.index, end: candidate.index + candidate[0].length });
+    // Exclude only the captured URL, leaving discarded prefixes available
+    // for independent domain/IP validation.
+    const end = candidate.index + candidate[0].length;
+    schemeRanges.push({ start: end - candidate[1].length, end });
     const match = candidate[1].replace(PUNCTUATION_CLEANUP, '');
     if (match) {
       detectedUrls.push(match);

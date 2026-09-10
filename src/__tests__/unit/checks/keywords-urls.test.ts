@@ -324,6 +324,21 @@ describe('urls guardrail', () => {
     }
   });
 
+  it.each(['-', '+', ' '])('validates an IP before a URL separated by %j', async (separator) => {
+    const candidate = 'https://example.com/docs';
+    const precedingIp = '192.0.2.1';
+    for (const allowIp of [false, true]) {
+      const result = await urls({}, `${precedingIp}${separator}${candidate}`, UrlsConfig.parse({
+        url_allow_list: allowIp ? ['example.com', precedingIp] : ['example.com'],
+      }));
+
+      expect(result.info?.detected).toEqual([candidate, precedingIp]);
+      expect(result.tripwireTriggered).toBe(!allowIp);
+      expect(result.info?.allowed).toEqual(allowIp ? [candidate, precedingIp] : [candidate]);
+      expect(result.info?.blocked).toEqual(allowIp ? [] : [precedingIp]);
+    }
+  });
+
   it.each(['example.com', '192.0.2.1'])(
     'allows configured custom schemes without extracting fragments from %s',
     async (host) => {
