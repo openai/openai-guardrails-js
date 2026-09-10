@@ -5,10 +5,14 @@
  * and final flush behaviour for streaming responses.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  GuardrailResultsImpl,
+  GuardrailsBaseClient,
+  type GuardrailsResponse,
+} from '../../base-client';
 import { StreamingMixin } from '../../streaming';
-import { GuardrailsBaseClient, GuardrailResultsImpl, GuardrailsResponse } from '../../base-client';
-import { GuardrailResult } from '../../types';
+import type { GuardrailResult } from '../../types';
 
 type MockClient = GuardrailsBaseClient & {
   extractResponseText: ReturnType<typeof vi.fn>;
@@ -19,7 +23,6 @@ type MockClient = GuardrailsBaseClient & {
 const makeChunk = (text: string) => ({
   choices: [{ delta: { content: text } }],
 });
-
 
 async function collectAsyncIterator<T>(iterator: AsyncIterableIterator<T>): Promise<T[]> {
   const results: T[] = [];
@@ -86,15 +89,7 @@ describe('StreamingMixin', () => {
       yield* chunks;
     }
 
-    const iterator = mixin.streamWithGuardrails.call(
-      client,
-      mockStream(),
-      [],
-      [],
-      [],
-      100,
-      false
-    );
+    const iterator = mixin.streamWithGuardrails.call(client, mockStream(), [], [], [], 100, false);
 
     const responses = await collectAsyncIterator(iterator);
     expect(responses).toHaveLength(2);
@@ -114,15 +109,7 @@ describe('StreamingMixin', () => {
       yield makeChunk('tripwire');
     }
 
-    const iterator = mixin.streamWithGuardrails.call(
-      client,
-      mockStream(),
-      [],
-      [],
-      [],
-      1,
-      false
-    );
+    const iterator = mixin.streamWithGuardrails.call(client, mockStream(), [], [], [], 1, false);
 
     const results: GuardrailsResponse[] = [];
     await expect(async () => {
@@ -142,13 +129,7 @@ describe('StreamingMixin', () => {
       yield makeChunk('sync');
     }
 
-    const iterator = StreamingMixin.streamWithGuardrailsSync(
-      client,
-      mockStream(),
-      [],
-      [],
-      []
-    );
+    const iterator = StreamingMixin.streamWithGuardrailsSync(client, mockStream(), [], [], []);
 
     const responses = await collectAsyncIterator(iterator);
     expect(responses).toHaveLength(2); // chunk + final flush

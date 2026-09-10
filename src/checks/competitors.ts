@@ -6,9 +6,9 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
-import { KeywordsConfig, keywordsCheck } from './keywords';
 import { defaultSpecRegistry } from '../registry';
+import type { CheckFn, GuardrailResult } from '../types';
+import { type KeywordsConfig, keywordsCheck } from './keywords';
 
 /**
  * Configuration schema for competitor detection.

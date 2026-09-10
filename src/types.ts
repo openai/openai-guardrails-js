@@ -6,8 +6,8 @@
  * - The `CheckFn` interface, a callable interface for all guardrail functions.
  */
 
-import { OpenAI } from 'openai';
-import { NormalizedConversationEntry } from './utils/conversation';
+import type { OpenAI } from 'openai';
+import type { NormalizedConversationEntry } from './utils/conversation';
 
 /**
  * Interface for context types providing an OpenAI client.
@@ -36,7 +36,7 @@ export type ConversationMessage = NormalizedConversationEntry;
 export interface GuardrailLLMContextWithHistory extends GuardrailLLMContext {
   /** Conversation history as a direct property for convenient access */
   conversationHistory: NormalizedConversationEntry[];
-  
+
   /** Get the full conversation history (method accessor for compatibility) */
   getConversationHistory(): NormalizedConversationEntry[];
 }
@@ -126,7 +126,6 @@ export type TextContentPart = ContentPart & {
   text: string;
 };
 
-
 /**
  * Type alias for text-only input to guardrails.
  *
@@ -194,14 +193,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isIterable(value: unknown): value is Iterable<unknown> {
-  return typeof value === 'object' && value !== null && typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function';
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function'
+  );
 }
 
 function readNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function pickNumber(record: UsageRecord | null | undefined, keys: (keyof UsageRecord)[]): number | null {
+function pickNumber(
+  record: UsageRecord | null | undefined,
+  keys: (keyof UsageRecord)[]
+): number | null {
   if (!record) {
     return null;
   }

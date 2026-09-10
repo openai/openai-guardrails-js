@@ -7,8 +7,8 @@
  *   - formatEntries: render entries as JSON or plain text.
  */
 
-import { OpenAI } from 'openai';
-import { TextOnlyMessage } from '../types';
+import type { OpenAI } from 'openai';
+import type { TextOnlyMessage } from '../types';
 
 /**
  * Parsed text entry with role metadata.
@@ -23,7 +23,7 @@ export interface Entry {
 /**
  * Type aliases for OpenAI response types.
  */
-export type TResponse = 
+export type TResponse =
   | OpenAI.Completions.Completion
   | OpenAI.Chat.Completions.ChatCompletion
   | OpenAI.Chat.Completions.ChatCompletionChunk
@@ -32,7 +32,6 @@ export type TResponse =
 export type TResponseInputItem = OpenAI.Chat.Completions.ChatCompletionMessageParam;
 export type TResponseOutputItem = OpenAI.Chat.Completions.ChatCompletionMessage;
 export type TResponseStreamEvent = OpenAI.Chat.Completions.ChatCompletionChunk;
-
 
 /**
  * Parse both input and output messages (type='message').
@@ -61,7 +60,6 @@ function parseMessage(item: TextOnlyMessage): Entry[] {
   return [{ role, content: parts.join('') }];
 }
 
-
 /**
  * Parse response items into Entry objects.
  *
@@ -85,7 +83,7 @@ export function parseResponseItems(
       if ('message' in choice && choice.message && choice.message.content) {
         const messageEntries = parseMessage({
           role: choice.message.role,
-          content: choice.message.content
+          content: choice.message.content,
         });
         entries.push(...messageEntries);
       }
@@ -145,14 +143,10 @@ export function formatEntriesAsText(entries: Entry[]): string {
  * @param options - Formatting options.
  * @returns Formatted string representation.
  */
-export function formatEntries(
-  entries: Entry[],
-  format: 'json' | 'text' = 'text'
-): string {
+export function formatEntries(entries: Entry[], format: 'json' | 'text' = 'text'): string {
   switch (format) {
     case 'json':
       return formatEntriesAsJson(entries);
-    case 'text':
     default:
       return formatEntriesAsText(entries);
   }

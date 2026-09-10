@@ -8,10 +8,10 @@
  * - Validation
  */
 
-import { describe, it, expect } from 'vitest';
-import { GuardrailSpec, GuardrailSpecMetadata } from '../../spec';
-import { CheckFn, TextInput } from '../../types';
+import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { GuardrailSpec, type GuardrailSpecMetadata } from '../../spec';
+import type { CheckFn, TextInput } from '../../types';
 
 // Mock check function for testing
 const mockCheck: CheckFn<object, TextInput, object> = (_ctx, data) => ({

@@ -5,7 +5,7 @@
  * guardrail configurations using the new GuardrailsClient design.
  */
 
-import { GuardrailsOpenAI, GuardrailsResponse } from '../../index.js';
+import { GuardrailsOpenAI, type GuardrailsResponse } from '../../index.js';
 
 class GuardrailTest {
   /** Represents a complete test case for a guardrail. */
@@ -358,11 +358,11 @@ async function runTest(
     const case_ = test.passing_cases[idx];
     try {
       // Use GuardrailsClient to run the test
-      const response = await guardrailsClient.chat.completions.create({
+      const response = (await guardrailsClient.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0])) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -399,7 +399,9 @@ async function runTest(
         expected: 'pass',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Passing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
+      console.log(
+        `⚠️ ${test.name} - Passing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
   }
 
@@ -408,11 +410,11 @@ async function runTest(
     const case_ = test.failing_cases[idx];
     try {
       // Use GuardrailsClient to run the test
-      const response = await guardrailsClient.chat.completions.create({
+      const response = (await guardrailsClient.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [{ role: 'user', content: case_ }],
         suppressTripwire: true,
-      } as Parameters<typeof guardrailsClient.chat.completions.create>[0]) as GuardrailsResponse;
+      } as Parameters<typeof guardrailsClient.chat.completions.create>[0])) as GuardrailsResponse;
 
       // Check if any guardrails were triggered
       const tripwireTriggered = response.guardrail_results.tripwiresTriggered;
@@ -449,16 +451,16 @@ async function runTest(
         expected: 'fail',
         details: String(e),
       });
-      console.log(`⚠️ ${test.name} - Failing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`);
+      console.log(
+        `⚠️ ${test.name} - Failing case ${idx + 1} error: ${e instanceof Error ? e.message : String(e)}`
+      );
     }
   }
 
   return results;
 }
 
-async function runTestSuite(
-  testFilter?: string
-): Promise<TestSuiteResults> {
+async function runTestSuite(testFilter?: string): Promise<TestSuiteResults> {
   /** Run all or a subset of guardrail tests and summarize results. */
   const results: TestSuiteResults = {
     tests: [],
@@ -539,7 +541,7 @@ async function runTestSuite(
 function printSummary(results: TestSuiteResults): void {
   /** Print a summary of test suite results. */
   const summary = results.summary;
-  console.log('\n' + '='.repeat(50));
+  console.log(`\n${'='.repeat(50)}`);
   console.log('GUARDRAILS TEST SUMMARY');
   console.log('='.repeat(50));
   console.log(
@@ -592,7 +594,7 @@ async function main(): Promise<void> {
   printSummary(results);
 
   if (args.output) {
-    const fs = await import('fs');
+    const fs = await import('node:fs');
     await fs.promises.writeFile(args.output, JSON.stringify(results, null, 2));
     console.log(`Results saved to ${args.output}`);
   }

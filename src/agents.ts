@@ -9,23 +9,23 @@
 import type { AsyncLocalStorage as AsyncLocalStorageType } from 'node:async_hooks';
 import type {
   InputGuardrail,
-  OutputGuardrail,
   InputGuardrailFunctionArgs,
+  OutputGuardrail,
   OutputGuardrailFunctionArgs,
 } from '@openai/agents-core';
-import { GuardrailLLMContext, GuardrailResult, TextOnlyContent } from './types';
+import {
+  type ConfiguredGuardrail,
+  type GuardrailBundle,
+  instantiateGuardrails,
+  loadPipelineBundles,
+  type PipelineConfig,
+} from './runtime';
+import type { GuardrailLLMContext, GuardrailResult, TextOnlyContent } from './types';
 import { TEXT_CONTENT_TYPES } from './utils/content';
 import {
-  loadPipelineBundles,
-  instantiateGuardrails,
-  PipelineConfig,
-  GuardrailBundle,
-  ConfiguredGuardrail,
-} from './runtime';
-import {
   mergeConversationWithItems,
+  type NormalizedConversationEntry,
   normalizeConversation,
-  NormalizedConversationEntry,
 } from './utils/conversation';
 
 interface AgentOutput {
@@ -192,7 +192,7 @@ async function ensureConversationIncludes(
 function createConversationContext(
   baseContext: GuardrailLLMContext,
   conversation: NormalizedConversationEntry[]
-): GuardrailLLMContext & { 
+): GuardrailLLMContext & {
   conversationHistory: NormalizedConversationEntry[];
   getConversationHistory: () => NormalizedConversationEntry[];
 } {
@@ -416,11 +416,7 @@ function extractTextFromAgentInput(input: unknown): string {
     }
   }
 
-  if (
-    typeof input === 'number' ||
-    typeof input === 'boolean' ||
-    typeof input === 'bigint'
-  ) {
+  if (typeof input === 'number' || typeof input === 'boolean' || typeof input === 'bigint') {
     return String(input);
   }
 

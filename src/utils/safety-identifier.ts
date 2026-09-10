@@ -8,7 +8,7 @@
  * be sent to Azure OpenAI or other OpenAI-compatible providers.
  */
 
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 
 /**
  * OpenAI safety identifier for tracking guardrails library usage.

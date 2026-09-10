@@ -6,8 +6,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import type { CheckFn, GuardrailResult } from '../types';
 
 /**
  * Configuration schema for the keywords guardrail.
@@ -104,7 +104,7 @@ export const keywordsCheck: CheckFn<KeywordsContext, string, KeywordsConfig> = (
   const pattern = new RegExp(patternText, 'giu'); // case-insensitive, global, unicode aware
 
   const matches: string[] = [];
-  let match;
+  let match: RegExpExecArray | null;
   const seen = new Set<string>();
 
   // Find all matches and collect unique ones (case-insensitive)

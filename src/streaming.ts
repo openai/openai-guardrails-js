@@ -5,10 +5,10 @@
  * with periodic guardrail checks.
  */
 
-import { GuardrailResult } from './types';
-import { GuardrailsResponse, GuardrailsBaseClient, OpenAIResponseType } from './base-client';
+import type { GuardrailsBaseClient, GuardrailsResponse, OpenAIResponseType } from './base-client';
+import type { GuardrailResult } from './types';
+import { mergeConversationWithItems, type NormalizedConversationEntry } from './utils/conversation';
 import { getGuardrailFailure } from './utils/guardrail-failure';
-import { mergeConversationWithItems, NormalizedConversationEntry } from './utils/conversation';
 
 /**
  * Mixin providing streaming functionality for guardrails clients.

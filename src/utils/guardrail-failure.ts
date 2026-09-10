@@ -1,8 +1,9 @@
 import { GuardrailTripwireTriggered } from '../exceptions';
-import { GuardrailResult } from '../types';
+import type { GuardrailResult } from '../types';
 
 type GuardrailFailure =
-  { kind: 'execution'; error: Error } | { kind: 'tripwire'; error: GuardrailTripwireTriggered };
+  | { kind: 'execution'; error: Error }
+  | { kind: 'tripwire'; error: GuardrailTripwireTriggered };
 
 /** Classify results before throwing so execution errors retain their provenance. */
 export function getGuardrailFailure(

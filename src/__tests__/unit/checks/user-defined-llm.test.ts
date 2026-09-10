@@ -2,8 +2,8 @@
  * Tests for the user-defined LLM guardrail.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GuardrailLLMContext } from '../../../types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GuardrailLLMContext } from '../../../types';
 
 const createLLMCheckFnMock = vi.fn(() => 'mocked-guardrail');
 const registerMock = vi.fn();

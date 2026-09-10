@@ -65,10 +65,26 @@ npm run test:watch
 npm run test:run -- src/__tests__/unit/runtime.test.ts
 ```
 
-The project uses ESLint and Prettier. To format a changed TypeScript file, run
-`npx prettier --write path/to/file.ts`. The `npm run format` command formats JavaScript,
-TypeScript, and JSON files throughout the repository; review the diff and avoid
-unrelated formatting changes.
+The project uses [Biome](https://biomejs.dev/) for JavaScript, TypeScript, and JSON.
+Run `npm run lint` to check lint rules, formatting, and import organization across
+source, tests, examples, and tooling. CI rejects errors and warnings. Use
+`npm run lint:fix` for safe automatic fixes, `npm run format` to format all included
+files, or `npx biome check --write path/to/file.ts` for a single file.
+`npm run format:check` checks formatting without writing files.
+
+The configuration enables Biome's recommended rules and explicitly rejects unused
+imports, variables and parameters, explicit `any`, and non-null assertions. It also
+requires `node:` imports and type-only imports. TypeScript's strict compiler checks
+remain enabled; Biome does not replace `npm run build`.
+
+Narrow exceptions preserve existing static class APIs and constructors with
+compatibility parameters, plus the regex `exec` assignment loops in the keyword and
+PII checks. Resource adapters retain documented, local exceptions for accessing
+protected SDK members without changing the public client API. Do not broaden these
+exceptions to bypass new violations.
+
+Generated output, dependencies, and the npm lockfile are excluded. Markdown and CSS
+are outside this formatter's scope, matching the previous formatting command.
 
 See [examples/README.md](examples/README.md) for example-specific setup. Examples that
 call external APIs may require credentials and incur usage charges. Keep credentials

@@ -5,18 +5,20 @@
  * and helper predicates for representing schema-capable types.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  OutputSchema,
-  createOutputSchema,
   canRepresentAsJsonSchemaObject,
+  createOutputSchema,
+  OutputSchema,
 } from '../../utils/output';
 
 describe('OutputSchema', () => {
   it('detects plain text outputs', () => {
     const schema = new OutputSchema(String);
     expect(schema.isPlainText()).toBe(true);
-    expect(() => schema.jsonSchema()).toThrow('Output type is plain text, so no JSON schema is available');
+    expect(() => schema.jsonSchema()).toThrow(
+      'Output type is plain text, so no JSON schema is available'
+    );
     expect(schema.validateJson('"hello"')).toBe('hello');
   });
 

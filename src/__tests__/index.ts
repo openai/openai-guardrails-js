@@ -6,5 +6,5 @@
  * - Integration tests: End-to-end pipeline testing
  */
 
-export * from './unit';
 export * from './integration';
+export * from './unit';

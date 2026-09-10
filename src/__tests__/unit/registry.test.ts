@@ -9,11 +9,11 @@
  * - Overwriting behavior
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { GuardrailRegistry } from '../../registry';
-import { GuardrailSpec, GuardrailSpecMetadata } from '../../spec';
-import { CheckFn } from '../../types';
+import { GuardrailSpec, type GuardrailSpecMetadata } from '../../spec';
+import type { CheckFn } from '../../types';
 
 // Mock interfaces for better type safety
 interface MockTestContext {
@@ -38,9 +38,11 @@ const TestContextSchema = z.object({
 // Removed unused schemas
 
 // Mock check function for testing
-const mockCheck: CheckFn<MockTestContext, string, MockTestConfig> = vi.fn().mockImplementation(() => ({
-  tripwireTriggered: false,
-}));
+const mockCheck: CheckFn<MockTestContext, string, MockTestConfig> = vi
+  .fn()
+  .mockImplementation(() => ({
+    tripwireTriggered: false,
+  }));
 
 describe('Registry Module', () => {
   let registry: GuardrailRegistry;
@@ -98,7 +100,6 @@ describe('Registry Module', () => {
     });
 
     it('should handle guardrail with config schema', () => {
-
       registry.register(
         'schema_guard',
         mockCheck,
@@ -112,7 +113,6 @@ describe('Registry Module', () => {
     });
 
     it('should handle guardrail with context requirements', () => {
-
       registry.register(
         'context_guard',
         mockCheck,
@@ -201,7 +201,10 @@ describe('Registry Module', () => {
       const result = await guardrail.run({ testProperty: 'test' }, 'Hello world');
 
       expect(result.tripwireTriggered).toBe(false);
-      expect(mockCheck).toHaveBeenCalledWith({ testProperty: 'test' }, 'Hello world', { threshold: 5, enabled: true });
+      expect(mockCheck).toHaveBeenCalledWith({ testProperty: 'test' }, 'Hello world', {
+        threshold: 5,
+        enabled: true,
+      });
     });
   });
 });

@@ -2,9 +2,9 @@
  * Guardrail tests for moderation and secret key detection.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { moderationCheck, Category, ModerationConfig } from '../../../checks/moderation';
-import { secretKeysCheck, SecretKeysConfig } from '../../../checks/secret-keys';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Category, ModerationConfig, moderationCheck } from '../../../checks/moderation';
+import { SecretKeysConfig, secretKeysCheck } from '../../../checks/secret-keys';
 
 const createMock = vi.fn();
 
@@ -126,7 +126,7 @@ describe('moderation guardrail', () => {
   it('falls back to default client for third-party providers', async () => {
     // Track whether fallback client was used
     let fallbackUsed = false;
-    
+
     // The default mock from vi.mock will be used for the fallback
     createMock.mockImplementation(async () => {
       fallbackUsed = true;
@@ -149,7 +149,10 @@ describe('moderation guardrail', () => {
     });
 
     const OpenAI = (await import('openai')).default;
-    const thirdPartyClient = new OpenAI({ apiKey: 'third-party-key', baseURL: 'https://localhost:8080/v1' });
+    const thirdPartyClient = new OpenAI({
+      apiKey: 'third-party-key',
+      baseURL: 'https://localhost:8080/v1',
+    });
     thirdPartyClient.moderations = {
       create: contextCreateMock,
     } as unknown as typeof thirdPartyClient.moderations;
@@ -221,11 +224,7 @@ describe('secret key guardrail', () => {
   it('detects and masks secret candidates', async () => {
     const text = 'Here is a token sk-1234567890 and some safe text.';
 
-    const result = await secretKeysCheck(
-      {},
-      text,
-      SecretKeysConfig.parse({ threshold: 'strict' })
-    );
+    const result = await secretKeysCheck({}, text, SecretKeysConfig.parse({ threshold: 'strict' }));
 
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info?.detected_secrets).toContain('sk-1234567890');

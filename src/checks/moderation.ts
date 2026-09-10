@@ -18,10 +18,10 @@
  * ```
  */
 
-import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
-import { defaultSpecRegistry } from '../registry';
 import OpenAI from 'openai';
+import { z } from 'zod';
+import { defaultSpecRegistry } from '../registry';
+import type { CheckFn, GuardrailResult } from '../types';
 import { SAFETY_IDENTIFIER, supportsSafetyIdentifier } from '../utils/safety-identifier';
 
 /**
@@ -115,14 +115,13 @@ function callModerationAPI(
     model: 'omni-moderation-latest',
     input: data,
   };
-  
+
   // Only include safety_identifier for official OpenAI API (not Azure or local providers)
   if (supportsSafetyIdentifier(client)) {
-    // @ts-ignore - safety_identifier is not defined in OpenAI types yet
     params.safety_identifier = SAFETY_IDENTIFIER;
   }
-  
-  // @ts-ignore - safety_identifier is not in the OpenAI types yet
+
+  // @ts-expect-error - safety_identifier is not in the OpenAI types yet
   return client.moderations.create(params);
 }
 
@@ -224,7 +223,8 @@ export const moderationCheck: CheckFn<ModerationContext, string, ModerationConfi
 
     for (const cat of categories) {
       const catValue = cat;
-      const isFlagged = (moderationCategories as unknown as Record<string, boolean>)[catValue] || false;
+      const isFlagged =
+        (moderationCategories as unknown as Record<string, boolean>)[catValue] || false;
       if (isFlagged) {
         flaggedCategories.push(catValue);
       }

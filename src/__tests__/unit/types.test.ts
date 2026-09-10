@@ -8,15 +8,15 @@
  * - Type compatibility
  */
 
-import { describe, it, expect } from 'vitest';
+import type { OpenAI } from 'openai';
+import { describe, expect, it } from 'vitest';
 import {
-  GuardrailResult,
-  GuardrailLLMContext,
   aggregateTokenUsageFromInfos,
   extractTokenUsage,
+  type GuardrailLLMContext,
+  type GuardrailResult,
   totalGuardrailTokenUsage,
 } from '../../types';
-import { OpenAI } from 'openai';
 
 describe('Types Module', () => {
   describe('GuardrailResult', () => {
@@ -73,7 +73,10 @@ describe('Types Module', () => {
     });
 
     it('should work with async function', async () => {
-      const asyncCheck = async (_ctx: Record<string, unknown>, data: string): Promise<GuardrailResult> => ({
+      const asyncCheck = async (
+        _ctx: Record<string, unknown>,
+        data: string
+      ): Promise<GuardrailResult> => ({
         tripwireTriggered: data === 'trigger',
         info: {
           guardrail_name: 'Async',
@@ -103,7 +106,9 @@ describe('Types Module', () => {
       };
 
       expect(context.guardrailLlm).toBeDefined();
-      expect((context.guardrailLlm as unknown as { someMethod: () => string }).someMethod()).toBe('test');
+      expect((context.guardrailLlm as unknown as { someMethod: () => string }).someMethod()).toBe(
+        'test'
+      );
     });
   });
 

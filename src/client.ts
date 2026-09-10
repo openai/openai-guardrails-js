@@ -6,17 +6,14 @@
  * applying guardrails to text-based methods that could benefit from validation.
  */
 
-import { OpenAI, AzureOpenAI } from 'openai';
-import { GuardrailLLMContext } from './types';
-import {
-  GuardrailsBaseClient,
-  PipelineConfig,
-} from './base-client';
-import type { Responses as GuardrailsResponses } from './resources/responses';
+import { AzureOpenAI, OpenAI } from 'openai';
+import { GuardrailsBaseClient, type PipelineConfig } from './base-client';
 import type { Chat as GuardrailsChat } from './resources/chat';
+import type { Responses as GuardrailsResponses } from './resources/responses';
+import type { GuardrailLLMContext } from './types';
 
 // Re-export for backward compatibility
-export { GuardrailsResponse, GuardrailResults } from './base-client';
+export { GuardrailResults, GuardrailsResponse } from './base-client';
 
 /**
  * OpenAI subclass with automatic guardrail integration.

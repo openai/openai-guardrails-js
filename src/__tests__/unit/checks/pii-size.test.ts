@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { pii, PIIConfig, PIIEntity } from '../../../checks/pii';
+import { PIIConfig, PIIEntity, pii } from '../../../checks/pii';
 
 const fixtures = [
   { encoding: 'base64', text: 'aGVsbG8gd29ybGQh' },
@@ -21,9 +21,15 @@ afterEach(() => vi.restoreAllMocks());
 describe.each(fixtures)('$encoding analysis size limit', ({ encoding, text }) => {
   it.each([false, true])('retains plaintext findings and blocks with block=%s', async (block) => {
     mockDecodedSize(encoding, 10_001);
-    const result = await pii({}, `john@example.com ${text}`, PIIConfig.parse({
-      entities: [PIIEntity.EMAIL_ADDRESS], block, detect_encoded_pii: true,
-    }));
+    const result = await pii(
+      {},
+      `john@example.com ${text}`,
+      PIIConfig.parse({
+        entities: [PIIEntity.EMAIL_ADDRESS],
+        block,
+        detect_encoded_pii: true,
+      })
+    );
     expect(result.tripwireTriggered).toBe(true);
     expect(result.executionFailed).not.toBe(true);
     expect(result.info).toMatchObject({
@@ -38,25 +44,43 @@ describe.each(fixtures)('$encoding analysis size limit', ({ encoding, text }) =>
 
   it('blocks incomplete analysis even without plaintext PII', async () => {
     mockDecodedSize(encoding, 10_001);
-    const result = await pii({}, text, PIIConfig.parse({
-      entities: [PIIEntity.EMAIL_ADDRESS], detect_encoded_pii: true,
-    }));
+    const result = await pii(
+      {},
+      text,
+      PIIConfig.parse({
+        entities: [PIIEntity.EMAIL_ADDRESS],
+        detect_encoded_pii: true,
+      })
+    );
     expect(result.tripwireTriggered).toBe(true);
-    expect(result.info).toMatchObject({ detected_entities: {}, pii_detected: false, encoded_analysis_incomplete: true });
+    expect(result.info).toMatchObject({
+      detected_entities: {},
+      pii_detected: false,
+      encoded_analysis_incomplete: true,
+    });
   });
 
   it('accepts analysis at the size limit', async () => {
     mockDecodedSize(encoding, 10_000);
-    const result = await pii({}, `john@example.com ${text}`, PIIConfig.parse({
-      entities: [PIIEntity.EMAIL_ADDRESS], detect_encoded_pii: true,
-    }));
+    const result = await pii(
+      {},
+      `john@example.com ${text}`,
+      PIIConfig.parse({
+        entities: [PIIEntity.EMAIL_ADDRESS],
+        detect_encoded_pii: true,
+      })
+    );
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.checked_text).toBe(`<EMAIL_ADDRESS> ${text}`);
     expect(result.info).not.toHaveProperty('encoded_analysis_incomplete');
   });
 
   it('preserves default disabled encoded detection and plaintext masking', async () => {
-    const result = await pii({}, `john@example.com ${text}`, PIIConfig.parse({ entities: [PIIEntity.EMAIL_ADDRESS] }));
+    const result = await pii(
+      {},
+      `john@example.com ${text}`,
+      PIIConfig.parse({ entities: [PIIEntity.EMAIL_ADDRESS] })
+    );
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info?.checked_text).toBe(`<EMAIL_ADDRESS> ${text}`);
     expect(result.info).not.toHaveProperty('encoded_analysis_incomplete');

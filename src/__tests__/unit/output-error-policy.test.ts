@@ -1,22 +1,25 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import assert from 'node:assert/strict';
 import { OpenAI } from 'openai';
-import { GuardrailsBaseClient, GuardrailsResponse } from '../../base-client';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GuardrailsBaseClient, type GuardrailsResponse } from '../../base-client';
+import { GuardrailTripwireTriggered } from '../../exceptions';
 import { GuardrailRegistry } from '../../registry';
-import { GuardrailLLMContext, GuardrailResult } from '../../types';
 import { Chat } from '../../resources/chat';
 import { Responses } from '../../resources/responses';
 import { StreamingMixin } from '../../streaming';
-import { GuardrailTripwireTriggered } from '../../exceptions';
+import type { GuardrailLLMContext, GuardrailResult } from '../../types';
 
 class OutputTestClient extends GuardrailsBaseClient {
   constructor(check: () => GuardrailResult, strict: boolean | undefined) {
     super();
     const registry = new GuardrailRegistry();
     registry.register('Output fixture', vi.fn(check), 'Inert output check');
+    const spec = registry.get('Output fixture');
+    assert(spec);
     this.guardrails = {
       pre_flight: [],
       input: [],
-      output: [registry.get('Output fixture')!.instantiate({})],
+      output: [spec.instantiate({})],
     };
     this._resourceClient = new OpenAI({ apiKey: 'test-key' });
     this.context = this.createDefaultContext();

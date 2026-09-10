@@ -2,11 +2,11 @@
  * Unit tests for GuardrailAgent functionality.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { InputGuardrail, OutputGuardrail } from '@openai/agents-core';
-import { GuardrailAgent } from '../../agents';
-import { TextInput } from '../../types';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { GuardrailAgent } from '../../agents';
+import type { TextInput } from '../../types';
 
 // Define the expected agent interface for testing
 interface MockAgent {
@@ -31,7 +31,7 @@ interface MockAgent {
 
 // Mock the @openai/agents module
 vi.mock('@openai/agents', () => ({
-  Agent: vi.fn().mockImplementation(function (config) {
+  Agent: vi.fn().mockImplementation(function MockAgent(config) {
     return {
       name: config.name,
       instructions: config.instructions,
@@ -445,7 +445,7 @@ describe('GuardrailAgent', () => {
 
       const history = ctxArg.getConversationHistory?.() as Array<{ content?: unknown }> | undefined;
       expect(Array.isArray(history)).toBe(true);
-      expect(history && history[history.length - 1]?.content).toBe(
+      expect(history?.[history.length - 1]?.content).toBe(
         'Latest user message with additional context.'
       );
 

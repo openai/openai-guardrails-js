@@ -2,14 +2,14 @@
  * Tests for response parsing utilities.
  */
 
-import { describe, it, expect, vi, afterEach, afterAll } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  parseResponseItems,
-  parseResponseItemsAsJson,
+  type Entry,
+  formatEntries,
   formatEntriesAsJson,
   formatEntriesAsText,
-  formatEntries,
-  Entry,
+  parseResponseItems,
+  parseResponseItemsAsJson,
 } from '../../../utils/parsing';
 
 describe('parsing utilities', () => {

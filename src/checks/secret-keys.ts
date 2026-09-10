@@ -7,8 +7,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailResult } from '../types';
 import { defaultSpecRegistry } from '../registry';
+import type { CheckFn, GuardrailResult } from '../types';
 
 /**
  * Configuration for secret key and credential detection.
@@ -207,10 +207,7 @@ function isSecretCandidate(
         if (regex.test(s)) {
           return true;
         }
-      } catch {
-        // Invalid regex pattern, skip
-        continue;
-      }
+      } catch {}
     }
   }
 

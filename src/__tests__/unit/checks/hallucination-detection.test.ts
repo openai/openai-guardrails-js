@@ -2,13 +2,13 @@
  * Unit tests for the hallucination detection guardrail.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { OpenAI } from 'openai';
+import type { OpenAI } from 'openai';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  type HallucinationDetectionConfig,
   hallucination_detection,
-  HallucinationDetectionConfig,
 } from '../../../checks/hallucination-detection';
-import { GuardrailLLMContext } from '../../../types';
+import type { GuardrailLLMContext } from '../../../types';
 
 /**
  * Mock OpenAI responses API for testing.
@@ -268,4 +268,3 @@ describe('Hallucination Detection', () => {
     });
   });
 });
-

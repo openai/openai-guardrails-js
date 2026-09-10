@@ -2,7 +2,7 @@
  * Tests for OpenAI vector store creation utilities.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fsMock = {
   access: vi.fn(),
@@ -47,7 +47,10 @@ vi.mock('openai', () => ({
 }));
 
 describe('createOpenAIVectorStoreFromPath', () => {
-  let createOpenAIVectorStoreFromPath: (path: string, config: { apiKey: string }) => Promise<string>;
+  let createOpenAIVectorStoreFromPath: (
+    path: string,
+    config: { apiKey: string }
+  ) => Promise<string>;
 
   beforeEach(async () => {
     openAiState.failUploads = false;
@@ -59,7 +62,11 @@ describe('createOpenAIVectorStoreFromPath', () => {
     global.File =
       global.File ||
       (class PolyfillFile {
-        constructor(public blobs: unknown[], public name: string, public options: Record<string, unknown>) {}
+        constructor(
+          public blobs: unknown[],
+          public name: string,
+          public options: Record<string, unknown>
+        ) {}
       } as unknown as typeof File);
 
     vi.resetModules();
@@ -104,9 +111,9 @@ describe('createOpenAIVectorStoreFromPath', () => {
     });
     fsMock.readdir.mockResolvedValue([]);
 
-    await expect(
-      createOpenAIVectorStoreFromPath('/tmp/docs', { apiKey: 'key' })
-    ).rejects.toThrow('No supported files found in /tmp/docs');
+    await expect(createOpenAIVectorStoreFromPath('/tmp/docs', { apiKey: 'key' })).rejects.toThrow(
+      'No supported files found in /tmp/docs'
+    );
   });
 
   it('throws when uploads fail and no files were uploaded', async () => {
@@ -124,8 +131,8 @@ describe('createOpenAIVectorStoreFromPath', () => {
     ]);
     fsMock.readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
 
-    await expect(
-      createOpenAIVectorStoreFromPath('/tmp/docs', { apiKey: 'key' })
-    ).rejects.toThrow('No files were successfully uploaded');
+    await expect(createOpenAIVectorStoreFromPath('/tmp/docs', { apiKey: 'key' })).rejects.toThrow(
+      'No files were successfully uploaded'
+    );
   });
 });

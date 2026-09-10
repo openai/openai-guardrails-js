@@ -5,7 +5,7 @@
  * It ensures that all samples conform to the expected schema before use in evaluation.
  */
 
-import { DatasetLoader, Sample, RawSample } from './types';
+import type { DatasetLoader, RawSample, Sample } from './types';
 import { validateDataset } from './validate-dataset';
 
 /**
@@ -42,7 +42,7 @@ export class JsonlDatasetLoader implements DatasetLoader {
    * @throws {Error} If any line in the file is not valid JSON
    */
   async load(path: string): Promise<Sample[]> {
-    const fs = await import('fs/promises');
+    const fs = await import('node:fs/promises');
 
     if (!(await fs.stat(path).catch(() => false))) {
       throw new Error(`Dataset file not found: ${path}`);

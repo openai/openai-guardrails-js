@@ -4,7 +4,7 @@
  * This module provides custom error classes for guardrail-related errors.
  */
 
-import { GuardrailResult } from './types';
+import type { GuardrailResult } from './types';
 
 /**
  * Base class for all guardrail-related errors.

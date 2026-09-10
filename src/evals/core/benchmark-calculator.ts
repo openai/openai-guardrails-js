@@ -5,7 +5,7 @@
  * across different models.
  */
 
-import { SampleResult } from './types';
+import type { SampleResult } from './types';
 
 /**
  * Calculates advanced benchmarking metrics for guardrail evaluation.
@@ -152,7 +152,7 @@ export class BenchmarkMetricsCalculator {
       const fpr = fp / totalNegatives;
 
       // Trapezoidal rule
-      auc += (fpr - prevFpr) * (tpr + prevTpr) / 2;
+      auc += ((fpr - prevFpr) * (tpr + prevTpr)) / 2;
 
       prevTpr = tpr;
       prevFpr = fpr;
@@ -161,7 +161,10 @@ export class BenchmarkMetricsCalculator {
     return auc;
   }
 
-  private precisionRecallCurve(yTrue: number[], yScores: number[]): {
+  private precisionRecallCurve(
+    yTrue: number[],
+    yScores: number[]
+  ): {
     precision: number[];
     recall: number[];
   } {
@@ -259,16 +262,16 @@ export class BenchmarkMetricsCalculator {
    * @param results - List of evaluation results
    * @returns Dictionary mapping guardrail names to their advanced metrics
    */
-  calculateAllGuardrailMetrics(
-    results: SampleResult[]
-  ): Record<string, Record<string, number>> {
+  calculateAllGuardrailMetrics(results: SampleResult[]): Record<string, Record<string, number>> {
     if (results.length === 0) {
       return {};
     }
 
     const guardrailNames = new Set<string>();
     for (const result of results) {
-      Object.keys(result.expectedTriggers).forEach((name) => guardrailNames.add(name));
+      Object.keys(result.expectedTriggers).forEach((name) => {
+        guardrailNames.add(name);
+      });
     }
 
     const metrics: Record<string, Record<string, number>> = {};
@@ -292,4 +295,3 @@ export class BenchmarkMetricsCalculator {
     return metrics;
   }
 }
-

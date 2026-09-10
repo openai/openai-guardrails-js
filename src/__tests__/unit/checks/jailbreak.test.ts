@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OpenAI } from 'openai';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const registerMock = vi.fn();
 
@@ -205,4 +205,3 @@ describe('jailbreak guardrail', () => {
     });
   });
 });
-

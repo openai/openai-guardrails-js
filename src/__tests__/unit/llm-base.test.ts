@@ -1,16 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildAnalysisPayload,
+  buildFullPrompt,
+  createLLMCheckFn,
+  DEFAULT_MAX_TURNS,
+  extractConversationHistory,
   LLMConfig,
   LLMOutput,
   LLMReasoningOutput,
-  createLLMCheckFn,
-  extractConversationHistory,
-  buildAnalysisPayload,
-  buildFullPrompt,
-  DEFAULT_MAX_TURNS,
 } from '../../checks/llm-base';
 import { defaultSpecRegistry } from '../../registry';
-import { GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../../types';
+import type { GuardrailLLMContext, GuardrailLLMContextWithHistory } from '../../types';
 
 // Mock the registry
 vi.mock('../../registry', () => ({
@@ -749,7 +749,7 @@ describe('LLM Base', () => {
       expect(createMock).toHaveBeenCalledTimes(1);
       const callArgs = createMock.mock.calls[0][0];
       const userMessage = callArgs.messages.find((m: { role: string }) => m.role === 'user');
-      
+
       // Should only include the last 3 messages (Turn_8, Turn_9, Turn_10)
       expect(userMessage.content).not.toContain('Turn_1"');
       expect(userMessage.content).not.toContain('Turn_7');
@@ -758,11 +758,7 @@ describe('LLM Base', () => {
     });
 
     it('should register with usesConversationHistory metadata', () => {
-      createLLMCheckFn(
-        'Metadata Test Guardrail',
-        'Test description',
-        'Test system prompt'
-      );
+      createLLMCheckFn('Metadata Test Guardrail', 'Test description', 'Test system prompt');
 
       expect(defaultSpecRegistry.register).toHaveBeenCalledWith(
         'Metadata Test Guardrail',

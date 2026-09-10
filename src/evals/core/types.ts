@@ -6,7 +6,7 @@
  * evaluation engines, metrics calculation, and reporting.
  */
 
-import { OpenAI } from 'openai';
+import type { OpenAI } from 'openai';
 
 /**
  * A single evaluation sample.

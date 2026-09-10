@@ -8,8 +8,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, TextInput } from './types';
-import { GuardrailSpec, GuardrailSpecMetadata } from './spec';
+import { GuardrailSpec, type GuardrailSpecMetadata } from './spec';
+import type { CheckFn, TextInput } from './types';
 
 /**
  * Sentinel config schema for guardrails with no configuration options.

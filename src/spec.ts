@@ -7,9 +7,9 @@
  * and instantiation logic for producing executable guardrail instances.
  */
 
-import { z } from 'zod';
-import { CheckFn, TextInput } from './types';
+import type { z } from 'zod';
 import { ConfiguredGuardrail } from './runtime';
+import type { CheckFn, TextInput } from './types';
 
 /**
  * Structured metadata for a guardrail specification.

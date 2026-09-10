@@ -25,13 +25,15 @@
  * - Set OPENAI_API_KEY environment variable
  */
 
-import * as readline from 'readline';
+import * as readline from 'node:readline';
+import type OpenAI from 'openai';
 import {
   GuardrailsOpenAI,
+  type GuardrailsResponse,
   GuardrailTripwireTriggered,
-  GuardrailsResponse,
   totalGuardrailTokenUsage,
 } from '../../src';
+import type { Message } from '../../src/types';
 
 // Tool implementations (mocked)
 function get_horoscope(sign: string): { horoscope: string } {
@@ -118,7 +120,7 @@ const tools = [
   },
 ];
 
-const AVAILABLE_FUNCTIONS: Record<string, Function> = {
+const AVAILABLE_FUNCTIONS: Record<string, (...args: string[]) => object> = {
   get_horoscope,
   get_weather,
   get_flights,
@@ -198,7 +200,10 @@ function printGuardrailResults(label: string, response: GuardrailsResponse): voi
 /**
  * Print a single guardrail result.
  */
-function printGuardrailResult(result: any): void {
+function printGuardrailResult(result: {
+  info?: Record<string, unknown>;
+  tripwire_triggered?: boolean;
+}): void {
   const info = result.info || {};
   const status = result.tripwire_triggered ? '🚨 TRIGGERED' : '✅ PASSED';
   const name = info.guardrail_name || 'Unknown';
@@ -245,7 +250,7 @@ async function main(malicious: boolean = false): Promise<void> {
   if (malicious) {
     header += '  [TEST MODE: malicious injection enabled]';
   }
-  console.log('\n' + header);
+  console.log(`\n${header}`);
   console.log("Type 'exit' to quit. Available tools: get_horoscope, get_weather, get_flights");
   console.log(
     '🔍 Prompt injection detection guardrails will analyze each interaction to ensure actions serve your goals\n'
@@ -254,7 +259,7 @@ async function main(malicious: boolean = false): Promise<void> {
   // Conversation as Responses API messages list
   // The prompt injection detection guardrail will parse this conversation history directly
   // to extract user intent and LLM actions for analysis
-  const messages: any[] = [];
+  const messages: OpenAI.Responses.ResponseInputItem[] = [];
 
   const rl = createReadlineInterface();
 
@@ -268,7 +273,6 @@ async function main(malicious: boolean = false): Promise<void> {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       const userInput = await new Promise<string>((resolve) => {
@@ -283,7 +287,7 @@ async function main(malicious: boolean = false): Promise<void> {
         continue;
       }
 
-      const userMessage = {
+      const userMessage: OpenAI.Responses.ResponseInputItem = {
         role: 'user',
         content: [{ type: 'input_text', text: userInput }],
       };
@@ -292,14 +296,15 @@ async function main(malicious: boolean = false): Promise<void> {
       console.log(`🔄 Making initial API call...`);
 
       let response: GuardrailsResponse;
-      let functionCalls: any[] = [];
-      let assistantOutputs: any[] = [];
+      let functionCalls: OpenAI.Responses.ResponseFunctionToolCall[] = [];
+      let assistantOutputs: OpenAI.Responses.ResponseOutputItem[] = [];
 
       try {
         response = await client.guardrails.responses.create({
           model: 'gpt-4.1-mini',
           tools: tools,
-          input: messages.concat(userMessage),
+          // The adapter accepts Responses API items at runtime, but exposes the narrower Message type.
+          input: messages.concat(userMessage) as unknown as Message[],
         });
 
         printGuardrailResults('initial', response);
@@ -319,7 +324,7 @@ async function main(malicious: boolean = false): Promise<void> {
         messages.push(userMessage);
 
         // Grab any function calls from the response
-        functionCalls = assistantOutputs.filter((item: any) => item.type === 'function_call');
+        functionCalls = assistantOutputs.filter((item) => item.type === 'function_call');
 
         // Handle the case where there are no function calls
         if (functionCalls.length === 0) {
@@ -327,7 +332,7 @@ async function main(malicious: boolean = false): Promise<void> {
           console.log(`\n🤖 Assistant: ${response.output_text}`);
           continue;
         }
-      } catch (error: any) {
+      } catch (error) {
         if (error instanceof GuardrailTripwireTriggered) {
           const info = error.guardrailResult?.info || {};
           console.log('\n🚨 Guardrail Tripwire (initial call)');
@@ -349,11 +354,11 @@ async function main(malicious: boolean = false): Promise<void> {
 
       if (functionCalls && functionCalls.length > 0) {
         // Execute function calls and add results to conversation
-        const toolMessages: any[] = [];
+        const toolMessages: OpenAI.Responses.ResponseInputItem[] = [];
 
         for (const fc of functionCalls) {
           const fname = fc.name;
-          const fargs = JSON.parse(fc.arguments);
+          const fargs = JSON.parse(fc.arguments) as Record<string, string>;
           console.log(`🔧 Executing: ${fname}(${JSON.stringify(fargs)})`);
 
           if (fname in AVAILABLE_FUNCTIONS) {
@@ -404,7 +409,8 @@ async function main(malicious: boolean = false): Promise<void> {
           const response = await client.guardrails.responses.create({
             model: 'gpt-4.1-mini',
             tools: tools,
-            input: messages.concat(assistantOutputs, toolMessages),
+            // Keep the typed Responses items intact across the adapter's narrower input type.
+            input: messages.concat(assistantOutputs, toolMessages) as unknown as Message[],
           });
 
           printGuardrailResults('final', response);
@@ -422,7 +428,7 @@ async function main(malicious: boolean = false): Promise<void> {
           messages.push(...assistantOutputs);
           messages.push(...toolMessages);
           messages.push(...response.output);
-        } catch (error: any) {
+        } catch (error) {
           if (error instanceof GuardrailTripwireTriggered) {
             const info = error.guardrailResult?.info || {};
             console.log('\n🚨 Guardrail Tripwire (final call)');
@@ -436,15 +442,16 @@ async function main(malicious: boolean = false): Promise<void> {
             console.log(`Observation: ${info.observation || 'N/A'}`);
             console.log(`Confidence: ${info.confidence || 'N/A'}`);
             console.log('='.repeat(50));
-            // Guardrail blocked - tool results NOT added to history
-            continue;
           } else {
             throw error;
           }
         }
       }
-    } catch (error: any) {
-      console.error('❌ An error occurred:', error.message);
+    } catch (error) {
+      console.error(
+        '❌ An error occurred:',
+        error instanceof Error ? error.message : String(error)
+      );
       console.log('Please try again.\n');
     }
   }

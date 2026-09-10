@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /**
  * Example: Basic async guardrail bundle using Agents SDK with GuardrailAgent.
  *
@@ -9,10 +10,10 @@
  * - Set OPENAI_API_KEY environment variable
  */
 
-import * as readline from 'readline';
-import { GuardrailAgent } from '../../src';
-import { InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered } from '@openai/agents';
+import * as readline from 'node:readline';
 import type { AgentInputItem } from '@openai/agents';
+import { InputGuardrailTripwireTriggered, OutputGuardrailTripwireTriggered } from '@openai/agents';
+import { GuardrailAgent } from '../../src';
 
 // Define your pipeline configuration
 const PIPELINE_CONFIG = {
@@ -98,7 +99,6 @@ async function main(): Promise<void> {
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         const userInput = await new Promise<string>((resolve) => {
@@ -121,33 +121,40 @@ async function main(): Promise<void> {
         thread = result.history;
 
         console.log(`Assistant: ${result.finalOutput}\n`);
-      } catch (error: any) {
+      } catch (error) {
         // Handle guardrail tripwire exceptions
         const errorType = error?.constructor?.name;
-        
-        if (errorType === 'InputGuardrailTripwireTriggered' || error instanceof InputGuardrailTripwireTriggered) {
+
+        if (
+          errorType === 'InputGuardrailTripwireTriggered' ||
+          error instanceof InputGuardrailTripwireTriggered
+        ) {
           console.log('🛑 Input guardrail triggered! Please try a different message.\n');
-          // Guardrail blocked - user message NOT added to history
-          continue;
-        } else if (errorType === 'OutputGuardrailTripwireTriggered' || error instanceof OutputGuardrailTripwireTriggered) {
+        } else if (
+          errorType === 'OutputGuardrailTripwireTriggered' ||
+          error instanceof OutputGuardrailTripwireTriggered
+        ) {
           console.log('🛑 Output guardrail triggered! The response was blocked.\n');
-          // Guardrail blocked - assistant response NOT added to history
-          continue;
         } else {
-          console.error('❌ An error occurred:', error.message);
+          console.error(
+            '❌ An error occurred:',
+            error instanceof Error ? error.message : String(error)
+          );
           console.log('Please try again.\n');
         }
       }
     }
-  } catch (error: any) {
-    if (error.message.includes('@openai/agents')) {
+  } catch (error) {
+    if ((error instanceof Error ? error.message : String(error)).includes('@openai/agents')) {
       console.error('❌ Error: The @openai/agents package is required.');
       console.error('Please install it with: npm install @openai/agents');
-    } else if (error.message.includes('OPENAI_API_KEY')) {
+    } else if (
+      (error instanceof Error ? error.message : String(error)).includes('OPENAI_API_KEY')
+    ) {
       console.error('❌ Error: OPENAI_API_KEY environment variable is required.');
       console.error('Please set it with: export OPENAI_API_KEY=sk-...');
     } else {
-      console.error('❌ Unexpected error:', error.message);
+      console.error('❌ Unexpected error:', error instanceof Error ? error.message : String(error));
     }
     process.exit(1);
   }

@@ -11,18 +11,22 @@
  */
 
 import { z } from 'zod';
+import { defaultSpecRegistry } from '../registry';
 import {
-  CheckFn,
-  GuardrailResult,
-  GuardrailLLMContext,
-  GuardrailLLMContextWithHistory,
-  ConversationMessage,
-  TokenUsage,
+  type CheckFn,
+  type ConversationMessage,
+  type GuardrailLLMContext,
+  type GuardrailLLMContextWithHistory,
+  type GuardrailResult,
+  type TokenUsage,
   tokenUsageToDict,
 } from '../types';
-import { defaultSpecRegistry } from '../registry';
-import { LLMOutput, LLMErrorOutput, runLLM } from './llm-base';
-import { parseConversationInput, normalizeConversation, NormalizedConversationEntry } from '../utils/conversation';
+import {
+  type NormalizedConversationEntry,
+  normalizeConversation,
+  parseConversationInput,
+} from '../utils/conversation';
+import { type LLMErrorOutput, LLMOutput, runLLM } from './llm-base';
 
 /**
  * Default maximum number of conversation turns for prompt injection detection.
@@ -294,11 +298,8 @@ export const promptInjectionDetectionCheck: CheckFn<
       actionableMessages,
       includeReasoning
     );
-    const { analysis, tokenUsage, executionFailed, errorMessage } = await callPromptInjectionDetectionLLM(
-      ctx,
-      analysisPrompt,
-      config
-    );
+    const { analysis, tokenUsage, executionFailed, errorMessage } =
+      await callPromptInjectionDetectionLLM(ctx, analysisPrompt, config);
 
     const isMisaligned = analysis.flagged && analysis.confidence >= config.confidence_threshold;
 
@@ -345,7 +346,9 @@ export const promptInjectionDetectionCheck: CheckFn<
   }
 };
 
-function safeGetConversationHistory(ctx: PromptInjectionDetectionContext): NormalizedConversationEntry[] {
+function safeGetConversationHistory(
+  ctx: PromptInjectionDetectionContext
+): NormalizedConversationEntry[] {
   try {
     const history = ctx.getConversationHistory?.();
     return normalizeConversation(history ?? []);
@@ -371,13 +374,18 @@ function prepareConversationSlice(
   const limitedHistoryMessages = historyMessages.slice(-maxTurns);
   const limitedDatasetMessages = datasetMessages.slice(-maxTurns);
 
-  const sourceMessages = limitedHistoryMessages.length > 0 ? limitedHistoryMessages : limitedDatasetMessages;
+  const sourceMessages =
+    limitedHistoryMessages.length > 0 ? limitedHistoryMessages : limitedDatasetMessages;
   let userIntent = extractUserIntentFromMessages(sourceMessages);
 
   let recentMessages = sliceMessagesAfterLatestUser(sourceMessages);
   let actionableMessages = extractActionableMessages(recentMessages);
 
-  if (actionableMessages.length === 0 && limitedDatasetMessages.length > 0 && limitedHistoryMessages.length > 0) {
+  if (
+    actionableMessages.length === 0 &&
+    limitedDatasetMessages.length > 0 &&
+    limitedHistoryMessages.length > 0
+  ) {
     recentMessages = sliceMessagesAfterLatestUser(limitedDatasetMessages);
     actionableMessages = extractActionableMessages(recentMessages);
     if (!userIntent.most_recent_message) {
@@ -587,7 +595,10 @@ async function callPromptInjectionDetectionLLM(
     // Check if runLLM returned an error output (failed API call, JSON parsing, or schema validation)
     if (isLLMErrorOutput(result)) {
       const errorMsg = result.info?.error_message || 'LLM execution failed';
-      console.warn('Prompt injection detection LLM returned error output, using fallback', result.info);
+      console.warn(
+        'Prompt injection detection LLM returned error output, using fallback',
+        result.info
+      );
       return {
         analysis: fallbackOutput,
         tokenUsage,

@@ -2,12 +2,12 @@
  * Tests for guardrail context utilities.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  validateGuardrailContext,
   ContextValidationError,
   hasProperty,
   hasRequiredProperties,
+  validateGuardrailContext,
 } from '../../../utils/context';
 
 describe('validateGuardrailContext', () => {

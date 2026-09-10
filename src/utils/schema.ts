@@ -182,10 +182,7 @@ export function resolveRef(
  * @param partial - Whether to allow partial JSON parsing.
  * @returns The parsed and validated object.
  */
-export function validateJson(
-  jsonStr: string,
-  schema: Record<string, unknown>
-): unknown {
+export function validateJson(jsonStr: string, schema: Record<string, unknown>): unknown {
   try {
     const parsed = JSON.parse(jsonStr);
 

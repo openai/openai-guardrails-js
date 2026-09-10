@@ -8,23 +8,23 @@
  * - Error handling
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  GuardrailConfig,
-  GuardrailBundle,
-  loadConfigBundle,
-  instantiateGuardrails,
-  runGuardrails,
-  checkPlainText,
-  loadPipelineBundles,
-} from '../../runtime';
-import { CheckFn, GuardrailLLMContext } from '../../types';
-import { defaultSpecRegistry } from '../../registry';
-import { z } from 'zod';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { OpenAI } from 'openai';
-import path from 'path';
-import os from 'os';
-import { promises as fs } from 'fs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import { defaultSpecRegistry } from '../../registry';
+import {
+  checkPlainText,
+  type GuardrailBundle,
+  type GuardrailConfig,
+  instantiateGuardrails,
+  loadConfigBundle,
+  loadPipelineBundles,
+  runGuardrails,
+} from '../../runtime';
+import type { CheckFn, GuardrailLLMContext } from '../../types';
 
 // Mock OpenAI module
 vi.mock('openai', () => ({

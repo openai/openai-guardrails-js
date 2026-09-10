@@ -5,14 +5,14 @@
  * basic JSON validation, and helper type guards used by guardrail output handling.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   ensureStrictJsonSchema,
-  resolveRef,
-  validateJson,
+  hasMoreThanNKeys,
   isDict,
   isList,
-  hasMoreThanNKeys,
+  resolveRef,
+  validateJson,
 } from '../../utils/schema';
 
 describe('schema utilities', () => {
@@ -67,12 +67,20 @@ describe('schema utilities', () => {
       const result = ensureStrictJsonSchema(schema);
 
       expect(result.additionalProperties).toBe(false);
-      const profile = (result.properties as Record<string, unknown>).profile as Record<string, unknown>;
+      const profile = (result.properties as Record<string, unknown>).profile as Record<
+        string,
+        unknown
+      >;
       expect(profile.additionalProperties).toBe(false);
-      const tagItems = (result.properties as Record<string, unknown>).tags as Record<string, unknown>;
-      expect((tagItems as Record<string, unknown>).items as Record<string, unknown>).toHaveProperty('additionalProperties', false);
+      const tagItems = (result.properties as Record<string, unknown>).tags as Record<
+        string,
+        unknown
+      >;
+      expect((tagItems as Record<string, unknown>).items as Record<string, unknown>).toHaveProperty(
+        'additionalProperties',
+        false
+      );
     });
-
   });
 
   describe('resolveRef', () => {
@@ -94,7 +102,10 @@ describe('schema utilities', () => {
     };
 
     it('resolves local $ref pointers', () => {
-      const resolved = resolveRef(rootSchema.properties.address as Record<string, unknown>, rootSchema);
+      const resolved = resolveRef(
+        rootSchema.properties.address as Record<string, unknown>,
+        rootSchema
+      );
       expect(resolved).toMatchObject({
         type: 'object',
         properties: {
@@ -123,8 +134,13 @@ describe('schema utilities', () => {
         ...schema,
       });
 
-      const homeSchema = ((resolved.properties as Record<string, unknown>).addresses as Record<string, unknown>).items as Record<string, unknown>;
-      expect(((homeSchema.properties as Record<string, unknown>).home as Record<string, unknown>).properties as Record<string, unknown>).toHaveProperty('street', { type: 'string' });
+      const homeSchema = (
+        (resolved.properties as Record<string, unknown>).addresses as Record<string, unknown>
+      ).items as Record<string, unknown>;
+      expect(
+        ((homeSchema.properties as Record<string, unknown>).home as Record<string, unknown>)
+          .properties as Record<string, unknown>
+      ).toHaveProperty('street', { type: 'string' });
     });
 
     it('throws when resolving an invalid ref path', () => {
@@ -170,9 +186,7 @@ describe('schema utilities', () => {
     });
 
     it('reports invalid JSON syntax', () => {
-      expect(() => validateJson('{invalid}', strictObjectSchema)).toThrow(
-        /Invalid JSON:/
-      );
+      expect(() => validateJson('{invalid}', strictObjectSchema)).toThrow(/Invalid JSON:/);
     });
   });
 });

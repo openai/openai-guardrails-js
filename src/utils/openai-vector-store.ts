@@ -39,7 +39,7 @@ export async function createOpenAIVectorStoreFromPath(
 
   // Check if path exists
   try {
-    const fs = await import('fs/promises');
+    const fs = await import('node:fs/promises');
     await fs.access(path);
   } catch {
     throw new Error(`Path does not exist: ${path}`);
@@ -86,8 +86,8 @@ export async function createOpenAIVectorStoreFromPath(
  * Get list of supported files from a path.
  */
 async function getFilePaths(path: string): Promise<string[]> {
-  const fs = await import('fs/promises');
-  const pathModule = await import('path');
+  const fs = await import('node:fs/promises');
+  const pathModule = await import('node:path');
 
   const supportedFileTypes = [
     '.c',
@@ -155,13 +155,13 @@ async function getFilePaths(path: string): Promise<string[]> {
  * Upload files to OpenAI and return file IDs.
  */
 async function uploadFiles(client: OpenAI, filePaths: string[]): Promise<string[]> {
-  const fs = await import('fs/promises');
+  const fs = await import('node:fs/promises');
   const fileIds: string[] = [];
 
   for (const filePath of filePaths) {
     try {
       const fileBuffer = await fs.readFile(filePath);
-      const pathModule = await import('path');
+      const pathModule = await import('node:path');
       const fileName = pathModule.basename(filePath);
 
       // Create a File-like object that matches the Uploadable interface

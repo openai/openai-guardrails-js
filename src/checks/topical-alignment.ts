@@ -7,8 +7,8 @@
  */
 
 import { z } from 'zod';
-import { CheckFn, GuardrailLLMContext } from '../types';
-import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
+import type { CheckFn, GuardrailLLMContext } from '../types';
+import { createLLMCheckFn, LLMConfig, LLMOutput } from './llm-base';
 
 /**
  * Configuration for topical alignment guardrail.
@@ -17,7 +17,9 @@ import { LLMConfig, LLMOutput, createLLMCheckFn } from './llm-base';
  */
 export const TopicalAlignmentConfig = LLMConfig.omit({ system_prompt_details: true }).extend({
   /** Description of the allowed business scope or on-topic context */
-  system_prompt_details: z.string().describe('Description of the allowed business scope or on-topic context'),
+  system_prompt_details: z
+    .string()
+    .describe('Description of the allowed business scope or on-topic context'),
 });
 
 export type TopicalAlignmentConfig = z.infer<typeof TopicalAlignmentConfig>;

@@ -2,13 +2,13 @@
  * Unit tests for the prompt injection detection guardrail.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { OpenAI } from 'openai';
+import type { OpenAI } from 'openai';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  promptInjectionDetectionCheck,
   PromptInjectionDetectionConfig,
+  promptInjectionDetectionCheck,
 } from '../../checks/prompt_injection_detection';
-import { GuardrailLLMContextWithHistory } from '../../types';
+import type { GuardrailLLMContextWithHistory } from '../../types';
 
 // Mock OpenAI client
 const mockOpenAI = {
@@ -214,11 +214,7 @@ describe('Prompt Injection Detection Check', () => {
       ],
     };
 
-    const result = await promptInjectionDetectionCheck(
-      contextWithEmptyOutput,
-      'test data',
-      config
-    );
+    const result = await promptInjectionDetectionCheck(contextWithEmptyOutput, 'test data', config);
 
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info.action).toBeDefined();
@@ -274,7 +270,7 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.tripwireTriggered).toBe(true);
     expect(result.info.flagged).toBe(true);
     expect(result.info.confidence).toBe(0.95);
-    
+
     // Verify reasoning fields are present
     expect(result.info.observation).toBe('Attempting to call credential theft function');
     expect(result.info.evidence).toBe('function call: steal_credentials');
@@ -309,7 +305,12 @@ describe('Prompt Injection Detection Check', () => {
       guardrailLlm: benignOpenAI as unknown as OpenAI,
       getConversationHistory: () => [
         { role: 'user', content: 'Get weather' },
-        { type: 'function_call', name: 'get_weather', arguments: '{"location":"Paris"}', call_id: 'c1' },
+        {
+          type: 'function_call',
+          name: 'get_weather',
+          arguments: '{"location":"Paris"}',
+          call_id: 'c1',
+        },
       ],
     };
 
@@ -328,7 +329,7 @@ describe('Prompt Injection Detection Check', () => {
     expect(result.tripwireTriggered).toBe(false);
     expect(result.info.flagged).toBe(false);
     expect(result.info.confidence).toBe(0.1);
-    
+
     // Verify reasoning fields are NOT present
     expect(result.info.observation).toBeUndefined();
     expect(result.info.evidence).toBeUndefined();
@@ -366,7 +367,13 @@ describe('Prompt Injection Detection Check', () => {
 
     it('should limit conversation history based on max_turns', async () => {
       // Create a long conversation history (15 turns)
-      const longHistory: Array<{ role?: string; content?: string; type?: string; tool_name?: string; arguments?: string }> = Array.from({ length: 15 }, (_, i) => ({
+      const longHistory: Array<{
+        role?: string;
+        content?: string;
+        type?: string;
+        tool_name?: string;
+        arguments?: string;
+      }> = Array.from({ length: 15 }, (_, i) => ({
         role: 'user',
         content: `Turn_${i + 1}`,
       }));

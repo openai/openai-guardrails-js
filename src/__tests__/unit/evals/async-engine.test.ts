@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AsyncRunEngine } from '../../../evals/core/async-engine';
-import type { ConfiguredGuardrail } from '../../../runtime';
 import type { Context, Sample } from '../../../evals/core/types';
+import type { ConfiguredGuardrail } from '../../../runtime';
 
 const guardrailRun = vi.fn();
 
@@ -22,7 +22,7 @@ const createGuardrail = (name: string, usesConversationHistory: boolean): Config
     async run(ctx: unknown, input: string) {
       return guardrailRun(ctx, input);
     },
-  } as unknown as ConfiguredGuardrail);
+  }) as unknown as ConfiguredGuardrail;
 
 const context: Context = {
   guardrailLlm: {} as unknown as import('openai').OpenAI,

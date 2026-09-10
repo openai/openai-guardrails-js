@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 /**
  * Integration tests for the guardrails system.
  *
@@ -8,10 +9,10 @@
  * - Performance and scalability
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { GuardrailRegistry } from '../../registry';
-import { CheckFn } from '../../types';
 import { loadConfigBundle } from '../../runtime';
+import type { CheckFn } from '../../types';
 
 // Mock check function for testing
 const mockCheck: CheckFn<object, string, object> = (_ctx, data) => ({
@@ -36,26 +37,30 @@ describe('Integration Tests', () => {
   describe('Guardrail Registration and Execution', () => {
     it('should register and execute guardrails', () => {
       const spec = registry.get('test_guard');
+      assert(spec);
       expect(spec).toBeDefined();
-      expect(spec!.name).toBe('test_guard');
+      expect(spec.name).toBe('test_guard');
 
-      const guardrail = spec!.instantiate({});
+      const guardrail = spec.instantiate({});
       expect(guardrail).toBeDefined();
     });
 
     it('should handle multiple guardrails in sequence', () => {
       const spec1 = registry.get('test_guard');
       const spec2 = registry.get('trigger_guard');
+      assert(spec1);
+      assert(spec2);
 
       expect(spec1).toBeDefined();
       expect(spec2).toBeDefined();
-      expect(spec1!.name).toBe('test_guard');
-      expect(spec2!.name).toBe('trigger_guard');
+      expect(spec1.name).toBe('test_guard');
+      expect(spec2.name).toBe('trigger_guard');
     });
 
     it('should execute guardrails with different inputs', async () => {
       const spec = registry.get('test_guard');
-      const guardrail = spec!.instantiate({});
+      assert(spec);
+      const guardrail = spec.instantiate({});
 
       // Test non-triggering input
       const result1 = await guardrail.run({}, 'safe data');

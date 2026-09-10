@@ -19,8 +19,8 @@
 // Import checks to ensure they get registered with the defaultSpecRegistry
 import './checks';
 
-import { runEvaluationCLI } from './evals/guardrail-evals';
 import { validateDatasetCLI } from './evals/core/validate-dataset';
+import { runEvaluationCLI } from './evals/guardrail-evals';
 import { loadConfigBundleFromFile } from './runtime';
 
 /**
@@ -84,14 +84,14 @@ function parseArgs(argv: string[]): CliArgs {
       args.multiTurn = true;
     } else if (arg === '--max-parallel-models') {
       const value = parseInt(argv[++i], 10);
-      if (isNaN(value) || value <= 0) {
+      if (Number.isNaN(value) || value <= 0) {
         console.error(`❌ Error: max-parallel-models must be positive, got: ${argv[i]}`);
         process.exit(1);
       }
       args.maxParallelModels = value;
     } else if (arg === '--benchmark-chunk-size') {
       const value = parseInt(argv[++i], 10);
-      if (isNaN(value) || value <= 0) {
+      if (Number.isNaN(value) || value <= 0) {
         console.error(`❌ Error: benchmark-chunk-size must be positive, got: ${argv[i]}`);
         process.exit(1);
       }
@@ -115,7 +115,7 @@ function parseArgs(argv: string[]): CliArgs {
       }
     } else if (arg === '--latency-iterations') {
       const value = parseInt(argv[++i], 10);
-      if (isNaN(value) || value <= 0) {
+      if (Number.isNaN(value) || value <= 0) {
         console.error(`❌ Error: latency-iterations must be positive, got: ${argv[i]}`);
         process.exit(1);
       }
@@ -248,13 +248,23 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
     process.exit(1);
   }
 
-  if (args.maxParallelModels !== undefined && args.maxParallelModels !== null && args.maxParallelModels <= 0) {
+  if (
+    args.maxParallelModels !== undefined &&
+    args.maxParallelModels !== null &&
+    args.maxParallelModels <= 0
+  ) {
     console.error(`❌ Error: max-parallel-models must be positive, got: ${args.maxParallelModels}`);
     process.exit(1);
   }
 
-  if (args.benchmarkChunkSize !== undefined && args.benchmarkChunkSize !== null && args.benchmarkChunkSize <= 0) {
-    console.error(`❌ Error: benchmark-chunk-size must be positive, got: ${args.benchmarkChunkSize}`);
+  if (
+    args.benchmarkChunkSize !== undefined &&
+    args.benchmarkChunkSize !== null &&
+    args.benchmarkChunkSize <= 0
+  ) {
+    console.error(
+      `❌ Error: benchmark-chunk-size must be positive, got: ${args.benchmarkChunkSize}`
+    );
     process.exit(1);
   }
 
@@ -267,17 +277,23 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
     const validStages = new Set(['pre_flight', 'input', 'output']);
     const invalidStages = args.stages.filter((s) => !validStages.has(s));
     if (invalidStages.length > 0) {
-      console.error(`❌ Error: Invalid stages: ${invalidStages.join(', ')}. Valid stages are: ${Array.from(validStages).join(', ')}`);
+      console.error(
+        `❌ Error: Invalid stages: ${invalidStages.join(', ')}. Valid stages are: ${Array.from(validStages).join(', ')}`
+      );
       process.exit(1);
     }
   }
 
   if (args.mode === 'benchmark' && args.stages && args.stages.length > 1) {
-    console.warn('⚠️  Warning: Benchmark mode only uses the first specified stage. Additional stages will be ignored.');
+    console.warn(
+      '⚠️  Warning: Benchmark mode only uses the first specified stage. Additional stages will be ignored.'
+    );
   }
 
   if (args.azureEndpoint && args.baseUrl) {
-    console.error('❌ Error: Cannot specify both --azure-endpoint and --base-url. Choose one provider.');
+    console.error(
+      '❌ Error: Cannot specify both --azure-endpoint and --base-url. Choose one provider.'
+    );
     process.exit(1);
   }
 
@@ -299,10 +315,16 @@ async function handleEvalCommand(args: CliArgs): Promise<void> {
       azureApiVersion: args.azureApiVersion || '2025-01-01-preview',
       mode: args.mode || 'evaluate',
       models: args.models || null,
-      ...(args.latencyIterations !== undefined ? { latencyIterations: args.latencyIterations } : {}),
+      ...(args.latencyIterations !== undefined
+        ? { latencyIterations: args.latencyIterations }
+        : {}),
       ...(args.multiTurn !== undefined ? { multiTurn: args.multiTurn } : {}),
-      ...(args.maxParallelModels !== undefined ? { maxParallelModels: args.maxParallelModels } : {}),
-      ...(args.benchmarkChunkSize !== undefined ? { benchmarkChunkSize: args.benchmarkChunkSize } : {}),
+      ...(args.maxParallelModels !== undefined
+        ? { maxParallelModels: args.maxParallelModels }
+        : {}),
+      ...(args.benchmarkChunkSize !== undefined
+        ? { benchmarkChunkSize: args.benchmarkChunkSize }
+        : {}),
     });
 
     console.log('Evaluation completed successfully!');
