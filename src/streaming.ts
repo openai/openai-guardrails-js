@@ -7,7 +7,7 @@
 
 import { GuardrailResult } from './types';
 import { GuardrailsResponse, GuardrailsBaseClient, OpenAIResponseType } from './base-client';
-import { GuardrailTripwireTriggered } from './exceptions';
+import { getGuardrailFailure } from './utils/guardrail-failure';
 import { mergeConversationWithItems, NormalizedConversationEntry } from './utils/conversation';
 
 /**
@@ -28,7 +28,10 @@ export class StreamingMixin {
   ): AsyncIterableIterator<GuardrailsResponse> {
     let accumulatedText = '';
     let chunkCount = 0;
-    const baseHistory = conversationHistory ? conversationHistory.map((entry) => ({ ...entry })) : [];
+    let lastStrictCheckedTextLength = 0;
+    const baseHistory = conversationHistory
+      ? conversationHistory.map((entry) => ({ ...entry }))
+      : [];
 
     for await (const chunk of llmStream) {
       const chunkText = this.extractResponseText(chunk as OpenAIResponseType);
@@ -37,24 +40,30 @@ export class StreamingMixin {
         chunkCount += 1;
 
         if (chunkCount % checkInterval === 0) {
-          try {
-            const history = mergeConversationWithItems(baseHistory, [
-              { role: 'assistant', content: accumulatedText },
-            ]);
-            await this.runStageGuardrails('output', accumulatedText, history, suppressTripwire);
-          } catch (error) {
-            if (error instanceof GuardrailTripwireTriggered) {
-              const finalResponse = this.createGuardrailsResponse(
+          const history = mergeConversationWithItems(baseHistory, [
+            { role: 'assistant', content: accumulatedText },
+          ]);
+          // Collect results first: the original execution error may itself be a tripwire error.
+          const results = await this.runStageGuardrails(
+            'output',
+            accumulatedText,
+            history,
+            true,
+            false
+          );
+          const failure = getGuardrailFailure(results, suppressTripwire, this.raiseGuardrailErrors);
+          if (failure) {
+            if (failure.kind === 'tripwire') {
+              yield this.createGuardrailsResponse(
                 chunk as OpenAIResponseType,
                 preflightResults,
                 inputResults,
-                [error.guardrailResult]
+                [failure.error.guardrailResult]
               );
-              yield finalResponse;
-              throw error;
             }
-            throw error;
+            throw failure.error;
           }
+          if (this.raiseGuardrailErrors) lastStrictCheckedTextLength = accumulatedText.length;
         }
       }
 
@@ -67,37 +76,42 @@ export class StreamingMixin {
       yield response;
     }
 
-    if (!suppressTripwire && accumulatedText) {
-      try {
-        const history = mergeConversationWithItems(baseHistory, [
-          { role: 'assistant', content: accumulatedText },
-        ]);
-        const finalOutputResults = await this.runStageGuardrails(
-          'output',
-          accumulatedText,
-          history,
-          suppressTripwire
-        );
-
-        const finalResponse = this.createGuardrailsResponse(
+    const needsStrictFinalCheck =
+      this.raiseGuardrailErrors && accumulatedText.length > lastStrictCheckedTextLength;
+    if ((!suppressTripwire || needsStrictFinalCheck) && accumulatedText) {
+      const history = mergeConversationWithItems(baseHistory, [
+        { role: 'assistant', content: accumulatedText },
+      ]);
+      const finalOutputResults = await this.runStageGuardrails(
+        'output',
+        accumulatedText,
+        history,
+        true,
+        false
+      );
+      const failure = getGuardrailFailure(
+        finalOutputResults,
+        suppressTripwire,
+        this.raiseGuardrailErrors
+      );
+      if (failure) {
+        if (failure.kind === 'tripwire') {
+          yield this.createGuardrailsResponse(
+            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
+            preflightResults,
+            inputResults,
+            [failure.error.guardrailResult]
+          );
+        }
+        throw failure.error;
+      }
+      if (!suppressTripwire) {
+        yield this.createGuardrailsResponse(
           { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
           preflightResults,
           inputResults,
           finalOutputResults
         );
-        yield finalResponse;
-      } catch (error) {
-        if (error instanceof GuardrailTripwireTriggered) {
-          const finalResponse = this.createGuardrailsResponse(
-            { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
-            preflightResults,
-            inputResults,
-            [error.guardrailResult]
-          );
-          yield finalResponse;
-          throw error;
-        }
-        throw error;
       }
     }
   }
