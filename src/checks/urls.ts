@@ -479,29 +479,6 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
     const allowedFragment = parsedAllowed.hash ? parsedAllowed.hash.slice(1) : '';
 
     const allowedHostIsIp = isIpv4Address(allowedHost);
-    if (allowedHostIsIp) {
-      if (!urlIsIp || urlIpInt === null) {
-        continue;
-      }
-
-      // Scheme matching for IPs: only enforce when BOTH allow list entry AND URL have explicit schemes
-      if (hasExplicitScheme && hadScheme && allowedScheme !== schemeLower) {
-        continue;
-      }
-
-      // Port matching: only enforce when allow list entry explicitly specifies a non-default port
-      if (shouldBlockDueToPortMismatch(urlPort, parsedUrl, allowedPort, parsedAllowed, schemeLower, allowedScheme)) {
-        continue;
-      }
-
-      // Exact IP match
-      if (ipToInt(allowedHost) === urlIpInt) {
-        return true;
-      }
-
-      continue;
-    }
-
     const allowedDomain = allowedHost.replace(/^www\./, '');
 
     // Port matching: only enforce when allow list entry explicitly specifies a non-default port
@@ -509,13 +486,14 @@ function isUrlAllowed(parsedUrl: URL, allowList: string[], allowSubdomains: bool
       continue;
     }
 
-    const hostMatches =
-      urlDomain === allowedDomain || (allowSubdomains && urlDomain.endsWith(`.${allowedDomain}`));
+    const hostMatches = allowedHostIsIp
+      ? urlIsIp && urlIpInt !== null && ipToInt(allowedHost) === urlIpInt
+      : urlDomain === allowedDomain || (allowSubdomains && urlDomain.endsWith(`.${allowedDomain}`));
     if (!hostMatches) {
       continue;
     }
 
-    // Scheme matching for domains: only enforce when BOTH allow list entry AND URL have explicit schemes
+    // Scheme matching: only enforce when BOTH allow list entry AND URL have explicit schemes
     if (hasExplicitScheme && hadScheme && allowedScheme !== schemeLower) {
       continue;
     }

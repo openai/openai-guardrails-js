@@ -450,6 +450,69 @@ describe('urls guardrail', () => {
     expect(result.info?.blocked).toContain('http://bank.example.com');
   });
 
+  describe('IPv4 resource restrictions', () => {
+    it.each([
+      ['/api', '/api', false],
+      ['/api/', '/api/items', false],
+      ['/api', '/api/', false],
+      ['/api', '/api2', true],
+      ['/api', '/other', true],
+      ['/?view=one', '/?view=one', false],
+      ['/?view=one', '/?view=two', true],
+      ['/?view=one', '/', true],
+      ['/#intro', '/#intro', false],
+      ['/#intro', '/#other', true],
+      ['/#intro', '/', true],
+      ['/api?view=one#intro', '/api/items?view=one#intro', false],
+      ['/api?view=one#intro', '/api?view=two#intro', true],
+      ['/api?view=one#intro', '/api?view=one#other', true],
+    ])('matches %s against %s (blocked: %s)', async (restriction, resource, blocked) => {
+      const candidate = `https://192.0.2.10${resource}`;
+      const result = await urls({}, candidate, UrlsConfig.parse({
+        url_allow_list: [`https://192.0.2.10${restriction}`],
+      }));
+
+      expect(result.tripwireTriggered).toBe(blocked);
+      expect(result.info?.allowed).toEqual(blocked ? [] : [candidate]);
+      expect(result.info?.blocked).toEqual(blocked ? [candidate] : []);
+    });
+
+    it.each([
+      ['192.0.2.10', 'https://192.0.2.10/other?view=two#other', false],
+      ['192.0.2.0/24', 'https://192.0.2.10/other?view=two#other', false],
+      ['https://192.0.2.10/', 'https://192.0.2.10/other?view=two#other', false],
+      ['192.0.2.10/api', 'http://192.0.2.10/api/items', false],
+      ['192.0.2.10/api', 'https://192.0.2.10/other', true],
+      ['https://192.0.2.10/api', '192.0.2.10/api/items', false],
+      ['https://192.0.2.10/api', 'http://192.0.2.10/api', true],
+      ['https://192.0.2.10:8443/api', 'https://192.0.2.10:8443/api/items', false],
+      ['https://192.0.2.10:8443/api', 'https://192.0.2.10/api', true],
+      ['https://192.0.2.10/api', 'https://192.0.2.10:8443/api', false],
+      ['https://192.0.2.10/api', 'https://192.0.2.11/api', true],
+    ])('preserves matching for %s and %s', async (entry, candidate, blocked) => {
+      const result = await urls({}, candidate, UrlsConfig.parse({
+        url_allow_list: [entry],
+        allowed_schemes: ['http', 'https'],
+        allow_subdomains: true,
+        block_userinfo: false,
+      }));
+
+      expect(result.tripwireTriggered).toBe(blocked);
+      expect(result.info?.allowed).toEqual(blocked ? [] : [candidate]);
+      expect(result.info?.blocked).toEqual(blocked ? [candidate] : []);
+    });
+
+    it('continues to later entries after a resource mismatch', async () => {
+      const candidate = 'https://192.0.2.10/other';
+      const result = await urls({}, candidate, UrlsConfig.parse({
+        url_allow_list: ['https://192.0.2.10/api', 'https://192.0.2.10/other'],
+      }));
+
+      expect(result.tripwireTriggered).toBe(false);
+      expect(result.info?.allowed).toEqual([candidate]);
+    });
+  });
+
   it('supports CIDR ranges and explicit port matching', async () => {
     const text = [
       'https://10.5.5.5',
