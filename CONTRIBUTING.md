@@ -15,8 +15,11 @@ before implementing it.
 
 ## Development setup
 
-Use Node.js 22 to match CI, along with npm. Fork the repository if you do not have write
-access, then clone your fork and create a branch for your change.
+Use Node.js 22.13 or newer within Node 22, or Node.js 24 or newer, along with npm.
+CI tests Node.js 22, 24, and 26. Node.js 23 is not supported.
+
+Fork the repository if you do not have write access, then clone your fork and create
+a branch for your change.
 
 From the repository root, install the locked dependencies and build:
 
@@ -73,7 +76,7 @@ out of source control.
 
 ## Documentation
 
-Documentation uses the same Node.js 22 and npm setup as the SDK. Run:
+Documentation uses the same Node.js and npm setup as the SDK. Run:
 
 ```bash
 npm ci
