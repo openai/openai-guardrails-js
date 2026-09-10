@@ -37,6 +37,7 @@ export class StreamingMixin {
           response: { ...responseChunk, choices: [choice] } as OpenAIResponseType,
         }))
         : [{ index: 0, response: responseChunk }];
+      const periodicChecks: Promise<GuardrailResult[]>[] = [];
       for (const alternative of alternatives) {
         const chunkText = this.extractResponseText(alternative.response);
         if (!chunkText) {
@@ -48,25 +49,27 @@ export class StreamingMixin {
         choices.set(alternative.index, state);
 
         if (state.chunkCount % checkInterval === 0) {
-          try {
-            const history = mergeConversationWithItems(baseHistory, [
-              { role: 'assistant', content: state.text },
-            ]);
-            await this.runStageGuardrails('output', state.text, history, suppressTripwire);
-          } catch (error) {
-            if (error instanceof GuardrailTripwireTriggered) {
-              const finalResponse = this.createGuardrailsResponse(
-                chunk as OpenAIResponseType,
-                preflightResults,
-                inputResults,
-                [error.guardrailResult]
-              );
-              yield finalResponse;
-              throw error;
-            }
-            throw error;
-          }
+          const history = mergeConversationWithItems(baseHistory, [
+            { role: 'assistant', content: state.text },
+          ]);
+          periodicChecks.push(this.runStageGuardrails('output', state.text, history, suppressTripwire));
         }
+      }
+
+      try {
+        await Promise.all(periodicChecks);
+      } catch (error) {
+        if (error instanceof GuardrailTripwireTriggered) {
+          const finalResponse = this.createGuardrailsResponse(
+            chunk as OpenAIResponseType,
+            preflightResults,
+            inputResults,
+            [error.guardrailResult]
+          );
+          yield finalResponse;
+          throw error;
+        }
+        throw error;
       }
 
       const response = this.createGuardrailsResponse(
@@ -81,9 +84,9 @@ export class StreamingMixin {
     if (choices.size > 0) {
       // Keep the existing final response shape; results cover every alternative.
       const accumulatedText = choices.get(0)?.text ?? '';
+      const finalOutputResults: GuardrailResult[] = [];
       try {
-        const finalOutputResults: GuardrailResult[] = [];
-        for (const state of choices.values()) {
+        for (const [, state] of [...choices.entries()].sort(([a], [b]) => a - b)) {
           const history = mergeConversationWithItems(baseHistory, [
             { role: 'assistant', content: state.text },
           ]);
@@ -108,7 +111,7 @@ export class StreamingMixin {
             { type: 'final', accumulated_text: accumulatedText } as unknown as OpenAIResponseType,
             preflightResults,
             inputResults,
-            [error.guardrailResult]
+            [...finalOutputResults, error.guardrailResult]
           );
           yield finalResponse;
           throw error;

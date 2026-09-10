@@ -90,7 +90,7 @@ describe('Chat choice validation', () => {
     client.check.mockImplementation((context, text) => ({ tripwireTriggered: false, info: { text, history: (context as GuardrailLLMContextWithHistory).getConversationHistory?.() } }));
     const chunks = [chunk([[1, 'other'], [0, 'first']]), chunk([[0, ' choice']]), chunk([[1, ' answer']]), chunk([]), chunk([[0, null]])];
     const responses = await collect(StreamingMixin.prototype.streamWithGuardrails.call(client, stream(chunks), [], [], [{ role: 'user', content: 'question' }], 2, suppressed));
-    expect(client.check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'other answer', 'other answer', 'first choice']);
+    expect(client.check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'other answer', 'first choice', 'other answer']);
     for (const [context, text] of client.check.mock.calls) {
       expect((context as GuardrailLLMContextWithHistory).getConversationHistory?.()).toEqual([{ role: 'user', content: 'question' }, { role: 'assistant', content: text }]);
     }
@@ -98,7 +98,7 @@ describe('Chat choice validation', () => {
       expect(response).toHaveProperty('choices', chunks[index].choices);
     });
     expect(responses.at(-1)).toMatchObject({ type: 'final', accumulated_text: 'first choice' });
-    expect(responses.at(-1)?.guardrail_results.output).toHaveLength(2);
+    expect(responses.at(-1)?.guardrail_results.output.map((result) => result.info.text)).toEqual(['first choice', 'other answer']);
   });
 
   it.each([1, 100])('triggers on a later streamed choice at interval %s', async (interval) => {
@@ -120,4 +120,51 @@ describe('Chat choice validation', () => {
     expect(client.check.mock.calls.map(([, text]) => text)).toEqual(['second choice']);
     expect(responses.at(-1)?.guardrail_results.tripwiresTriggered).toBe(true);
   });
+
+  it('retains earlier final results and token usage when a later choice trips', async () => {
+    const client = new ChoiceClient();
+    client.check.mockImplementation((_context, text) => ({
+      tripwireTriggered: text === 'second choice',
+      info: { text, token_usage: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 } },
+    }));
+    const responses: GuardrailsResponse[] = [];
+    const iterator = StreamingMixin.streamWithGuardrailsSync(client, stream([
+      chunk([[1, 'second choice'], [0, 'first choice']]),
+    ]), [], [], []);
+    await expect(async () => {
+      for await (const response of iterator) { responses.push(response); }
+    }).rejects.toBeInstanceOf(GuardrailTripwireTriggered);
+    const final = responses.at(-1);
+    expect(final).toMatchObject({ type: 'final', accumulated_text: 'first choice' });
+    expect(final?.guardrail_results.output.map((result) => result.info.text)).toEqual(['first choice', 'second choice']);
+    expect(final?.guardrail_results.totalTokenUsage).toMatchObject({ total_tokens: 10 });
+  });
+
+  it('starts all periodic choice checks before waiting for any to finish', async () => {
+    const client = new ChoiceClient();
+    let finishFirst!: (results: GuardrailResult[]) => void;
+    let finishSecond!: (results: GuardrailResult[]) => void;
+    let secondStarted!: () => void;
+    const started = new Promise<void>((resolve) => { secondStarted = resolve; });
+    const first = new Promise<GuardrailResult[]>((resolve) => { finishFirst = resolve; });
+    const second = new Promise<GuardrailResult[]>((resolve) => { finishSecond = resolve; });
+    const check = vi.spyOn(client, 'runStageGuardrails')
+      .mockImplementationOnce(() => first)
+      .mockImplementationOnce(() => { secondStarted(); return second; });
+    const original = chunk([[0, 'first choice'], [1, 'other choice']]);
+    const iterator = StreamingMixin.prototype.streamWithGuardrails.call(client, stream([original]), [], [], [], 1, false);
+    const next = iterator.next();
+    try {
+      await started;
+      expect(check.mock.calls.map(([, text]) => text)).toEqual(['first choice', 'other choice']);
+      finishSecond([]);
+      finishFirst([]);
+      expect((await next).value).toHaveProperty('choices', original.choices);
+    } finally {
+      finishFirst([]);
+      finishSecond([]);
+      await iterator.return(undefined);
+    }
+  });
+
 });
