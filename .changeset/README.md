@@ -35,10 +35,12 @@ Use `npm run changeset -- status` to preview pending releases. Do not manually b
 1. Merging changesets into `main` runs `publish.yml`, which creates or updates the
    `changeset-release/main` PR. It updates `package.json`, `package-lock.json`, and
    `CHANGELOG.md` and consumes the pending changesets.
-2. Review the version and release notes. PRs created using `GITHUB_TOKEN` do not
-   automatically trigger other workflows. Run the **CI** workflow manually on
-   `changeset-release/main` before merging (for example,
-   `gh workflow run ci.yml --ref changeset-release/main`), and check its result.
+2. Review the version and release notes. For PRs created or updated using
+   `GITHUB_TOKEN`, select **Approve workflows to run** when GitHub requests it,
+   then wait for all required checks on the current PR commit before merging.
+   [GitHub documents this approval requirement](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+   The **CI** workflow can also be run manually on `changeset-release/main` for
+   diagnostics (`gh workflow run ci.yml --ref changeset-release/main`).
 3. Merge the release PR. `publish.yml` builds, tests, and lints, then publishes the
    unpublished version to npm, creates a `v<version>` tag, and creates a GitHub
    Release from the changelog. Merging the release PR is approval to publish.
@@ -47,6 +49,11 @@ The workflow uses npm trusted publishing (OIDC) with Node 22 and npm 11. Keep th
 npm trusted publisher configured for `openai/openai-guardrails-js` and the workflow
 filename `publish.yml`. No npm token is needed. GitHub Actions must be allowed to
 create pull requests in the repository settings.
+
+Changesets uses the repository's `GITHUB_TOKEN` for version PRs, Git tags, and
+GitHub Releases. No GitHub App is required. Publishing happens in the same
+workflow as tag creation, so it does not depend on token-created tags triggering
+another workflow. Changesets is the only release automation in this repository.
 
 The **Publish Package** workflow can be manually rerun on `main` after a failure.
 Changesets skips versions already published to npm. If npm publishing succeeded
