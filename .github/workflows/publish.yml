@@ -40,7 +40,7 @@ jobs:
         uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: npm run version-packages
-          publish: npm run release
-          title: 'chore: release @openai/guardrails'
-          commit: 'chore: release @openai/guardrails'
+          version-script: npm run version-packages
+          publish-script: npm run release
+          pr-title: 'chore: release @openai/guardrails'
+          commit-message: 'chore: release @openai/guardrails'

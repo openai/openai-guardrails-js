@@ -104,5 +104,5 @@ Pushing a tag no longer triggers npm publishing. Publishing and tag creation now
 happen together after merging the version PR, preventing a second tag-triggered
 publish of the same version.
 
-The release workflow uses Changesets CLI 2.x with the compatible Changesets action
-1.x on Node 24.
+The release workflow uses Changesets CLI 3.x with the compatible Changesets action
+2.x on Node 24.
