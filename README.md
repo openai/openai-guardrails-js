@@ -83,6 +83,8 @@ See the [evaluation guide](docs/evals.md) for dataset requirements, benchmarking
 
 ## Local development
 
+Use a Node.js version supported by the [development toolchain](CONTRIBUTING.md#development-setup).
+
 ```bash
 git clone https://github.com/openai/openai-guardrails-js.git
 cd openai-guardrails-js

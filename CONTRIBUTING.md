@@ -15,8 +15,10 @@ before implementing it.
 
 ## Development setup
 
-Use Node.js 22.13 or newer within Node 22, or Node.js 24 or newer, along with npm.
-CI tests Node.js 22, 24, and 26. Node.js 23 is not supported.
+For development, use Node.js 22.13+ on the 22.x release line, Node.js 24.x,
+or Node.js 26+, along with npm. Vitest 5 does not support Node.js 23 or 25.
+CI tests Node.js 22, 24, and 26. The published package's runtime requirements
+are documented in [the README](README.md).
 
 Fork the repository if you do not have write access, then clone your fork and create
 a branch for your change.
