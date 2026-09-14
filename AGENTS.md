@@ -118,7 +118,7 @@ Use the owning module when changing a behavior:
 | Documentation | `docs/`, `docs/.vitepress/`, and `scripts/docs.test.mjs` |
 
 Use [package.json](package.json) and the committed npm lockfile as the toolchain
-source of truth. The current stack uses TypeScript 7, Vitest 4, Biome, and
+source of truth. The current stack uses TypeScript 7, Vitest 5, Biome, and
 VitePress. Node support is declared in `engines`; CI tests Node 22, 24, and 26.
 The [SDK migration guide](docs/sdk_migration.md) documents the OpenAI 7,
 Agents 0.17, and Zod 4 compatibility boundaries.
