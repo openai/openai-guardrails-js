@@ -6,6 +6,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Routine updates are major-only; security updates can use any version.
+    allow:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     # Routine version updates wait eight days; security updates are exempt.
     cooldown:
       default-days: 8
@@ -15,5 +20,10 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    # Routine updates are major-only; security updates can use any version.
+    allow:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
     cooldown:
       default-days: 8
