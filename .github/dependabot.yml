@@ -9,6 +9,12 @@ updates:
     # Routine version updates wait eight days; security updates are exempt.
     cooldown:
       default-days: 8
+    groups:
+      # Vitest and its plugins require matching versions, including major updates.
+      vitest:
+        patterns:
+          - vitest
+          - '@vitest/*'
 
   - package-ecosystem: github-actions
     directory: /
