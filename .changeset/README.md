@@ -41,10 +41,10 @@ Use `npm run changeset -- status` to preview pending releases. Do not manually b
 1. Merging changesets into `main` runs `publish.yml`, which creates or updates the
    `changeset-release/main` PR. It updates `package.json`, `package-lock.json`, and
    `CHANGELOG.md` and consumes the pending changesets.
-2. Review the version and release notes. For PRs created or updated using
-   `GITHUB_TOKEN`, select **Approve workflows to run** when GitHub requests it,
-   then wait for all required checks on the current PR commit before merging.
-   [GitHub documents this approval requirement](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+2. Review the version and release notes. Changesets authenticates with the
+   `openai-sdks` GitHub App so release PR creation and updates trigger normal PR
+   workflows. Wait for all required checks on the current PR commit and required
+   review before merging through the merge queue.
    The **CI** workflow can also be run manually on `changeset-release/main` for
    diagnostics (`gh workflow run ci.yml --ref changeset-release/main`).
 3. Merge the release PR. `publish.yml` builds, tests, and lints, then publishes the
@@ -55,17 +55,28 @@ Use `npm run changeset -- status` to preview pending releases. Do not manually b
 ### Publishing trust boundary
 
 Protected `main` is the publishing trust boundary. Code merged into `main` is
-trusted to use the release job's GitHub token and npm OIDC publishing authority,
-including during dependency installation, builds, and tests. These permissions
-are intentionally available on every main-branch release workflow run, including
-runs that prepare a version PR and manual reruns on `main`.
+trusted to use npm OIDC publishing authority, including during dependency
+installation, builds, and tests. The job's `GITHUB_TOKEN` has only `contents: read`
+for checkout and `id-token: write` for npm trusted publishing. The App token is
+minted after installation, build, tests, and lint pass, immediately before
+Changesets. The private key is passed only to the token action. Checkout does not
+persist credentials, and Changesets uses its default GitHub API mode for commits
+and tags, without installing App credentials in Git configuration.
+
+Changesets passes the App token to its version and publish subprocesses as
+`GITHUB_TOKEN`; their scripts, dependencies, and npm lifecycle hooks are part of
+the trusted-main release boundary. Step ordering reduces token exposure but does
+not isolate these processes from other code running in the same job. npm OIDC
+authority remains available on main runs that prepare a version PR and manual
+reruns on `main`.
 
 The Changesets version PR controls the normal version/changelog release process;
 it is not a separate credential-approval gate. The `publish` environment allows
 only the exact `main` branch and has no required reviewers. SDK-team review of
 the release PR is the human approval gate. Maintain branch protections,
 code-owner review, required checks, and the
-merge queue, and restrict access to any administrative bypasses.
+merge queue. Keep admin bypass disabled on the `publish` environment; do not add
+the App to branch or ruleset bypass lists.
 
 The workflow uses npm trusted publishing (OIDC) with Node 24 and its bundled npm. Keep the
 npm trusted publisher configured for `openai/openai-guardrails-js` and the workflow
@@ -77,10 +88,37 @@ that environment. For recovery afterward, start a new workflow run on current
 No npm token is needed. GitHub Actions must be allowed to
 create pull requests in the repository settings.
 
-Changesets uses the repository's `GITHUB_TOKEN` for version PRs, Git tags, and
-GitHub Releases. No GitHub App is required. Publishing happens in the same
-workflow as tag creation, so it does not depend on token-created tags triggering
-another workflow. Changesets is the only release automation in this repository.
+The `publish` environment holds the `OPENAI_SDKS_APP_CLIENT_ID` variable and
+`OPENAI_SDKS_APP_PRIVATE_KEY` secret for the installed `openai-sdks` App. Verify
+credential presence using environment metadata only; never retrieve or print
+private key material. The full-SHA-pinned `actions/create-github-app-token` action
+requests a token for only the current repository, with `contents: write` and
+`pull_requests: write`. The token expires after one hour and the action attempts
+revocation in its post-job cleanup, including after failures. Do not disable that
+cleanup or substitute a long-lived token.
+
+Changesets uses this App token for version PRs, Git tags, and GitHub Releases;
+npm publishing continues to use OIDC. Publishing happens in the same workflow as
+tag creation. Changesets is the only release automation in this repository.
+
+### App migration rollout
+
+After the workflow change is reviewed and merged, inspect a new `publish.yml`
+run on current `main`. Confirm the App token step succeeds, then verify that a
+release PR created or updated by the App gets normal CI and CodeQL checks on its
+current head. Do not bypass required review, checks, or the merge queue. A run
+with no pending changesets may publish an unpublished version; it is not a dry
+run. During the next approved release, verify npm publication, the matching
+`v<version>` tag, and GitHub Release. Local workflow tests do not verify App
+installation permissions, key validity, or an end-to-end production release.
+
+If token creation fails, check installation access, environment variable/secret
+metadata, and the App's repository permissions without exposing the key. Have
+the credential owner repair provisioning, then start a new run on current
+`main`. Do not weaken environment restrictions or change the npm trusted
+publisher binding to recover. Avoid rerunning a pre-migration workflow revision;
+if a rollback is necessary, review it as a workflow change and account for the
+different PR workflow-trigger behavior of `GITHUB_TOKEN`.
 
 The **Publish Package** workflow can be manually rerun on `main` after a failure.
 Changesets skips versions already published to npm. If npm publishing succeeded

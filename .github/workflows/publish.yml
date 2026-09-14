@@ -18,8 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: publish
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read # Checkout only; Changesets uses the App token below
       id-token: write # Required for npm trusted publishing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
@@ -36,10 +35,22 @@ jobs:
       - run: npm run build --if-present
       - run: npm run test -- --run
       - run: npm run lint
+      # Mint only after validation; never persist App credentials in checkout.
+      - name: Create release App token
+        id: release-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.OPENAI_SDKS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.OPENAI_SDKS_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          skip-token-revoke: false
       - name: Create release PR or publish
         uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1 # v2.1.1
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.release-token.outputs.token }}
           version-script: npm run version-packages
           publish-script: npm run release
           pr-title: 'chore: release @openai/guardrails'
