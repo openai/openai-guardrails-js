@@ -2,6 +2,7 @@
  * Tests for OpenAI vector store creation utilities.
  */
 
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fsMock = {
@@ -77,30 +78,88 @@ describe('createOpenAIVectorStoreFromPath', () => {
     vi.resetModules();
   });
 
-  it('creates a vector store from directory files', async () => {
+  it.each(['/tmp/docs', '/tmp/documents.v1', '/tmp/archive.zip'])(
+    'creates a vector store from directory files in %s',
+    async (path) => {
+      fsMock.access.mockResolvedValue(undefined);
+      fsMock.stat.mockResolvedValue({
+        isFile: () => false,
+        isDirectory: () => true,
+      });
+      fsMock.readdir.mockResolvedValue([
+        {
+          isFile: () => true,
+          name: 'doc.txt',
+        },
+      ]);
+      fsMock.readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+      const id = await createOpenAIVectorStoreFromPath(path, { apiKey: 'k' });
+
+      expect(id).toBe('vs_123');
+      expect(openAiInstances[0].vectorStores.create).toHaveBeenCalled();
+      expect(openAiInstances[0].files.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          file: expect.any(File),
+          purpose: 'assistants',
+        })
+      );
+      expect(fsMock.readFile).toHaveBeenCalledWith(join(path, 'doc.txt'));
+    }
+  );
+
+  it.each(['/tmp/doc.txt', '/tmp/doc.TXT'])(
+    'creates a vector store from the supported file %s',
+    async (path) => {
+      fsMock.access.mockResolvedValue(undefined);
+      fsMock.stat.mockResolvedValue({
+        isFile: () => true,
+        isDirectory: () => false,
+      });
+      fsMock.readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
+
+      await expect(createOpenAIVectorStoreFromPath(path, { apiKey: 'k' })).resolves.toBe('vs_123');
+      expect(fsMock.readFile).toHaveBeenCalledWith(path);
+      expect(fsMock.readdir).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(['/tmp/doc.zip', '/tmp/doc'])(
+    'rejects the unsupported file %s without uploading',
+    async (path) => {
+      fsMock.access.mockResolvedValue(undefined);
+      fsMock.stat.mockResolvedValue({
+        isFile: () => true,
+        isDirectory: () => false,
+      });
+
+      await expect(createOpenAIVectorStoreFromPath(path, { apiKey: 'k' })).rejects.toThrow(
+        `No supported files found in ${path}`
+      );
+      expect(openAiInstances[0].files.create).not.toHaveBeenCalled();
+    }
+  );
+
+  it('filters unsupported files and subdirectories inside dotted directories', async () => {
     fsMock.access.mockResolvedValue(undefined);
     fsMock.stat.mockResolvedValue({
       isFile: () => false,
       isDirectory: () => true,
     });
     fsMock.readdir.mockResolvedValue([
-      {
-        isFile: () => true,
-        name: 'doc.txt',
-      },
+      { isFile: () => true, name: 'doc.TXT' },
+      { isFile: () => true, name: 'archive.zip' },
+      { isFile: () => true, name: 'no-extension' },
+      { isFile: () => false, name: 'nested.txt' },
     ]);
     fsMock.readFile.mockResolvedValue(new Uint8Array([1, 2, 3]));
 
-    const id = await createOpenAIVectorStoreFromPath('/tmp/docs', { apiKey: 'k' });
-
-    expect(id).toBe('vs_123');
-    expect(openAiInstances[0].vectorStores.create).toHaveBeenCalled();
-    expect(openAiInstances[0].files.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        file: expect.any(File),
-        purpose: 'assistants',
-      })
-    );
+    await expect(
+      createOpenAIVectorStoreFromPath('/tmp/documents.v1', { apiKey: 'k' })
+    ).resolves.toBe('vs_123');
+    expect(fsMock.readFile).toHaveBeenCalledTimes(1);
+    expect(fsMock.readFile).toHaveBeenCalledWith(join('/tmp/documents.v1', 'doc.TXT'));
+    expect(openAiInstances[0].files.create).toHaveBeenCalledTimes(1);
   });
 
   it('throws when directory has no supported files', async () => {
