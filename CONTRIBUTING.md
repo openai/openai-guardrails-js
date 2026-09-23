@@ -1,7 +1,24 @@
 # Contributing
 
-Thanks for contributing to OpenAI Guardrails for TypeScript! Bug reports, documentation
-improvements, and focused code changes are welcome.
+## Contribution policy
+
+We welcome bug reports, feature requests, minimal reproductions, and root-cause
+analysis through [GitHub issues](https://github.com/openai/openai-guardrails-js/issues).
+
+**Pull requests are limited to repository collaborators. We do not accept pull
+requests from non-collaborators**, including documentation or example changes.
+If you are not a collaborator, please open an issue instead of preparing a pull
+request. Include the affected version, expected and actual behavior, and a small,
+sanitized reproduction when applicable.
+
+Report suspected security vulnerabilities privately as described in
+[SECURITY.md](SECURITY.md), rather than in issues or pull requests.
+
+The development and pull request instructions below are for maintainers and
+repository collaborators.
+
+Thank you for helping improve OpenAI Guardrails for TypeScript. Please share bug
+reports and proposals for documentation or code improvements through issues.
 
 ## Reporting bugs and proposing changes
 
@@ -20,8 +37,8 @@ or Node.js 26+, along with npm. Vitest 5 does not support Node.js 23 or 25.
 CI tests Node.js 22, 24, and 26. The published package's runtime requirements
 are documented in [the README](README.md).
 
-Fork the repository if you do not have write access, then clone your fork and create
-a branch for your change.
+Repository collaborators can clone the repository and create a branch for their
+change.
 
 From the repository root, install the locked dependencies and build:
 
