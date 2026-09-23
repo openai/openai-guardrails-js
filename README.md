@@ -103,6 +103,13 @@ npx tsx examples/basic/hello_world.ts
 
 See the [examples guide](examples/README.md) for more examples and their prerequisites, and the [release guide](.changeset/README.md) for publishing.
 
+## Contributing
+
+Please share bug reports and feature requests through [GitHub issues](https://github.com/openai/openai-guardrails-js/issues).
+Pull requests are limited to repository collaborators; we do not accept pull requests from non-collaborators.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the contribution policy and development guide.
+For security vulnerabilities, follow [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE).
