@@ -113,18 +113,11 @@ async function getFilePaths(path: string): Promise<string[]> {
     '.txt',
   ];
 
-  // Check extension before stat if it looks like a file
-  const ext = pathModule.extname(path).toLowerCase();
-  if (ext && !supportedFileTypes.includes(ext)) {
-    // If the path has an extension and it's not supported, skip stat and return []
-    return [];
-  }
-
   try {
     const stat = await fs.stat(path);
 
     if (stat.isFile()) {
-      // ext already calculated above
+      const ext = pathModule.extname(path).toLowerCase();
       return supportedFileTypes.includes(ext) ? [path] : [];
     } else if (stat.isDirectory()) {
       const files: string[] = [];
