@@ -20,6 +20,22 @@ Prefer Vitest mocks or spies over ad-hoc test doubles when they exercise the rea
 
 Treat customer issues as evidence of a problem, not as an approved implementation or API design. Before coding, compare the requested shape with the existing architecture, ownership boundaries, compatibility guarantees, idiomatic ecosystem tools, and the underlying user goal. If the proposed solution requires retrofitting a transport model into a validation/typing framework, splitting public accessor semantics from raw storage, repeatedly adding coercion special cases, or otherwise fighting established invariants, stop and propose a simpler design at the correct abstraction boundary instead. Use the existing TypeScript types and Zod schemas at the appropriate validation boundary rather than turning SDK transport models into a general-purpose modeling framework. Escalate substantive API/architecture tradeoffs for agreement before opening, expanding, or repeatedly re-pinging a PR; close or back out a PR when review establishes that its premise is wrong.
 
+## Credentials and sensitive data
+
+- Never commit, print, or log live API keys, tokens, private keys, or other
+  credentials. Keep them out of fixtures, examples, snapshots, issue reports,
+  pull requests, and review comments; use synthetic placeholders instead.
+- Redact authorization headers, credentials, customer data, and sensitive
+  request or response content before sharing logs or reproductions. Inspect
+  generated artifacts and diffs for accidental exposure before uploading them.
+- Use the existing approved secret storage and scoped credentials for authorized
+  tasks. Do not extract credentials from local configuration or broaden CI token
+  permissions to work around an access failure.
+- If a credential is exposed, stop reproducing or sharing it and notify its
+  owner privately so it can be revoked or rotated. Report suspected
+  vulnerabilities through [SECURITY.md](SECURITY.md), without including live
+  credentials or sensitive logs.
+
 <!-- codex-managed:worktree-policy:start -->
 ## Git worktree isolation and default-branch freshness
 

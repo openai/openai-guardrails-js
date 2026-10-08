@@ -85,8 +85,10 @@ this binding, merge the workflow environment change and wait for all publish
 runs using the old workflow to finish before restricting the npm publisher to
 that environment. For recovery afterward, start a new workflow run on current
 `main` rather than rerunning a pre-change workflow revision.
-No npm token is needed. GitHub Actions must be allowed to
-create pull requests in the repository settings.
+No npm token is needed. Keep the repository's default workflow-token permissions
+read-only and **Allow GitHub Actions to create and approve pull requests**
+disabled. Changesets creates release PRs with the separately scoped App token,
+so it does not need that `GITHUB_TOKEN` permission.
 
 The `publish` environment holds the `OPENAI_SDKS_APP_CLIENT_ID` variable and
 `OPENAI_SDKS_APP_PRIVATE_KEY` secret for the installed `openai-sdks` App. Verify
