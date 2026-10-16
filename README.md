@@ -49,8 +49,6 @@ main().catch(() => {
 });
 ```
 
-This example uses [`gpt-6-astra`](https://developers.openai.com/api/docs/models/gpt-6-astra), the starting model recommended in the [OpenAI model guide](https://developers.openai.com/api/docs/models). Guardrails does not require this model; choose a supported model available to your project for your workload.
-
 Run it with:
 
 ```bash
