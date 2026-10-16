@@ -66,7 +66,7 @@ async function main() {
     
     try {
         const response = await client.responses.create({
-            model: "gpt-5",
+            model: "gpt-6-astra",
             input: "Hello world"
         });
         
@@ -82,6 +82,8 @@ async function main() {
 
 main();
 ```
+
+This example uses [`gpt-6-astra`](https://developers.openai.com/api/docs/models/gpt-6-astra), the starting model recommended in the [OpenAI model guide](https://developers.openai.com/api/docs/models). Guardrails does not require this model; choose a supported model available to your project for your workload.
 
 **That's it!** Your existing OpenAI code now includes automatic guardrail validation based on your pipeline configuration. The response object works exactly like the original OpenAI response with additional `guardrail_results` property.
 
