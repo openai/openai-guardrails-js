@@ -30,7 +30,7 @@ async function main() {
 
   try {
     const response = await client.responses.create({
-      model: 'gpt-5',
+      model: 'gpt-6-astra',
       input: 'Hello world',
     });
     console.log(response.output_text);
