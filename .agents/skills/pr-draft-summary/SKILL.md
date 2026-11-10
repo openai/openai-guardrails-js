@@ -62,11 +62,6 @@ necessary to its outcome, repeating the required review/checks before updates.
 Retry evidenced transient failures; report unrelated failures separately.
 Stop repeated retries when there is no new evidence or progress.
 
-Once current-head CI and CodeQL pass, request review in root `#sdk-reviews` as
-required by AGENTS.md and authorized for the task. For a stack, one message can list all PRs
-in dependency order; do not post it as a thread reply. If messaging is unavailable,
-report the blocker and provide the prepared request without claiming it was sent.
-
 When addressing feedback, inspect the whole affected diff, push the reviewed
 fix, then reply to the particular review thread explaining the correction and
 resolve it. Do not resolve feedback that remains unaddressed. If an earlier
