@@ -2,8 +2,7 @@
 
 Monitor PR CI. Fix only introduced/worsened failures or narrowly necessary
 corrections; report unrelated failures and retry transient/flaky checks when
-appropriate. After CI passes, request review in root `#sdk-reviews`, never a
-thread. For feedback fixes, push, explain the correction in the review comment,
+appropriate. For feedback fixes, push, explain the correction in the review comment,
 then resolve it.
 
 ## Task scope and review discipline
